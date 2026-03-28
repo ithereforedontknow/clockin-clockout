@@ -33,43 +33,54 @@ import {
 import type { TimeOffRequest } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
 
+const STATUS_STYLES: Record<string, string> = {
+  pending: "bg-amber-50 text-amber-700",
+  approved: "bg-green-50 text-green-700",
+  denied: "bg-red-50 text-red-700",
+  canceled: "bg-muted text-muted-foreground",
+}
+
 export function TimeOffTab() {
   const [requestOpen, setRequestOpen] = useState(false)
   const [editRequest, setEditRequest] = useState<TimeOffRequest | null>(null)
   const [calcCategoryId, setCalcCategoryId] = useState<string>("")
   const [calcDate, setCalcDate] = useState("")
+
   const { data: employee } = useCurrentEmployee()
-  const { data: balances = [], isLoading: balLoading } = useTimeOffBalances(
-    employee?.id ?? ""
-  )
-  const { data: history = [], isLoading: histLoading } = useTimeOffHistory(
-    employee?.id ?? ""
-  )
+
+  // ✅ ?? "" keeps TypeScript happy; enabled: !!employeeId inside
+  //    each hook prevents firing until the id is ready.
+  const employeeId = employee?.id ?? ""
+
+  const { data: balances = [], isLoading: balLoading } =
+    useTimeOffBalances(employeeId)
+  const { data: history = [], isLoading: histLoading } =
+    useTimeOffHistory(employeeId)
   const updateRequest = useUpdateTimeOffRequest()
 
-  const calcBalance = () => {
+  const futureBalance = (() => {
     if (!calcCategoryId || !calcDate) return null
     const b = balances.find((b) => b.category_id === calcCategoryId)
-    if (!b || !b.category) return null
+    if (!b?.category) return null
     return calculateFutureBalance(
       b.balance,
       b.scheduled,
       b.category.accrual_rate,
       new Date(calcDate)
     )
-  }
+  })()
 
   async function handleCancel(req: TimeOffRequest) {
+    // ✅ employee!.id — safe: button only renders when employee is loaded
+    if (!employee) return
     await updateRequest.mutateAsync({
       id: req.id,
-      employeeId: employee?.id,
+      employeeId: employee.id,
       updates: { status: "canceled" },
     })
     toast.success("Time off request canceled")
     setEditRequest(null)
   }
-
-  const futureBalance = calcBalance()
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -85,7 +96,7 @@ export function TimeOffTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Clock className="h-4 w-4" />
+            <Clock className="h-4 w-4 text-primary" />
             Current Balances
           </CardTitle>
         </CardHeader>
@@ -101,20 +112,22 @@ export function TimeOffTab() {
           ) : (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               {balances.map((b) => (
-                <div key={b.id} className="rounded-lg border p-4">
-                  <p className="text-sm font-medium">{b.category?.name}</p>
+                <div key={b.id} className="rounded-lg border border-border p-4">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {b.category?.name}
+                  </p>
                   <p className="mt-1 text-2xl font-bold">
                     {b.balance}
-                    <span className="ml-1 text-sm font-normal">
+                    <span className="ml-1 text-sm font-normal text-muted-foreground">
                       {b.category?.unit}
                     </span>
                   </p>
                   {b.scheduled > 0 && (
-                    <p className="mt-1 text-xs">
+                    <p className="mt-1 text-xs text-amber-600">
                       {b.scheduled} {b.category?.unit} scheduled
                     </p>
                   )}
-                  <p className="mt-1 text-xs">
+                  <p className="mt-1 text-xs text-muted-foreground">
                     Available: {b.balance - b.scheduled} {b.category?.unit}
                   </p>
                 </div>
@@ -128,7 +141,7 @@ export function TimeOffTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            <Calculator className="h-4 w-4" />
+            <Calculator className="h-4 w-4 text-primary" />
             Calculate Future Balance
           </CardTitle>
         </CardHeader>
@@ -138,7 +151,7 @@ export function TimeOffTab() {
               <Label className="mb-1 block text-sm">Time Off Category</Label>
               <Select value={calcCategoryId} onValueChange={setCalcCategoryId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select category..." />
+                  <SelectValue placeholder="Select category…" />
                 </SelectTrigger>
                 <SelectContent>
                   {balances.map((b) => (
@@ -159,10 +172,12 @@ export function TimeOffTab() {
               />
             </div>
             {futureBalance !== null && (
-              <div className="min-w-25 rounded-lg border px-5 py-3 text-center">
-                <p className="text-xs font-medium">Projected</p>
+              <div className="min-w-[100px] rounded-lg border border-border px-5 py-3 text-center">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Projected
+                </p>
                 <p className="text-2xl font-bold">{futureBalance.toFixed(1)}</p>
-                <p className="text-xs">
+                <p className="text-xs text-muted-foreground">
                   {
                     balances.find((b) => b.category_id === calcCategoryId)
                       ?.category?.unit
@@ -189,7 +204,9 @@ export function TimeOffTab() {
                 ))}
             </div>
           ) : history.length === 0 ? (
-            <p className="py-8 text-center text-sm">No time off requests yet</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No time off requests yet
+            </p>
           ) : (
             <div className="space-y-2">
               {history.map((req, idx) => {
@@ -199,27 +216,25 @@ export function TimeOffTab() {
                 return (
                   <div key={req.id}>
                     <div className="flex items-center justify-between py-3">
-                      <div className="flex items-center gap-4">
-                        <div>
-                          <p className="text-sm font-medium">
-                            {req.category?.name}
+                      <div>
+                        <p className="text-sm font-medium">
+                          {req.category?.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {format(new Date(req.start_date), "MMM d")} –{" "}
+                          {format(new Date(req.end_date), "MMM d, yyyy")} ·{" "}
+                          {req.amount} {req.category?.unit}
+                        </p>
+                        {req.note && (
+                          <p className="mt-0.5 text-xs text-muted-foreground italic">
+                            "{req.note}"
                           </p>
-                          <p className="text-xs">
-                            {format(new Date(req.start_date), "MMM d")} –{" "}
-                            {format(new Date(req.end_date), "MMM d, yyyy")} ·{" "}
-                            {req.amount} {req.category?.unit}
-                          </p>
-                          {req.note && (
-                            <p className="mt-0.5 text-xs italic">
-                              "{req.note}"
-                            </p>
-                          )}
-                        </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge
                           variant="secondary"
-                          className="text-xs capitalize"
+                          className={`text-xs capitalize ${STATUS_STYLES[req.status] ?? ""}`}
                         >
                           {req.status}
                         </Badge>
@@ -246,6 +261,7 @@ export function TimeOffTab() {
 
       {/* Dialogs */}
       <RequestTimeOffDialog open={requestOpen} onOpenChange={setRequestOpen} />
+
       {editRequest && (
         <Dialog open={!!editRequest} onOpenChange={() => setEditRequest(null)}>
           <DialogContent>
@@ -253,22 +269,22 @@ export function TimeOffTab() {
               <DialogTitle>Manage Time Off Request</DialogTitle>
             </DialogHeader>
             <div className="space-y-3 py-2">
-              <div className="space-y-1 rounded-lg p-4 text-sm">
+              <div className="space-y-1.5 rounded-lg bg-muted/50 p-4 text-sm">
                 <p>
-                  <span className="">Category: </span>
+                  <span className="text-muted-foreground">Category: </span>
                   {editRequest.category?.name}
                 </p>
                 <p>
-                  <span className="">Dates: </span>
+                  <span className="text-muted-foreground">Dates: </span>
                   {format(new Date(editRequest.start_date), "MMM d")} –{" "}
                   {format(new Date(editRequest.end_date), "MMM d, yyyy")}
                 </p>
                 <p>
-                  <span className="">Amount: </span>
+                  <span className="text-muted-foreground">Amount: </span>
                   {editRequest.amount} {editRequest.category?.unit}
                 </p>
                 <p>
-                  <span className="">Status: </span>
+                  <span className="text-muted-foreground">Status: </span>
                   <span className="capitalize">{editRequest.status}</span>
                 </p>
               </div>
@@ -279,12 +295,12 @@ export function TimeOffTab() {
               </Button>
               <Button
                 variant="destructive"
-                disabled={updateRequest.isPending}
+                disabled={updateRequest.isPending || !employee}
                 onClick={() => handleCancel(editRequest)}
               >
-                {updateRequest.isPending ? (
+                {updateRequest.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : null}
+                )}
                 Cancel Request
               </Button>
             </DialogFooter>

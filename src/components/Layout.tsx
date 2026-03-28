@@ -7,7 +7,6 @@ import {
   Bell,
   LogOut,
   Timer,
-  ClipboardList,
   BarChart3,
   AlarmClock,
 } from "lucide-react"
@@ -37,7 +36,6 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Home", icon: Home },
-  { id: "clock", label: "Clock", icon: AlarmClock },
   { id: "timesheet", label: "Timesheet", icon: Timer },
   { id: "timeoff", label: "Time Off", icon: Clock },
   { id: "people", label: "People", icon: Users },

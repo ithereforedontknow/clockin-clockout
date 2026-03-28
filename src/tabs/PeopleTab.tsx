@@ -52,10 +52,10 @@ export function PeopleTab() {
       {view === "directory" ? (
         <>
           <div className="relative">
-            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
+            <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               className="pl-9"
-              placeholder="Search by name, department, or title..."
+              placeholder="Search by name, department, or title…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -80,7 +80,7 @@ export function PeopleTab() {
                 ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="py-16 text-center">
+            <div className="py-16 text-center text-muted-foreground">
               No employees found matching "{search}"
             </div>
           ) : (
@@ -91,16 +91,16 @@ export function PeopleTab() {
             </div>
           )}
 
-          <p className="text-center text-xs">
+          <p className="text-center text-xs text-muted-foreground">
             Showing {filtered.length} of {employees.length} employees
           </p>
         </>
       ) : (
         <Card>
-          <CardContent className="flex h-64 flex-col items-center justify-center">
-            <Network className="mb-3 h-12 w-12" />
+          <CardContent className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
+            <Network className="h-12 w-12 text-muted" />
             <p className="font-medium">Org Chart</p>
-            <p className="mt-1 text-sm">
+            <p className="text-sm">
               Connect your org data to render the reporting structure here.
             </p>
           </CardContent>
@@ -118,15 +118,17 @@ function EmployeeCard({ employee: emp }: { employee: Employee }) {
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10">
             <AvatarImage src={emp.avatar_url ?? undefined} />
-            <AvatarFallback className="text-sm font-semibold">
+            <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
               {initials}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="group-hover: truncate font-medium transition-colors">
+            <p className="truncate font-medium transition-colors group-hover:text-primary">
               {emp.first_name} {emp.last_name}
             </p>
-            <p className="truncate text-xs">{emp.job_title}</p>
+            <p className="truncate text-xs text-muted-foreground">
+              {emp.job_title}
+            </p>
           </div>
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -137,7 +139,9 @@ function EmployeeCard({ employee: emp }: { employee: Employee }) {
             {emp.location}
           </Badge>
         </div>
-        <p className="mt-2 truncate text-xs">{emp.email}</p>
+        <p className="mt-2 truncate text-xs text-muted-foreground">
+          {emp.email}
+        </p>
       </CardContent>
     </Card>
   )

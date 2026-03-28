@@ -3,58 +3,81 @@ import {
   format,
   startOfWeek,
   addWeeks,
-  subWeeks,
   eachDayOfInterval,
   addDays,
 } from "date-fns"
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, Pencil } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useCurrentEmployee, useClockHistory } from "@/lib/queries"
+import { Separator } from "@/components/ui/separator"
+import {
+  useCurrentEmployee,
+  useClockHistory,
+  useMyCorrections,
+} from "@/lib/queries"
 import { formatMinutes } from "@/lib/supabase"
 import type { ClockEntry, BreakEntry } from "@/lib/supabase"
+import { ClockCorrectionDialog } from "@/components/ClockCorrectionDialog"
 
-export function TimesheetTab() {
+export function TimeSheetTab() {
   const { data: employee } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
 
   const [weekOffset, setWeekOffset] = useState(0)
   const baseDate = addWeeks(new Date(), weekOffset)
-  const weekStart = startOfWeek(baseDate, { weekStartsOn: 1 }) // Mon
+  const weekStart = startOfWeek(baseDate, { weekStartsOn: 1 })
   const weekStartStr = format(weekStart, "yyyy-MM-dd")
+  const today = new Date().toISOString().slice(0, 10)
 
   const { data: entries = [], isLoading } = useClockHistory(
     employeeId,
     weekStartStr
   )
+  const { data: corrections = [] } = useMyCorrections(employeeId)
+
+  // Entry selected for correction dialog
+  const [correcting, setCorrecting] = useState<
+    (ClockEntry & { breaks: BreakEntry[] }) | null
+  >(null)
 
   const weekDays = eachDayOfInterval({
     start: weekStart,
     end: addDays(weekStart, 6),
   })
-
-  // Map date string → entry
   const entryByDate = new Map(entries.map((e) => [e.date, e]))
 
-  // Compute week totals
-  const weekdayEntries = entries.filter((e) => {
-    const d = new Date(e.date).getDay()
-    return d !== 0 && d !== 6
-  })
+  // Map entryId → correction status so rows know if there's a pending request
+  const correctionByEntryId = new Map(
+    corrections.map((c) => [c.clock_entry_id, c])
+  )
+
+  // Week totals (weekdays only)
+  const weekdayEntries = entries.filter(
+    (e) => ![0, 6].includes(new Date(e.date).getDay())
+  )
   const totalWorkedMins = weekdayEntries.reduce(
     (s, e) => s + (e.total_minutes ?? 0),
     0
   )
   const standardWeekMins = (employee?.standard_hours_per_week ?? 40) * 60
   const weekOvertimeMins = Math.max(0, totalWorkedMins - standardWeekMins)
+  const pendingCount = corrections.filter((c) => c.status === "pending").length
 
   return (
     <div className="max-w-4xl space-y-4">
-      {/* Week navigator */}
+      {/* Header + week nav */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Timesheet</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Timesheet</h1>
+          {pendingCount > 0 && (
+            <p className="mt-0.5 text-xs text-amber-600">
+              {pendingCount} correction{" "}
+              {pendingCount === 1 ? "request" : "requests"} pending review
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
@@ -83,7 +106,7 @@ export function TimesheetTab() {
         </div>
       </div>
 
-      {/* Weekly summary strip */}
+      {/* Summary strip */}
       <div className="grid grid-cols-3 gap-3">
         <SummaryCard
           label="Total Worked"
@@ -135,9 +158,9 @@ export function TimesheetTab() {
                 const entry = entryByDate.get(dateStr) as
                   | (ClockEntry & { breaks: BreakEntry[] })
                   | undefined
-                const isWeekend = day.getDay() === 0 || day.getDay() === 6
-                const isToday =
-                  dateStr === new Date().toISOString().slice(0, 10)
+                const isWeekend = [0, 6].includes(day.getDay())
+                const isToday = dateStr === today
+                const isFuture = dateStr > today
                 const worked = entry?.total_minutes ?? 0
                 const stdMins = (employee?.standard_hours_per_day ?? 8) * 60
                 const ot = Math.max(0, worked - stdMins)
@@ -146,12 +169,27 @@ export function TimesheetTab() {
                   0
                 )
 
+                // Correction state for this entry
+                const correction = entry
+                  ? correctionByEntryId.get(entry.id)
+                  : undefined
+                const hasPending = correction?.status === "pending"
+                const wasApproved = correction?.status === "approved"
+
+                // An entry is editable if:
+                // - it exists, has clocked out, is not today, not in the future
+                // - and has no pending correction already
+                const canEdit =
+                  !!entry &&
+                  !!entry.clock_out &&
+                  !isToday &&
+                  !isFuture &&
+                  !hasPending
+
                 return (
                   <div
                     key={dateStr}
-                    className={`flex items-center gap-4 px-4 py-3 ${
-                      isWeekend ? "bg-muted/30" : ""
-                    } ${isToday ? "bg-primary/5" : ""}`}
+                    className={`flex items-center gap-4 px-4 py-3 ${isWeekend ? "bg-muted/30" : ""} ${isToday ? "bg-primary/5" : ""}`}
                   >
                     {/* Day label */}
                     <div className="w-24 shrink-0">
@@ -180,18 +218,23 @@ export function TimesheetTab() {
                               ({formatMinutes(breakMins)} break)
                             </span>
                           )}
+                          {entry.notes && (
+                            <span className="max-w-[160px] truncate text-xs text-muted-foreground italic">
+                              "{entry.notes}"
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-sm text-muted-foreground">
-                          {isWeekend ? "Weekend" : "No entry"}
+                          {isWeekend ? "Weekend" : isFuture ? "—" : "No entry"}
                         </span>
                       )}
                     </div>
 
-                    {/* Hours */}
-                    <div className="shrink-0 text-right">
+                    {/* Right side: hours + status + edit */}
+                    <div className="flex shrink-0 items-center gap-2">
                       {entry && worked > 0 && (
-                        <>
+                        <div className="text-right">
                           <p className="text-sm font-medium">
                             {formatMinutes(worked)}
                           </p>
@@ -200,8 +243,10 @@ export function TimesheetTab() {
                               +{formatMinutes(ot)} OT
                             </p>
                           )}
-                        </>
+                        </div>
                       )}
+
+                      {/* Status badges */}
                       {entry && !entry.clock_out && (
                         <Badge
                           variant="outline"
@@ -209,6 +254,35 @@ export function TimesheetTab() {
                         >
                           Active
                         </Badge>
+                      )}
+                      {hasPending && (
+                        <Badge
+                          variant="outline"
+                          className="border-amber-200 bg-amber-50 text-xs text-amber-700"
+                        >
+                          Correction pending
+                        </Badge>
+                      )}
+                      {wasApproved && (
+                        <Badge
+                          variant="outline"
+                          className="border-green-200 bg-green-50 text-xs text-green-700"
+                        >
+                          Corrected
+                        </Badge>
+                      )}
+
+                      {/* Edit button */}
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                          onClick={() => setCorrecting(entry)}
+                          title="Request correction"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -218,7 +292,71 @@ export function TimesheetTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* My correction history */}
+      {corrections.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">
+              My Correction Requests
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {corrections.map((c, idx) => (
+                <div
+                  key={c.id}
+                  className="flex items-start justify-between gap-4 px-4 py-3"
+                >
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className="text-sm font-medium">
+                      {c.clock_entry
+                        ? format(
+                            new Date((c.clock_entry as ClockEntry).date),
+                            "EEE, MMM d"
+                          )
+                        : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      "{c.reason}"
+                    </p>
+                    {c.reviewer_comment && (
+                      <p className="text-xs text-muted-foreground">
+                        Reviewer note: "{c.reviewer_comment}"
+                      </p>
+                    )}
+                  </div>
+                  <CorrectionStatusBadge status={c.status} />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Correction dialog */}
+      <ClockCorrectionDialog
+        entry={correcting}
+        employeeId={employeeId}
+        onClose={() => setCorrecting(null)}
+      />
     </div>
+  )
+}
+
+function CorrectionStatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    pending: "bg-amber-50 text-amber-700 border-amber-200",
+    approved: "bg-green-50 text-green-700 border-green-200",
+    denied: "bg-red-50 text-red-700 border-red-200",
+  }
+  return (
+    <Badge
+      variant="outline"
+      className={`shrink-0 text-xs capitalize ${styles[status] ?? ""}`}
+    >
+      {status}
+    </Badge>
   )
 }
 

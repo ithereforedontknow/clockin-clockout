@@ -3,7 +3,6 @@ import {
   format,
   startOfWeek,
   addWeeks,
-  subWeeks,
   addDays,
   eachDayOfInterval,
 } from "date-fns"
@@ -15,12 +14,19 @@ import {
   Clock,
   TrendingUp,
   AlertCircle,
+  ClipboardEdit,
+  Check,
+  X,
+  Loader2,
 } from "lucide-react"
+import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import {
   Table,
   TableBody,
@@ -29,9 +35,28 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { useAllClockEntries, useEmployees } from "@/lib/queries"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
+import {
+  useAllClockEntries,
+  useEmployees,
+  useAllCorrections,
+  useReviewCorrection,
+  useCurrentEmployee,
+} from "@/lib/queries"
 import { formatMinutes } from "@/lib/supabase"
-import type { ClockEntry, BreakEntry, Employee } from "@/lib/supabase"
+import type {
+  ClockEntry,
+  BreakEntry,
+  Employee,
+  ClockCorrection,
+} from "@/lib/supabase"
 
 type EmployeeWeekSummary = {
   employee: Employee
@@ -44,7 +69,10 @@ type EmployeeWeekSummary = {
 export function ReportsTab() {
   const [weekOffset, setWeekOffset] = useState(0)
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState<ClockCorrection | null>(null)
+  const [reviewComment, setReviewComment] = useState("")
 
+  const { data: reviewer } = useCurrentEmployee()
   const baseDate = addWeeks(new Date(), weekOffset)
   const weekStart = startOfWeek(baseDate, { weekStartsOn: 1 })
   const weekStartStr = format(weekStart, "yyyy-MM-dd")
@@ -53,23 +81,22 @@ export function ReportsTab() {
   const { data: allEntries = [], isLoading: entriesLoading } =
     useAllClockEntries(weekStartStr)
   const { data: employees = [], isLoading: empLoading } = useEmployees()
+  const { data: corrections = [] } = useAllCorrections()
+  const reviewCorrection = useReviewCorrection()
 
   const isLoading = entriesLoading || empLoading
 
-  // Group entries by employee and compute summaries
+  const pendingCorrections = corrections.filter((c) => c.status === "pending")
+
   const summaries: EmployeeWeekSummary[] = employees.map((emp) => {
     const empEntries = allEntries.filter(
       (e) =>
-        e.employee_id === emp.id &&
-        new Date(e.date).getDay() !== 0 &&
-        new Date(e.date).getDay() !== 6
+        e.employee_id === emp.id && ![0, 6].includes(new Date(e.date).getDay())
     ) as (ClockEntry & { breaks: BreakEntry[]; employee: Employee })[]
-
     const totalMins = empEntries.reduce((s, e) => s + (e.total_minutes ?? 0), 0)
     const stdWeekMins = emp.standard_hours_per_week * 60
     const overtimeMins = Math.max(0, totalMins - stdWeekMins)
     const daysLogged = empEntries.filter((e) => e.total_minutes).length
-
     return {
       employee: emp,
       totalMins,
@@ -81,7 +108,7 @@ export function ReportsTab() {
 
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
 
-  // ── CSV Export ─────────────────────────────────────────────────────────────
+  // ── CSV Export ──────────────────────────────────────────────────────────────
   const handleExportCSV = useCallback(() => {
     const rows: string[][] = [
       [
@@ -94,17 +121,18 @@ export function ReportsTab() {
         "Overtime (min)",
       ],
     ]
-
-    for (const { employee, entries } of summaries) {
+    for (const { employee: emp, entries } of summaries) {
       for (const e of entries) {
         const breakMins = (e.breaks ?? []).reduce(
           (s: number, b: BreakEntry) => s + (b.duration_minutes ?? 0),
           0
         )
-        const stdMins = employee.standard_hours_per_day * 60
-        const otMins = Math.max(0, (e.total_minutes ?? 0) - stdMins)
+        const otMins = Math.max(
+          0,
+          (e.total_minutes ?? 0) - emp.standard_hours_per_day * 60
+        )
         rows.push([
-          `${employee.first_name} ${employee.last_name}`,
+          `${emp.first_name} ${emp.last_name}`,
           e.date,
           e.clock_in ? format(new Date(e.clock_in), "HH:mm") : "",
           e.clock_out ? format(new Date(e.clock_out), "HH:mm") : "",
@@ -114,20 +142,37 @@ export function ReportsTab() {
         ])
       }
     }
-
     const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n")
     const blob = new Blob([csv], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `clockinout-report-${weekStartStr}.csv`
+    const a = Object.assign(document.createElement("a"), {
+      href: url,
+      download: `clockinout-report-${weekStartStr}.csv`,
+    })
     a.click()
     URL.revokeObjectURL(url)
   }, [summaries, weekStartStr])
 
-  // ── Aggregate stats ────────────────────────────────────────────────────────
+  // ── Review handlers ─────────────────────────────────────────────────────────
+  async function handleReview(decision: "approved" | "denied") {
+    if (!reviewing || !reviewer) return
+    await reviewCorrection.mutateAsync({
+      correction: reviewing,
+      decision,
+      reviewerComment: reviewComment,
+      reviewerId: reviewer.id,
+    })
+    toast.success(
+      decision === "approved"
+        ? "Correction approved — entry updated"
+        : "Correction denied"
+    )
+    setReviewing(null)
+    setReviewComment("")
+  }
+
   const totalOTEmployees = summaries.filter((s) => s.overtimeMins > 0).length
-  const avgHoursMins = summaries.length
+  const avgMins = summaries.length
     ? Math.round(
         summaries.reduce((s, e) => s + e.totalMins, 0) / summaries.length
       )
@@ -135,9 +180,18 @@ export function ReportsTab() {
 
   return (
     <div className="max-w-5xl space-y-4">
-      {/* Header row */}
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Reports</h1>
+        <div>
+          <h1 className="text-2xl font-bold">Reports</h1>
+          {pendingCorrections.length > 0 && (
+            <p className="mt-0.5 text-xs text-amber-600">
+              {pendingCorrections.length} correction{" "}
+              {pendingCorrections.length === 1 ? "request" : "requests"}{" "}
+              awaiting review
+            </p>
+          )}
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-1">
             <Button
@@ -171,8 +225,8 @@ export function ReportsTab() {
         </div>
       </div>
 
-      {/* Summary KPI cards */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <KPICard
           icon={Users}
           label="Active Employees"
@@ -181,7 +235,7 @@ export function ReportsTab() {
         <KPICard
           icon={Clock}
           label="Avg Hours This Week"
-          value={isLoading ? null : formatMinutes(avgHoursMins)}
+          value={isLoading ? null : formatMinutes(avgMins)}
         />
         <KPICard
           icon={TrendingUp}
@@ -189,9 +243,98 @@ export function ReportsTab() {
           value={isLoading ? null : String(totalOTEmployees)}
           highlight={totalOTEmployees > 0}
         />
+        <KPICard
+          icon={ClipboardEdit}
+          label="Pending Corrections"
+          value={String(pendingCorrections.length)}
+          highlight={pendingCorrections.length > 0}
+        />
       </div>
 
-      {/* Per-employee table */}
+      {/* ── Pending Corrections Queue ── */}
+      {pendingCorrections.length > 0 && (
+        <Card className="border-amber-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium">
+              <ClipboardEdit className="h-4 w-4 text-amber-600" />
+              Correction Requests — Pending Review
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border">
+              {pendingCorrections.map((c) => {
+                const emp = c.employee as Employee | undefined
+                const entry = c.clock_entry as ClockEntry | undefined
+                return (
+                  <div
+                    key={c.id}
+                    className="flex items-start justify-between gap-4 px-4 py-3"
+                  >
+                    <div className="flex min-w-0 items-start gap-3">
+                      <Avatar className="mt-0.5 h-7 w-7 shrink-0">
+                        <AvatarImage src={emp?.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-primary/10 text-xs text-primary">
+                          {emp?.first_name?.[0]}
+                          {emp?.last_name?.[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 space-y-0.5">
+                        <p className="text-sm font-medium">
+                          {emp?.first_name} {emp?.last_name}
+                          {entry && (
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              {format(new Date(entry.date), "EEE, MMM d")}
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Reason: "{c.reason}"
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-muted-foreground">
+                          {c.requested_clock_in && (
+                            <span>
+                              Clock in →{" "}
+                              {format(new Date(c.requested_clock_in), "h:mm a")}
+                            </span>
+                          )}
+                          {c.requested_clock_out && (
+                            <span>
+                              Clock out →{" "}
+                              {format(
+                                new Date(c.requested_clock_out),
+                                "h:mm a"
+                              )}
+                            </span>
+                          )}
+                          {c.requested_break_minutes !== null && (
+                            <span>Break → {c.requested_break_minutes} min</span>
+                          )}
+                          {c.requested_notes !== null && (
+                            <span>Notes → "{c.requested_notes}"</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => {
+                        setReviewing(c)
+                        setReviewComment("")
+                      }}
+                    >
+                      Review
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Weekly Employee Table ── */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium">
@@ -292,10 +435,9 @@ export function ReportsTab() {
                           </TableCell>
                         </TableRow>
 
-                        {/* Expanded daily breakdown */}
                         {isExpanded && (
                           <TableRow
-                            key={`${emp.id}-expanded`}
+                            key={`${emp.id}-exp`}
                             className="bg-muted/20 hover:bg-muted/20"
                           >
                             <TableCell colSpan={6} className="p-0">
@@ -304,9 +446,7 @@ export function ReportsTab() {
                                   Daily Detail
                                 </p>
                                 {weekDays
-                                  .filter(
-                                    (d) => d.getDay() !== 0 && d.getDay() !== 6
-                                  )
+                                  .filter((d) => ![0, 6].includes(d.getDay()))
                                   .map((day) => {
                                     const dateStr = format(day, "yyyy-MM-dd")
                                     const e = entries.find(
@@ -338,14 +478,10 @@ export function ReportsTab() {
                                               {format(
                                                 new Date(e.clock_in),
                                                 "h:mm a"
-                                              )}{" "}
-                                              –{" "}
+                                              )}
                                               {e.clock_out
-                                                ? format(
-                                                    new Date(e.clock_out),
-                                                    "h:mm a"
-                                                  )
-                                                : "ongoing"}
+                                                ? ` – ${format(new Date(e.clock_out), "h:mm a")}`
+                                                : " – ongoing"}
                                             </span>
                                             <span className="font-medium">
                                               {formatMinutes(
@@ -384,6 +520,117 @@ export function ReportsTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Review Dialog ── */}
+      {reviewing && (
+        <Dialog
+          open={!!reviewing}
+          onOpenChange={(open) => {
+            if (!open) {
+              setReviewing(null)
+              setReviewComment("")
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <ClipboardEdit className="h-5 w-5 text-primary" />
+                Review Correction Request
+              </DialogTitle>
+              <DialogDescription>
+                {(reviewing.employee as Employee | undefined)?.first_name}{" "}
+                {(reviewing.employee as Employee | undefined)?.last_name} ·{" "}
+                {reviewing.clock_entry
+                  ? format(
+                      new Date((reviewing.clock_entry as ClockEntry).date),
+                      "EEE, MMM d, yyyy"
+                    )
+                  : ""}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* Requested changes */}
+              <div className="space-y-1.5 rounded-lg bg-muted/50 p-4 text-sm">
+                <p className="mb-2 font-medium">Requested changes</p>
+                {reviewing.requested_clock_in && (
+                  <p>
+                    <span className="text-muted-foreground">Clock in → </span>
+                    {format(new Date(reviewing.requested_clock_in), "h:mm a")}
+                  </p>
+                )}
+                {reviewing.requested_clock_out && (
+                  <p>
+                    <span className="text-muted-foreground">Clock out → </span>
+                    {format(new Date(reviewing.requested_clock_out), "h:mm a")}
+                  </p>
+                )}
+                {reviewing.requested_break_minutes !== null && (
+                  <p>
+                    <span className="text-muted-foreground">Break → </span>
+                    {reviewing.requested_break_minutes} min
+                  </p>
+                )}
+                {reviewing.requested_notes !== null && (
+                  <p>
+                    <span className="text-muted-foreground">Notes → </span>"
+                    {reviewing.requested_notes}"
+                  </p>
+                )}
+                <p className="pt-1 text-muted-foreground italic">
+                  "{reviewing.reason}"
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-sm">Comment (optional)</Label>
+                <Textarea
+                  placeholder="Add a note to the employee about this decision…"
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  className="h-20 resize-none"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReviewing(null)
+                  setReviewComment("")
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={reviewCorrection.isPending}
+                onClick={() => handleReview("denied")}
+              >
+                {reviewCorrection.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <X className="mr-2 h-4 w-4" />
+                )}
+                Deny
+              </Button>
+              <Button
+                disabled={reviewCorrection.isPending}
+                onClick={() => handleReview("approved")}
+              >
+                {reviewCorrection.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4" />
+                )}
+                Approve
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

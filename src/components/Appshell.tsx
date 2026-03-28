@@ -4,8 +4,7 @@ import { HomeTab } from "@/tabs/HomeTab"
 import { MyInfoTab } from "@/tabs/MyInfoTab"
 import { PeopleTab } from "@/tabs/PeopleTab"
 import { TimeOffTab } from "@/tabs/TimeOffTab"
-import { ClockTab } from "@/tabs/ClockTab"
-import { TimesheetTab } from "@/tabs/TimesheetTab"
+import { TimeSheetTab } from "@/tabs/TimeSheetTab"
 import { ReportsTab } from "@/tabs/ReportsTab"
 import { useCurrentEmployee } from "@/lib/queries"
 
@@ -19,7 +18,7 @@ export type TabId =
   | "reports"
 
 export function AppShell() {
-  const [activeTab, setActiveTab] = useState<TabId>("clock")
+  const [activeTab, setActiveTab] = useState<TabId>("home")
   const { data: employee } = useCurrentEmployee()
 
   const role = employee?.role ?? "employee"
@@ -28,10 +27,8 @@ export function AppShell() {
     switch (activeTab) {
       case "home":
         return <HomeTab />
-      case "clock":
-        return <ClockTab />
       case "timesheet":
-        return <TimesheetTab />
+        return <TimeSheetTab />
       case "timeoff":
         return <TimeOffTab />
       case "people":

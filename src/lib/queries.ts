@@ -476,3 +476,164 @@ export function useEndBreak() {
     },
   })
 }
+
+// ─── Clock Corrections ────────────────────────────────────────────────────────
+
+import type { ClockCorrection } from "./supabase"
+
+export const correctionKeys = {
+  myCorrections: (empId: string) => ["corrections", "mine", empId] as const,
+  allCorrections: () => ["corrections", "all"] as const,
+}
+
+/** Employee's own correction requests. */
+export function useMyCorrections(employeeId: string) {
+  return useQuery({
+    queryKey: correctionKeys.myCorrections(employeeId),
+    queryFn: async (): Promise<ClockCorrection[]> => {
+      const { data, error } = await supabase
+        .from("clock_corrections")
+        .select("*, clock_entry:clock_entries(*)")
+        .eq("employee_id", employeeId)
+        .order("created_at", { ascending: false })
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!employeeId,
+  })
+}
+
+/** All pending corrections — manager/admin only. */
+export function useAllCorrections() {
+  return useQuery({
+    queryKey: correctionKeys.allCorrections(),
+    queryFn: async (): Promise<ClockCorrection[]> => {
+      const { data, error } = await supabase
+        .from("clock_corrections")
+        .select("*, clock_entry:clock_entries(*), employee:employees(*)")
+        .order("created_at", { ascending: false })
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+/** Employee submits a correction request. */
+export function useSubmitCorrection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (
+      payload: Pick<
+        ClockCorrection,
+        | "clock_entry_id"
+        | "employee_id"
+        | "requested_clock_in"
+        | "requested_clock_out"
+        | "requested_break_minutes"
+        | "requested_notes"
+        | "reason"
+      >
+    ) => {
+      const { data, error } = await supabase
+        .from("clock_corrections")
+        .insert({ ...payload, status: "pending" })
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: (_, { employee_id }) => {
+      qc.invalidateQueries({
+        queryKey: correctionKeys.myCorrections(employee_id),
+      })
+      qc.invalidateQueries({ queryKey: correctionKeys.allCorrections() })
+    },
+  })
+}
+
+/** Manager/Admin approves or denies — if approved, also patches clock_entries. */
+export function useReviewCorrection() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      correction,
+      decision,
+      reviewerComment,
+      reviewerId,
+    }: {
+      correction: ClockCorrection
+      decision: "approved" | "denied"
+      reviewerComment: string
+      reviewerId: string
+    }) => {
+      // 1. Update the correction row
+      const { error: corrErr } = await supabase
+        .from("clock_corrections")
+        .update({
+          status: decision,
+          reviewer_comment: reviewerComment || null,
+          reviewed_by: reviewerId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", correction.id)
+      if (corrErr) throw corrErr
+
+      // 2. If approved, patch the original clock_entry
+      if (decision === "approved") {
+        const patch: Record<string, unknown> = {}
+        if (correction.requested_clock_in)
+          patch.clock_in = correction.requested_clock_in
+        if (correction.requested_clock_out)
+          patch.clock_out = correction.requested_clock_out
+        if (correction.requested_notes !== null)
+          patch.notes = correction.requested_notes
+
+        // Recalculate total_minutes from the (possibly updated) times minus break
+        const clockIn = new Date(
+          correction.requested_clock_in ??
+            correction.clock_entry?.clock_in ??
+            ""
+        )
+        const clockOut = new Date(
+          correction.requested_clock_out ??
+            correction.clock_entry?.clock_out ??
+            ""
+        )
+        const breakMins =
+          correction.requested_break_minutes ??
+          (
+            correction.clock_entry?.breaks as
+              | { duration_minutes: number }[]
+              | undefined
+          )?.reduce((s, b) => s + (b.duration_minutes ?? 0), 0) ??
+          0
+
+        if (
+          clockIn &&
+          clockOut &&
+          !isNaN(clockIn.getTime()) &&
+          !isNaN(clockOut.getTime())
+        ) {
+          patch.total_minutes = Math.max(
+            0,
+            Math.floor((clockOut.getTime() - clockIn.getTime()) / 60000) -
+              breakMins
+          )
+        }
+
+        if (Object.keys(patch).length > 0) {
+          const { error: entryErr } = await supabase
+            .from("clock_entries")
+            .update(patch)
+            .eq("id", correction.clock_entry_id)
+          if (entryErr) throw entryErr
+        }
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: correctionKeys.allCorrections() })
+      qc.invalidateQueries({ queryKey: ["clock-history"] })
+      qc.invalidateQueries({ queryKey: ["all-clock-entries"] })
+    },
+  })
+}

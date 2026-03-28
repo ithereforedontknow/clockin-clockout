@@ -140,3 +140,27 @@ export function liveMinutes(clockIn: string, breakMinutes = 0): number {
       breakMinutes
   )
 }
+
+// ─── Clock Corrections ─────────────────────────────────────────────────────
+
+export type CorrectionStatus = "pending" | "approved" | "denied"
+
+export interface ClockCorrection {
+  id: string
+  clock_entry_id: string
+  employee_id: string
+  // Requested new values (null = no change requested for that field)
+  requested_clock_in: string | null
+  requested_clock_out: string | null
+  requested_break_minutes: number | null
+  requested_notes: string | null
+  reason: string // why the correction is needed
+  status: CorrectionStatus
+  reviewer_comment: string | null
+  reviewed_by: string | null // employee_id of manager/admin
+  created_at: string
+  updated_at: string
+  // Joined
+  clock_entry?: ClockEntry
+  employee?: Employee
+}

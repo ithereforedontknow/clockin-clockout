@@ -17,18 +17,13 @@ import {
 } from "@/lib/queries"
 import type { Employee } from "@/lib/supabase"
 
-// Fields that require approval vs immediate save
 const APPROVAL_REQUIRED_FIELDS: (keyof Employee)[] = [
   "job_title",
   "department",
   "location",
 ]
 
-type EditableField = {
-  key: keyof Employee
-  label: string
-  section: string
-}
+type EditableField = { key: keyof Employee; label: string; section: string }
 
 const EDITABLE_FIELDS: EditableField[] = [
   { key: "first_name", label: "First Name", section: "Personal" },
@@ -49,7 +44,10 @@ export function MyInfoTab() {
   const updateEmployee = useUpdateEmployee()
   const submitChange = useSubmitInfoChange()
   const cancelChange = useCancelInfoChange()
-  const { data: sentRequests = [] } = useSentRequests(employee?.id)
+
+  // ✅ ?? "" — useSentRequests has enabled: !!employeeId, so it
+  //    won't fire while the id is still loading.
+  const { data: sentRequests = [] } = useSentRequests(employee?.id ?? "")
 
   const [editValues, setEditValues] = useState<
     Partial<Record<keyof Employee, string>>
@@ -71,9 +69,9 @@ export function MyInfoTab() {
 
   function cancelEdit(key: keyof Employee) {
     setEditingFields((prev) => {
-      const next = new Set(prev)
-      next.delete(key)
-      return next
+      const n = new Set(prev)
+      n.delete(key)
+      return n
     })
     setEditValues((prev) => {
       const n = { ...prev }
@@ -83,6 +81,7 @@ export function MyInfoTab() {
   }
 
   async function saveField(key: keyof Employee) {
+    // Guard: employee is guaranteed here — button only renders after load
     if (!employee) return
     const newVal = editValues[key] ?? ""
     const oldVal = String(employee[key] ?? "")
@@ -95,7 +94,8 @@ export function MyInfoTab() {
 
     if (needsApproval) {
       await submitChange.mutateAsync({
-        employee_id: employee?.id,
+        // ✅ employee.id (not employee?.id) — safe because of guard above
+        employee_id: employee.id,
         field_name: key,
         old_value: oldVal,
         new_value: newVal,
@@ -105,7 +105,8 @@ export function MyInfoTab() {
       })
     } else {
       await updateEmployee.mutateAsync({
-        id: employee?.id,
+        // ✅ employee.id — safe because of guard above
+        id: employee.id,
         updates: { [key]: newVal } as Partial<Employee>,
       })
       toast.success("Information updated", {
@@ -119,10 +120,11 @@ export function MyInfoTab() {
     const req = sentRequests.find(
       (r) => r.field_name === fieldName && r.status === "pending"
     )
-    if (!req) return
+    if (!req || !employee) return
     await cancelChange.mutateAsync({
       requestId: req.id,
-      employeeId: employee?.id,
+      // ✅ employee.id — safe because sentRequests only renders when employee exists
+      employeeId: employee.id,
     })
     toast.success("Request canceled")
   }
@@ -164,11 +166,11 @@ export function MyInfoTab() {
                 return (
                   <div key={key}>
                     <div className="flex items-start justify-between gap-4">
-                      <Label className="w-32 shrink-0 pt-2 text-sm">
+                      <Label className="w-32 shrink-0 pt-2 text-sm text-muted-foreground">
                         {label}
                         {needsApproval && (
                           <span
-                            className="ml-1 text-red-500"
+                            className="ml-1 text-destructive"
                             title="Requires approval"
                           >
                             *
@@ -217,14 +219,17 @@ export function MyInfoTab() {
                             <span className="text-sm">{value}</span>
                             {isPending ? (
                               <div className="flex items-center gap-1">
-                                <Badge className="text-xs">
+                                <Badge
+                                  variant="outline"
+                                  className="border-amber-200 bg-amber-50 text-xs text-amber-700"
+                                >
                                   <Clock className="mr-1 h-3 w-3" />
                                   Pending
                                 </Badge>
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="h-6 p-1 text-xs"
+                                  className="h-6 p-1 text-xs text-destructive hover:text-destructive"
                                   onClick={() => handleCancelRequest(key)}
                                 >
                                   Cancel request
@@ -234,7 +239,7 @@ export function MyInfoTab() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 hover:text-slate-600 hover:opacity-100"
+                                className="h-6 w-6 p-0 text-muted-foreground opacity-0 hover:opacity-100 focus:opacity-100"
                                 onClick={() => startEdit(key)}
                               >
                                 <Pencil className="h-3 w-3" />
@@ -248,7 +253,7 @@ export function MyInfoTab() {
                   </div>
                 )
               })}
-              <p className="text-xs">
+              <p className="text-xs text-muted-foreground">
                 * Fields marked with an asterisk require HR approval before
                 changes take effect.
               </p>
@@ -257,7 +262,6 @@ export function MyInfoTab() {
         )
       })}
 
-      {/* Sent requests inbox */}
       {sentRequests.length > 0 && (
         <Card>
           <CardHeader>
@@ -268,13 +272,13 @@ export function MyInfoTab() {
               {sentRequests.slice(0, 5).map((req) => (
                 <div
                   key={req.id}
-                  className="flex items-center justify-between border-b py-2 text-sm last:border-0"
+                  className="flex items-center justify-between border-b border-border py-2 text-sm last:border-0"
                 >
                   <div>
                     <span className="font-medium capitalize">
                       {req.field_name.replace("_", " ")}
                     </span>
-                    <span className="mx-2">→</span>
+                    <span className="mx-2 text-muted-foreground">→</span>
                     <span>{req.new_value}</span>
                   </div>
                   <StatusBadge status={req.status} />
@@ -297,7 +301,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <Badge
       variant="secondary"
-      className={`text-xs ${map[status] ?? ""} capitalize`}
+      className={`text-xs capitalize ${map[status] ?? ""}`}
     >
       {status}
     </Badge>

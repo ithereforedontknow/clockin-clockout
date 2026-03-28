@@ -216,3 +216,58 @@ create policy "own break entries" on break_entries
     or
     (select role from employees where user_id = auth.uid() limit 1) in ('manager','admin')
   );
+
+
+-- ─── Clock Corrections ────────────────────────────────────────────────────────
+
+create table if not exists clock_corrections (
+  id                       text primary key default gen_random_uuid()::text,
+  clock_entry_id           text not null references clock_entries(id) on delete cascade,
+  employee_id              text not null references employees(id) on delete cascade,
+  -- Requested new values (null = field not being changed)
+  requested_clock_in       timestamptz,
+  requested_clock_out      timestamptz,
+  requested_break_minutes  integer,
+  requested_notes          text,
+  reason                   text not null,
+  status                   text not null default 'pending'
+                           check (status in ('pending', 'approved', 'denied')),
+  reviewer_comment         text,
+  reviewed_by              text references employees(id) on delete set null,
+  created_at               timestamptz not null default now(),
+  updated_at               timestamptz not null default now()
+);
+
+create index if not exists clock_corrections_employee
+  on clock_corrections(employee_id, status);
+
+create index if not exists clock_corrections_status
+  on clock_corrections(status);
+
+-- Trigger to keep updated_at fresh
+create trigger clock_corrections_updated_at
+  before update on clock_corrections
+  for each row execute procedure set_updated_at();
+
+-- ── RLS ──────────────────────────────────────────────────────────────────────
+
+alter table clock_corrections enable row level security;
+
+-- Employees can insert and read their own corrections
+create policy "own corrections insert" on clock_corrections
+  for insert with check (
+    employee_id = (select id from employees where user_id = auth.uid() limit 1)
+  );
+
+create policy "own corrections select" on clock_corrections
+  for select using (
+    employee_id = (select id from employees where user_id = auth.uid() limit 1)
+    or
+    (select role from employees where user_id = auth.uid() limit 1) in ('manager', 'admin')
+  );
+
+-- Only managers/admins can update (approve/deny)
+create policy "manager corrections update" on clock_corrections
+  for update using (
+    (select role from employees where user_id = auth.uid() limit 1) in ('manager', 'admin')
+  );
