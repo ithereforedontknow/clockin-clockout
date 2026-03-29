@@ -271,3 +271,51 @@ create policy "manager corrections update" on clock_corrections
   for update using (
     (select role from employees where user_id = auth.uid() limit 1) in ('manager', 'admin')
   );
+
+
+-- ─── Notifications ────────────────────────────────────────────────────────────
+
+create table if not exists notifications (
+  id          text primary key default gen_random_uuid()::text,
+  employee_id text not null references employees(id) on delete cascade,
+  type        text not null,   -- 'timeoff_approved' | 'timeoff_denied' | 'info_change_approved'
+                               -- | 'info_change_denied' | 'correction_approved' | 'correction_denied'
+                               -- | 'late_clock_in' | 'new_employee'
+  title       text not null,
+  message     text not null,
+  read        boolean not null default false,
+  link_tab    text,            -- which tab to navigate to: 'timeoff' | 'myinfo' | 'timesheet' | 'people'
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists notifications_employee_unread
+  on notifications(employee_id, read, created_at desc);
+
+alter table notifications enable row level security;
+
+create policy "own notifications" on notifications
+  for all using (
+    employee_id = (select id from employees where user_id = auth.uid() limit 1)
+  );
+
+-- ─── Employee extended fields (onboarding) ────────────────────────────────────
+
+alter table employees
+  add column if not exists onboarding_completed boolean not null default false,
+  add column if not exists preferred_name       text,
+  add column if not exists address_line1        text,
+  add column if not exists address_line2        text,
+  add column if not exists city                 text,
+  add column if not exists country              text,
+  add column if not exists emergency_name       text,
+  add column if not exists emergency_phone      text,
+  add column if not exists emergency_relation   text,
+  add column if not exists standard_start_time  time default '09:00:00';
+  -- standard_start_time used for late clock-in detection
+
+-- ─── InfoChangeRequest — add employee join support ───────────────────────────
+-- (no schema change needed, RLS already allows manager/admin to read all)
+
+-- ─── Passkey support is handled by Supabase Auth natively ────────────────────
+-- No extra tables needed. Enable via Supabase Dashboard:
+-- Authentication → Sign In Methods → Passkeys → Enable

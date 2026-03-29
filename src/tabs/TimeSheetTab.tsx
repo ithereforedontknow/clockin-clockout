@@ -11,7 +11,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Separator } from "@/components/ui/separator"
 import {
   useCurrentEmployee,
   useClockHistory,
@@ -21,7 +20,7 @@ import { formatMinutes } from "@/lib/supabase"
 import type { ClockEntry, BreakEntry } from "@/lib/supabase"
 import { ClockCorrectionDialog } from "@/components/ClockCorrectionDialog"
 
-export function TimeSheetTab() {
+export function TimesheetTab() {
   const { data: employee } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
 
@@ -303,7 +302,7 @@ export function TimeSheetTab() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border">
-              {corrections.map((c, idx) => (
+              {corrections.map((c) => (
                 <div
                   key={c.id}
                   className="flex items-start justify-between gap-4 px-4 py-3"

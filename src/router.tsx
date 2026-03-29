@@ -1,28 +1,25 @@
-import { createBrowserRouter } from "react-router-dom"
+import { createBrowserRouter, Navigate } from "react-router-dom"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LoginPage } from "@/pages/LoginPage"
-import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage"
-import { ResetPasswordPage } from "@/pages/ResetPasswordPage"
 import { AppShell } from "@/components/AppShell"
-
 export const router = createBrowserRouter([
-  // ── Public routes ──────────────────────────────────────────────────────────
+  // ── Public ────────────────────────────────────────────────────────────────
   {
     path: "/login",
     element: <LoginPage />,
   },
+
+  // ── Catch removed auth routes — redirect to login ─────────────────────────
   {
     path: "/forgot-password",
-    element: <ForgotPasswordPage />,
+    element: <Navigate to="/login" replace />,
   },
   {
     path: "/reset-password",
-    element: <ResetPasswordPage />,
+    element: <Navigate to="/login" replace />,
   },
 
-  // ── Protected routes ───────────────────────────────────────────────────────
-  // ProtectedRoute renders <Outlet /> when authenticated,
-  // or redirects to /login (preserving the attempted URL) when not.
+  // ── Protected ─────────────────────────────────────────────────────────────
   {
     element: <ProtectedRoute />,
     children: [
@@ -31,5 +28,11 @@ export const router = createBrowserRouter([
         element: <AppShell />,
       },
     ],
+  },
+
+  // ── Fallback ──────────────────────────────────────────────────────────────
+  {
+    path: "*",
+    element: <Navigate to="/" replace />,
   },
 ])

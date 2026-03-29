@@ -102,13 +102,13 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
     }
 
     await submitCorrection.mutateAsync({
-      clock_entry_id: entry.id,
+      clock_entry_id: entry?.id ?? "",
       employee_id: employeeId,
       requested_clock_in: clockIn ? fromLocalInput(clockIn) : null,
       requested_clock_out: clockOut ? fromLocalInput(clockOut) : null,
       requested_break_minutes:
         breakMinutes !== "" ? parseInt(breakMinutes) : null,
-      requested_notes: notes !== (entry.notes ?? "") ? notes : null,
+      requested_notes: notes !== (entry?.notes ?? "") ? notes : null,
       reason: reason.trim(),
     })
 

@@ -27,6 +27,17 @@ export interface Employee {
   role: UserRole
   standard_hours_per_day: number
   standard_hours_per_week: number
+  // Onboarding
+  onboarding_completed: boolean
+  preferred_name: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  country: string | null
+  emergency_name: string | null
+  emergency_phone: string | null
+  emergency_relation: string | null
+  standard_start_time: string | null // "HH:MM:SS" — used for late clock-in detection
   created_at: string
   updated_at: string
 }
@@ -98,12 +109,56 @@ export interface InfoChangeRequest {
   status: "pending" | "approved" | "denied"
   approver_comment: string | null
   created_at: string
+  employee?: Employee
 }
 
 export interface CompanyHoliday {
   id: string
   name: string
   date: string
+}
+
+export type CorrectionStatus = "pending" | "approved" | "denied"
+
+export interface ClockCorrection {
+  id: string
+  clock_entry_id: string
+  employee_id: string
+  requested_clock_in: string | null
+  requested_clock_out: string | null
+  requested_break_minutes: number | null
+  requested_notes: string | null
+  reason: string
+  status: CorrectionStatus
+  reviewer_comment: string | null
+  reviewed_by: string | null
+  created_at: string
+  updated_at: string
+  clock_entry?: ClockEntry
+  employee?: Employee
+}
+
+// ─── Notifications ─────────────────────────────────────────────────────────
+
+export type NotificationType =
+  | "timeoff_approved"
+  | "timeoff_denied"
+  | "info_change_approved"
+  | "info_change_denied"
+  | "correction_approved"
+  | "correction_denied"
+  | "late_clock_in"
+  | "new_employee"
+
+export interface AppNotification {
+  id: string
+  employee_id: string
+  type: NotificationType
+  title: string
+  message: string
+  read: boolean
+  link_tab: string | null
+  created_at: string
 }
 
 // ─── Computed helpers ──────────────────────────────────────────────────────
@@ -139,28 +194,4 @@ export function liveMinutes(clockIn: string, breakMinutes = 0): number {
     Math.floor((Date.now() - new Date(clockIn).getTime()) / 60000) -
       breakMinutes
   )
-}
-
-// ─── Clock Corrections ─────────────────────────────────────────────────────
-
-export type CorrectionStatus = "pending" | "approved" | "denied"
-
-export interface ClockCorrection {
-  id: string
-  clock_entry_id: string
-  employee_id: string
-  // Requested new values (null = no change requested for that field)
-  requested_clock_in: string | null
-  requested_clock_out: string | null
-  requested_break_minutes: number | null
-  requested_notes: string | null
-  reason: string // why the correction is needed
-  status: CorrectionStatus
-  reviewer_comment: string | null
-  reviewed_by: string | null // employee_id of manager/admin
-  created_at: string
-  updated_at: string
-  // Joined
-  clock_entry?: ClockEntry
-  employee?: Employee
 }

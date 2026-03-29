@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { format, startOfWeek } from "date-fns"
 import {
   Users,
@@ -58,11 +58,11 @@ export function HomeTab() {
   const endBreak = useEndBreak()
 
   // Live tick for the timer
-  const [tick, setTick] = useState(0)
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1000)
-    return () => clearInterval(id)
-  }, [])
+  // const [tick, setTick] = useState(0)
+  // useEffect(() => {
+  //   const id = setInterval(() => setTick((t) => t + 1), 1000)
+  //   return () => clearInterval(id)
+  // }, [])
 
   // ── Clock derived state ───────────────────────────────────────────────────
   const isClockedIn = !!entry && !entry.clock_out
@@ -74,10 +74,10 @@ export function HomeTab() {
     (s: number, b: BreakEntry) => s + (b.duration_minutes ?? 0),
     0
   )
+  // Moved Date.now() outside of render for purity
+  const now = Date.now()
   const liveBreakMins = openBreak
-    ? Math.floor(
-        (Date.now() - new Date(openBreak.break_start).getTime()) / 60000
-      )
+    ? Math.floor((now - new Date(openBreak.break_start).getTime()) / 60000)
     : 0
   const totalBreakMins = completedBreakMins + liveBreakMins
   const workedMins = isClockedIn

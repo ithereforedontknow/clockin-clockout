@@ -4,19 +4,21 @@ import {
   User,
   Users,
   Clock,
-  Bell,
   LogOut,
   Timer,
   BarChart3,
   AlarmClock,
+  ClipboardCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { TabId } from "@/components/AppShell"
 import type { UserRole } from "@/lib/supabase"
 import { useCurrentEmployee } from "@/lib/queries"
 import { supabase } from "@/lib/supabase"
+import { NotificationBell } from "@/components/NotificationBell"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,8 +26,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 
 type NavItem = {
   id: TabId
@@ -41,6 +41,12 @@ const NAV_ITEMS: NavItem[] = [
   { id: "people", label: "People", icon: Users },
   { id: "myinfo", label: "My Info", icon: User },
   // Manager + Admin only
+  {
+    id: "approvals",
+    label: "Approvals",
+    icon: ClipboardCheck,
+    roles: ["manager", "admin"],
+  },
   {
     id: "reports",
     label: "Reports",
@@ -63,6 +69,7 @@ export function Layout({
   children,
 }: LayoutProps) {
   const { data: employee, isLoading } = useCurrentEmployee()
+  const employeeId = employee?.id ?? ""
 
   const initials = employee
     ? `${employee.first_name[0]}${employee.last_name[0]}`
@@ -79,7 +86,6 @@ export function Layout({
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
-      {/* Top Header */}
       <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border bg-card px-6 text-card-foreground">
         {/* Logo */}
         <div className="mr-4 flex shrink-0 items-center gap-2">
@@ -110,7 +116,6 @@ export function Layout({
 
         {/* Right side */}
         <div className="flex shrink-0 items-center gap-2">
-          {/* Role badge */}
           {role !== "employee" && (
             <Badge
               variant="secondary"
@@ -120,17 +125,10 @@ export function Layout({
             </Badge>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative text-muted-foreground"
-          >
-            <Bell className="h-5 w-5" />
-            <Badge className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-destructive p-0 text-[10px]">
-              2
-            </Badge>
-          </Button>
+          {/* Real notification bell */}
+          <NotificationBell employeeId={employeeId} onNavigate={onTabChange} />
 
+          {/* User menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 transition-opacity outline-none hover:opacity-80">
@@ -148,20 +146,33 @@ export function Layout({
                   <Skeleton className="h-4 w-24" />
                 ) : (
                   <span className="hidden text-sm font-medium sm:block">
-                    {employee?.first_name} {employee?.last_name}
+                    {employee?.preferred_name ?? employee?.first_name}{" "}
+                    {employee?.last_name}
                   </span>
                 )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-56">
               <div className="space-y-0.5 px-2 py-1.5">
                 <p className="text-sm font-medium">
-                  {employee?.first_name} {employee?.last_name}
+                  {employee?.preferred_name ?? employee?.first_name}{" "}
+                  {employee?.last_name}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {employee?.email}
                 </p>
+                <p className="text-xs text-muted-foreground capitalize">
+                  {employee?.role}
+                </p>
               </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="cursor-pointer"
+                onClick={() => onTabChange("myinfo")}
+              >
+                <User className="mr-2 h-4 w-4" />
+                My Profile
+              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="cursor-pointer text-destructive focus:text-destructive"
@@ -175,7 +186,6 @@ export function Layout({
         </div>
       </header>
 
-      {/* Page content */}
       <main className="mx-auto w-full max-w-7xl flex-1 p-6">{children}</main>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react"
-import { useNavigate, useLocation, Navigate } from "react-router-dom"
-import { Loader2, AlarmClock, Eye, EyeOff } from "lucide-react"
+import { useLocation, Navigate } from "react-router-dom"
+import { Loader2, AlarmClock, MailCheck, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
 import { useSession } from "@/lib/auth"
@@ -15,16 +15,17 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 
+type Stage = "form" | "sent"
+
 export function LoginPage() {
-  const navigate = useNavigate()
   const location = useLocation()
   const { session, isLoading: sessionLoading } = useSession()
 
   const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [showPass, setShowPass] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [stage, setStage] = useState<Stage>("form")
 
+  // Already logged in — send to the app
   if (!sessionLoading && session) {
     const from = (location.state as { from?: Location })?.from?.pathname ?? "/"
     return <Navigate to={from} replace />
@@ -32,26 +33,32 @@ export function LoginPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    if (!email.trim() || !password) {
-      toast.error("Please enter your email and password")
+    if (!email.trim()) {
+      toast.error("Please enter your work email")
       return
     }
+
     setIsLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: {
+        // After clicking the link, Supabase redirects here.
+        // onAuthStateChange in useSession picks up the session automatically.
+        emailRedirectTo: `${window.location.origin}/`,
+      },
     })
+
+    setIsLoading(false)
+
     if (error) {
-      toast.error("Sign in failed", {
-        description: error.message.includes("Invalid login")
-          ? "Incorrect email or password."
-          : error.message,
+      toast.error("Failed to send link", {
+        description: error.message,
       })
-      setIsLoading(false)
       return
     }
-    const from = (location.state as { from?: Location })?.from?.pathname ?? "/"
-    navigate(from, { replace: true })
+
+    setStage("sent")
   }
 
   return (
@@ -70,82 +77,103 @@ export function LoginPage() {
           </div>
         </div>
 
-        {/* Card */}
         <Card>
-          <CardHeader className="pb-4">
-            <CardTitle className="text-base">Sign in</CardTitle>
-            <CardDescription>
-              Enter your work email and password to continue
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="email">Work email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@company.com"
-                  autoComplete="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={isLoading}
-                  required
-                />
-              </div>
+          {stage === "form" ? (
+            <>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base">Sign in</CardTitle>
+                <CardDescription>
+                  Enter your work email and we'll send you a sign-in link. No
+                  password needed.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email">Work email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="you@company.com"
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      disabled={isLoading}
+                      required
+                    />
+                  </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                  <button
-                    type="button"
-                    className="text-xs text-primary hover:underline"
-                    onClick={() => navigate("/forgot-password")}
-                    tabIndex={-1}
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPass ? "text" : "password"}
-                    placeholder="••••••••"
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    disabled={isLoading}
-                    required
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                    onClick={() => setShowPass((v) => !v)}
-                    tabIndex={-1}
-                    aria-label={showPass ? "Hide password" : "Show password"}
-                  >
-                    {showPass ? (
-                      <EyeOff className="h-4 w-4" />
+                  <Button type="submit" className="w-full" disabled={isLoading}>
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Sending link…
+                      </>
                     ) : (
-                      <Eye className="h-4 w-4" />
+                      "Send sign-in link"
                     )}
-                  </button>
+                  </Button>
+                </form>
+              </CardContent>
+            </>
+          ) : (
+            <>
+              <CardHeader className="pb-4">
+                <CardTitle className="text-base">Check your inbox</CardTitle>
+                <CardDescription>
+                  We sent a sign-in link to your email.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Confirmation state */}
+                <div className="flex flex-col items-center gap-3 py-4 text-center">
+                  <div className="rounded-full bg-primary/10 p-4">
+                    <MailCheck className="h-8 w-8 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-medium">Link sent to</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground">
+                      {email}
+                    </p>
+                  </div>
+                  <p className="max-w-xs text-xs text-muted-foreground">
+                    Click the link in the email to sign in. The link expires in
+                    1 hour. Check your spam folder if you don't see it.
+                  </p>
                 </div>
-              </div>
 
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing
-                    in…
-                  </>
-                ) : (
-                  "Sign in"
-                )}
-              </Button>
-            </form>
-          </CardContent>
+                {/* Resend / back */}
+                <div className="space-y-2">
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    disabled={isLoading}
+                    onClick={handleSubmit as any}
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Resending…
+                      </>
+                    ) : (
+                      "Resend link"
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="w-full text-muted-foreground"
+                    onClick={() => {
+                      setStage("form")
+                      setEmail("")
+                    }}
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Use a different email
+                  </Button>
+                </div>
+              </CardContent>
+            </>
+          )}
         </Card>
 
         <p className="text-center text-xs text-muted-foreground">

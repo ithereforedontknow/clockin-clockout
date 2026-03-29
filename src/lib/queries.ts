@@ -136,7 +136,6 @@ export function useCancelInfoChange() {
   return useMutation({
     mutationFn: async ({
       requestId,
-      employeeId,
     }: {
       requestId: string
       employeeId: string
@@ -221,7 +220,6 @@ export function useUpdateTimeOffRequest() {
   return useMutation({
     mutationFn: async ({
       id,
-      employeeId,
       updates,
     }: {
       id: string
@@ -394,7 +392,6 @@ export function useClockOut() {
   return useMutation({
     mutationFn: async ({
       entryId,
-      employeeId,
       totalMinutes,
     }: {
       entryId: string
@@ -425,7 +422,6 @@ export function useStartBreak() {
   return useMutation({
     mutationFn: async ({
       entryId,
-      employeeId,
     }: {
       entryId: string
       employeeId: string
@@ -452,7 +448,6 @@ export function useEndBreak() {
   return useMutation({
     mutationFn: async ({
       breakId,
-      employeeId,
       durationMinutes,
     }: {
       breakId: string
@@ -634,6 +629,213 @@ export function useReviewCorrection() {
       qc.invalidateQueries({ queryKey: correctionKeys.allCorrections() })
       qc.invalidateQueries({ queryKey: ["clock-history"] })
       qc.invalidateQueries({ queryKey: ["all-clock-entries"] })
+    },
+  })
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+import type { AppNotification } from "./supabase"
+
+export const notifKeys = {
+  mine: (empId: string) => ["notifications", empId] as const,
+}
+
+export function useNotifications(employeeId: string) {
+  return useQuery({
+    queryKey: notifKeys.mine(employeeId),
+    queryFn: async (): Promise<AppNotification[]> => {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("employee_id", employeeId)
+        .order("created_at", { ascending: false })
+        .limit(50)
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!employeeId,
+    refetchInterval: 30_000,
+  })
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id }: { id: string; employeeId: string }) => {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: (_, { employeeId }) => {
+      qc.invalidateQueries({ queryKey: notifKeys.mine(employeeId) })
+    },
+  })
+}
+
+export function useMarkAllRead() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (employeeId: string) => {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("employee_id", employeeId)
+        .eq("read", false)
+      if (error) throw error
+    },
+    onSuccess: (_, employeeId) => {
+      qc.invalidateQueries({ queryKey: notifKeys.mine(employeeId) })
+    },
+  })
+}
+
+/** Write a notification row — called after approve/deny mutations. */
+export async function createNotification(
+  payload: Pick<
+    AppNotification,
+    "employee_id" | "type" | "title" | "message" | "link_tab"
+  >
+) {
+  await supabase.from("notifications").insert(payload)
+}
+
+// ─── Admin Approvals ──────────────────────────────────────────────────────────
+
+export const approvalKeys = {
+  pendingTimeOff: () => ["approvals", "timeoff"] as const,
+  pendingInfoChange: () => ["approvals", "infochange"] as const,
+}
+
+export function usePendingTimeOffRequests() {
+  return useQuery({
+    queryKey: approvalKeys.pendingTimeOff(),
+    queryFn: async (): Promise<TimeOffRequest[]> => {
+      const { data, error } = await supabase
+        .from("time_off_requests")
+        .select("*, employee:employees(*), category:time_off_categories(*)")
+        .eq("status", "pending")
+        .order("created_at")
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function usePendingInfoChanges() {
+  return useQuery({
+    queryKey: approvalKeys.pendingInfoChange(),
+    queryFn: async (): Promise<InfoChangeRequest[]> => {
+      const { data, error } = await supabase
+        .from("info_change_requests")
+        .select("*, employee:employees(*)")
+        .eq("status", "pending")
+        .order("created_at")
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function useReviewTimeOff() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      request,
+      decision,
+      comment,
+    }: {
+      request: TimeOffRequest
+      decision: "approved" | "denied"
+      comment: string
+    }) => {
+      const { error } = await supabase
+        .from("time_off_requests")
+        .update({
+          status: decision,
+          approver_comment: comment || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", request.id)
+      if (error) throw error
+
+      // Write notification to the requesting employee
+      await createNotification({
+        employee_id: request.employee_id,
+        type: decision === "approved" ? "timeoff_approved" : "timeoff_denied",
+        title:
+          decision === "approved" ? "Time Off Approved" : "Time Off Denied",
+        message:
+          decision === "approved"
+            ? `Your ${request.category?.name ?? "time off"} request has been approved.`
+            : `Your ${request.category?.name ?? "time off"} request was denied.${comment ? ` Reason: ${comment}` : ""}`,
+        link_tab: "timeoff",
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: approvalKeys.pendingTimeOff() })
+      qc.invalidateQueries({ queryKey: ["timeoff-history"] })
+      qc.invalidateQueries({ queryKey: ["balances"] })
+    },
+  })
+}
+
+export function useReviewInfoChange() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      request,
+      decision,
+      comment,
+    }: {
+      request: InfoChangeRequest
+      decision: "approved" | "denied"
+      comment: string
+    }) => {
+      const { error } = await supabase
+        .from("info_change_requests")
+        .update({
+          status: decision,
+          approver_comment: comment || null,
+        })
+        .eq("id", request.id)
+      if (error) throw error
+
+      // If approved, apply the change to employees table
+      if (decision === "approved") {
+        await supabase
+          .from("employees")
+          .update({
+            [request.field_name]: request.new_value,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", request.employee_id)
+      }
+
+      // Notify the employee
+      await createNotification({
+        employee_id: request.employee_id,
+        type:
+          decision === "approved"
+            ? "info_change_approved"
+            : "info_change_denied",
+        title:
+          decision === "approved"
+            ? "Profile Change Approved"
+            : "Profile Change Denied",
+        message:
+          decision === "approved"
+            ? `Your ${request.field_name.replace(/_/g, " ")} update has been approved.`
+            : `Your ${request.field_name.replace(/_/g, " ")} update was denied.${comment ? ` Reason: ${comment}` : ""}`,
+        link_tab: "myinfo",
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: approvalKeys.pendingInfoChange() })
+      qc.invalidateQueries({ queryKey: ["current-employee"] })
+      qc.invalidateQueries({ queryKey: ["inbox-sent"] })
     },
   })
 }
