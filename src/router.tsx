@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LoginPage } from "@/pages/LoginPage"
-import { AppShell } from "@/components/AppShell"
+import { Appshell } from "@/components/Appshell"
 export const router = createBrowserRouter([
   // ── Public ────────────────────────────────────────────────────────────────
   {
@@ -25,7 +25,7 @@ export const router = createBrowserRouter([
     children: [
       {
         path: "/",
-        element: <AppShell />,
+        element: <Appshell />,
       },
     ],
   },

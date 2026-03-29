@@ -51,7 +51,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { TabId } from "@/components/AppShell"
+import type { TabId } from "@/components/Appshell"
 import type {
   UserRole,
   AppNotification,
@@ -257,7 +257,7 @@ export function AppSidebar({
 
 // ─── Nav button ───────────────────────────────────────────────────────────────
 function NavButton({
-  label,
+  lab el,
   icon: Icon,
   active,
   collapsed,
