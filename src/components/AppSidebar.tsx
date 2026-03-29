@@ -257,7 +257,6 @@ export function AppSidebar({
 
 // ─── Nav button ───────────────────────────────────────────────────────────────
 function NavButton({
-  lab el,
   icon: Icon,
   active,
   collapsed,
