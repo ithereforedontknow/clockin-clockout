@@ -5,7 +5,7 @@ import { HomeTab } from "@/tabs/HomeTab"
 import { MyInfoTab } from "@/tabs/MyInfoTab"
 import { PeopleTab } from "@/tabs/PeopleTab"
 import { TimeOffTab } from "@/tabs/TimeOffTab"
-import { TimesheetTab } from "@/tabs/TimesheetTab"
+import { TimeSheetTab } from "@/tabs/TimeSheetTab"
 import { ReportsTab } from "@/tabs/ReportsTab"
 import { ApprovalsTab } from "@/tabs/ApprovalsTab"
 import { useCurrentEmployee } from "@/lib/queries"
@@ -68,7 +68,7 @@ export function Appshell() {
       case "home":
         return <HomeTab />
       case "timesheet":
-        return <TimesheetTab />
+        return <TimeSheetTab />
       case "timeoff":
         return <TimeOffTab />
       case "people":
