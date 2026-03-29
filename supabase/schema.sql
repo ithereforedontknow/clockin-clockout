@@ -319,3 +319,20 @@ alter table employees
 -- ─── Passkey support is handled by Supabase Auth natively ────────────────────
 -- No extra tables needed. Enable via Supabase Dashboard:
 -- Authentication → Sign In Methods → Passkeys → Enable
+
+-- Admins can create new employee records
+create policy "admin insert employees" on employees
+  for insert with check (
+    (select role from employees where user_id = auth.uid() limit 1) = 'admin'
+  );
+
+-- Allow users to link their auth.users record to an existing employee record
+-- This is typically used during initial onboarding when the employee record
+-- is created without an associated user_id, and the user is signing up.
+-- The email must match to prevent linking to the wrong record.
+create policy "link own employee record" on employees
+    for update using (
+      user_id is null and email = (
+        select email from auth.users where id = auth.uid()
+      )
+    );

@@ -11,6 +11,8 @@ import { ApprovalsTab } from "@/tabs/ApprovalsTab"
 import { useCurrentEmployee } from "@/lib/queries"
 import { Skeleton } from "@/components/ui/skeleton"
 
+import { AdminTab } from "@/tabs/AdminTab"
+
 export type TabId =
   | "home"
   | "timesheet"
@@ -19,6 +21,7 @@ export type TabId =
   | "myinfo"
   | "reports"
   | "approvals"
+  | "admin"
 
 export function Appshell() {
   const [activeTab, setActiveTab] = useState<TabId>("home")
@@ -78,6 +81,14 @@ export function Appshell() {
       case "approvals":
         return role === "manager" || role === "admin" ? (
           <ApprovalsTab />
+        ) : (
+          <div className="p-8 text-sm text-muted-foreground">
+            Access restricted.
+          </div>
+        )
+      case "admin":
+        return role === "admin" ? (
+          <AdminTab />
         ) : (
           <div className="p-8 text-sm text-muted-foreground">
             Access restricted.

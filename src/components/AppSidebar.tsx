@@ -17,6 +17,7 @@ import {
   Calendar,
   AlertCircle,
   UserPlus,
+  Shield,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -97,6 +98,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: BarChart3,
     roles: ["manager", "admin"],
   },
+  { id: "admin", label: "Admin", icon: Shield, roles: ["admin"] },
 ]
 
 const NOTIF_ICON: Record<NotificationType, typeof Bell> = {

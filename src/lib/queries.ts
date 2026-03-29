@@ -6,7 +6,6 @@ import type {
   BreakEntry,
   TimeOffBalance,
   TimeOffRequest,
-  InfoChangeRequest,
   CompanyHoliday,
 } from "./supabase"
 
@@ -37,15 +36,51 @@ export function useCurrentEmployee() {
         error: authErr,
       } = await supabase.auth.getUser()
       if (authErr || !user) throw new Error("Not authenticated")
-      const { data, error } = await supabase
+
+      // 1. Try to find by user_id (normal case — returning user)
+      const { data: byUserId } = await supabase
         .from("employees")
         .select("*")
         .eq("user_id", user.id)
-        .single()
-      if (error) throw error
-      return data
+        .maybeSingle()
+
+      if (byUserId) return byUserId
+
+      // 2. First login — admin pre-created the record with no user_id yet.
+      //    Find the row by email and link it to this auth user.
+      const { data: byEmail, error: emailErr } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("email", user.email!)
+        .is("user_id", null)
+        .maybeSingle()
+
+      if (emailErr) throw emailErr
+
+      if (byEmail) {
+        // Patch the row with the real user_id now that we know it
+        const { data: linked, error: linkErr } = await supabase
+          .from("employees")
+          .update({ user_id: user.id, updated_at: new Date().toISOString() })
+          .eq("id", byEmail.id)
+          .select()
+          .single()
+        if (linkErr) throw linkErr
+        return linked
+      }
+
+      // 3. No record at all — account exists in auth but not in employees table.
+      //    This shouldn't happen in normal flow but gives a clear error.
+      throw new Error(
+        "No employee record found. Contact your HR administrator."
+      )
     },
     staleTime: 1000 * 60 * 10,
+    retry: (failureCount, error: any) => {
+      // Don't retry the "no record found" error — it won't resolve on its own
+      if (error?.message?.includes("No employee record")) return false
+      return failureCount < 2
+    },
   })
 }
 
@@ -635,7 +670,7 @@ export function useReviewCorrection() {
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-import type { AppNotification } from "./supabase"
+import type { AppNotification, InfoChangeRequest } from "./supabase"
 
 export const notifKeys = {
   mine: (empId: string) => ["notifications", empId] as const,
@@ -836,6 +871,147 @@ export function useReviewInfoChange() {
       qc.invalidateQueries({ queryKey: approvalKeys.pendingInfoChange() })
       qc.invalidateQueries({ queryKey: ["current-employee"] })
       qc.invalidateQueries({ queryKey: ["inbox-sent"] })
+    },
+  })
+}
+
+// ─── Admin ────────────────────────────────────────────────────────────────────
+
+export const adminKeys = {
+  allEmployees: (filters?: string) =>
+    ["admin-employees", filters ?? ""] as const,
+}
+
+/** All employees regardless of status — admin only. */
+export function useAllEmployees(
+  search = "",
+  statusFilter = "",
+  roleFilter = "",
+  deptFilter = ""
+) {
+  const filterKey = `${search}|${statusFilter}|${roleFilter}|${deptFilter}`
+  return useQuery({
+    queryKey: adminKeys.allEmployees(filterKey),
+    queryFn: async (): Promise<Employee[]> => {
+      let q = supabase.from("employees").select("*").order("last_name")
+      if (statusFilter) q = q.eq("employment_status", statusFilter)
+      if (roleFilter) q = q.eq("role", roleFilter)
+      if (deptFilter) q = q.eq("department", deptFilter)
+      const { data, error } = await q
+      if (error) throw error
+      // Client-side search across name/email/title
+      const s = search.toLowerCase()
+      return (data ?? []).filter(
+        (e) =>
+          !s ||
+          `${e.first_name} ${e.last_name}`.toLowerCase().includes(s) ||
+          e.email.toLowerCase().includes(s) ||
+          e.job_title.toLowerCase().includes(s)
+      )
+    },
+  })
+}
+
+/** Admin direct-edit of an employee (bypasses approval workflow). */
+export function useAdminUpdateEmployee() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string
+      updates: Partial<Employee>
+    }) => {
+      const { data, error } = await supabase
+        .from("employees")
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-employees"] })
+      qc.invalidateQueries({ queryKey: keys.employees() })
+      qc.invalidateQueries({ queryKey: keys.currentEmployee() })
+    },
+  })
+}
+
+/** Deactivate or reactivate an employee. */
+export function useSetEmployeeStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      status,
+    }: {
+      id: string
+      status: "active" | "inactive" | "on_leave"
+    }) => {
+      const { error } = await supabase
+        .from("employees")
+        .update({
+          employment_status: status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-employees"] })
+      qc.invalidateQueries({ queryKey: keys.employees() })
+    },
+  })
+}
+
+/** Admin creates an employee record directly. The employee signs in via
+ *  magic link — on first login useCurrentEmployee links their auth user
+ *  to this pre-created row by email. */
+export function useInviteEmployee() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      email: string
+      first_name: string
+      last_name: string
+      role: string
+      department: string
+      job_title: string
+      location: string
+      standard_hours_per_day: number
+      standard_hours_per_week: number
+    }) => {
+      // Check for duplicate email first
+      const { data: existing } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("email", payload.email)
+        .maybeSingle()
+
+      if (existing)
+        throw new Error("An employee with this email already exists.")
+
+      const { data, error } = await supabase
+        .from("employees")
+        .insert({
+          ...payload,
+          user_id: null, // linked on first login
+          employment_status: "active",
+          onboarding_completed: false,
+          hire_date: new Date().toISOString().slice(0, 10),
+        })
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-employees"] })
+      qc.invalidateQueries({ queryKey: keys.employees() })
     },
   })
 }
