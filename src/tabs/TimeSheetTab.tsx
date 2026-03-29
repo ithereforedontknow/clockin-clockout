@@ -20,7 +20,7 @@ import { formatMinutes } from "@/lib/supabase"
 import type { ClockEntry, BreakEntry } from "@/lib/supabase"
 import { ClockCorrectionDialog } from "@/components/ClockCorrectionDialog"
 
-export function TimesheetTab() {
+export function TimeSheetTab() {
   const { data: employee } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
 
