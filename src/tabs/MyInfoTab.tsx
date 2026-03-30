@@ -28,16 +28,23 @@ type EditableField = { key: keyof Employee; label: string; section: string }
 const EDITABLE_FIELDS: EditableField[] = [
   { key: "first_name", label: "First Name", section: "Personal" },
   { key: "last_name", label: "Last Name", section: "Personal" },
+  { key: "preferred_name", label: "Preferred Name", section: "Personal" },
   { key: "email", label: "Work Email", section: "Personal" },
   { key: "phone", label: "Phone", section: "Personal" },
   { key: "birthday", label: "Birthday", section: "Personal" },
+  { key: "address_line1", label: "Address", section: "Personal" },
+  { key: "city", label: "City", section: "Personal" },
+  { key: "country", label: "Country", section: "Personal" },
   { key: "job_title", label: "Job Title", section: "Work" },
   { key: "department", label: "Department", section: "Work" },
   { key: "location", label: "Location", section: "Work" },
   { key: "hire_date", label: "Hire Date", section: "Work" },
+  { key: "emergency_name", label: "Emergency Contact", section: "Emergency" },
+  { key: "emergency_phone", label: "Emergency Phone", section: "Emergency" },
+  { key: "emergency_relation", label: "Relationship", section: "Emergency" },
 ]
 
-const SECTIONS = ["Personal", "Work"]
+const SECTIONS = ["Personal", "Work", "Emergency"]
 
 export function MyInfoTab() {
   const { data: employee, isLoading } = useCurrentEmployee()
@@ -105,13 +112,27 @@ export function MyInfoTab() {
       })
     } else {
       await updateEmployee.mutateAsync({
-        // ✅ employee.id — safe because of guard above
         id: employee.id,
         updates: { [key]: newVal } as Partial<Employee>,
       })
       toast.success("Information updated", {
         description: `${key.replace("_", " ")} has been saved.`,
       })
+
+      // Mark onboarding complete if all key fields are now filled
+      const updated = { ...employee, [key]: newVal }
+      const isComplete =
+        updated.phone &&
+        updated.birthday &&
+        updated.emergency_name &&
+        updated.address_line1
+
+      if (isComplete && !employee.onboarding_completed) {
+        await updateEmployee.mutateAsync({
+          id: employee.id,
+          updates: { onboarding_completed: true },
+        })
+      }
     }
     cancelEdit(key)
   }

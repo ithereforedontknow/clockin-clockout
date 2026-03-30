@@ -1,18 +1,16 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AppSidebar } from "@/components/AppSidebar"
-// import { OnboardingFlow } from "@/components/OnboardingFlow"
 import { HomeTab } from "@/tabs/HomeTab"
-
 import { MyInfoTab } from "@/tabs/MyInfoTab"
 import { PeopleTab } from "@/tabs/PeopleTab"
 import { TimeOffTab } from "@/tabs/TimeOffTab"
 import { TimeSheetTab } from "@/tabs/TimeSheetTab"
 import { ReportsTab } from "@/tabs/ReportsTab"
 import { ApprovalsTab } from "@/tabs/ApprovalsTab"
+import { AdminTab } from "@/tabs/AdminTab"
 import { useCurrentEmployee } from "@/lib/queries"
 import { Skeleton } from "@/components/ui/skeleton"
-
-import { AdminTab } from "@/tabs/AdminTab"
+import { toast } from "sonner"
 
 export type TabId =
   | "home"
@@ -28,6 +26,33 @@ export function Appshell() {
   const [activeTab, setActiveTab] = useState<TabId>("home")
   const { data: employee, isLoading, error } = useCurrentEmployee()
   const role = employee?.role ?? "employee"
+
+  // ── Profile completion toast — shown once per session ──────────────────
+  useEffect(() => {
+    if (!employee) return
+    if (employee.onboarding_completed) return
+
+    // Fields we consider "incomplete"
+    const missing = [
+      !employee.phone && "phone number",
+      !employee.birthday && "birthday",
+      !employee.emergency_name && "emergency contact",
+      !employee.address_line1 && "address",
+    ].filter(Boolean) as string[]
+
+    if (missing.length === 0) return
+
+    toast("Complete your profile", {
+      description: `Missing: ${missing.slice(0, 2).join(", ")}${missing.length > 2 ? ` +${missing.length - 2} more` : ""}.`,
+      duration: 8000,
+      action: {
+        label: "Go to My Info",
+        onClick: () => setActiveTab("myinfo"),
+      },
+    })
+    // Only fire once after employee first loads
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!employee])
 
   // ── Error state (no employee record linked to this auth user) ───────────
   if (error) {
@@ -86,11 +111,6 @@ export function Appshell() {
       </div>
     )
   }
-
-  // ── Onboarding intercept ────────────────────────────────────────────────
-  // if (employee && !employee.onboarding_completed) {
-  //   return <OnboardingFlow employee={employee} onComplete={() => {}} />
-  // }
 
   // ── Tab renderer ────────────────────────────────────────────────────────
   const renderTab = () => {
