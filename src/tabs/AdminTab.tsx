@@ -198,7 +198,7 @@ export function AdminTab() {
   const inactiveCount = employees.filter(
     (e) => e.employment_status === "inactive"
   ).length
-  const adminCount = employees.filter((e) => e.role === "admin").length
+  // const adminCount = employees.filter((e) => e.role === "admin").length
 
   return (
     <div className="max-w-6xl space-y-5">

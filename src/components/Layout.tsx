@@ -11,8 +11,8 @@ import {
   ClipboardCheck,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { TabId } from "@/components/Appshell"
 import type { UserRole } from "@/lib/supabase"
+import type { TabId } from "@/components/AppShell"
 import { useCurrentEmployee } from "@/lib/queries"
 import { supabase } from "@/lib/supabase"
 import { NotificationBell } from "@/components/NotificationBell"

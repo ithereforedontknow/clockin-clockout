@@ -331,7 +331,7 @@ export function TimeSheetTab({ onNavigate }: Props) {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border">
-              {corrections.map((c, idx) => (
+              {corrections.map((c) => (
                 <div
                   key={c.id}
                   className="flex items-start justify-between gap-4 px-4 py-3"
