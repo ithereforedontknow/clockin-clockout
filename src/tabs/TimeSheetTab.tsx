@@ -13,6 +13,7 @@ import {
   Pencil,
   ArrowRight,
 } from "lucide-react"
+import type { TabId } from "@/components/AppShell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -26,7 +27,6 @@ import {
 import { formatMinutes } from "@/lib/supabase"
 import type { ClockEntry, BreakEntry } from "@/lib/supabase"
 import { ClockCorrectionDialog } from "@/components/ClockCorrectionDialog"
-import type { TabId } from "@/components/AppShell"
 
 interface Props {
   onNavigate?: (tab: TabId) => void

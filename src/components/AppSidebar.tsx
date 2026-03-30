@@ -19,6 +19,7 @@ import {
   UserPlus,
   Shield,
 } from "lucide-react"
+import type { TabId } from "@/components/AppShell"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
@@ -52,7 +53,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { TabId } from "@/components/AppShell"
 import type {
   UserRole,
   AppNotification,

@@ -1,7 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router-dom"
+import { AppShell } from "@/components/AppShell"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LoginPage } from "@/pages/LoginPage"
-import { AppShell } from "@/components/AppShell"
 export const router = createBrowserRouter([
   // ── Public ────────────────────────────────────────────────────────────────
   {
