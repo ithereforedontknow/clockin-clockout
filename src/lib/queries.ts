@@ -99,6 +99,21 @@ export function useEmployees() {
   })
 }
 
+/** All employees including inactive — for Reports and Admin tabs. */
+export function useAllEmployeesForReports() {
+  return useQuery({
+    queryKey: [...keys.employees(), "all"] as const,
+    queryFn: async (): Promise<Employee[]> => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .order("last_name")
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
 export function useUpdateEmployee() {
   const qc = useQueryClient()
   return useMutation({
@@ -968,7 +983,7 @@ export function useSetEmployeeStatus() {
 }
 
 /** Admin creates an employee record directly. The employee signs in via
- *  magic link — on first login useCurrentEmployee links their auth user
+ *  magic link — on first login auth.ts links their auth user
  *  to this pre-created row by email. */
 export function useInviteEmployee() {
   const qc = useQueryClient()
@@ -984,11 +999,17 @@ export function useInviteEmployee() {
       standard_hours_per_day: number
       standard_hours_per_week: number
     }) => {
+      // Normalise email to lowercase so it always matches the auth user
+      const normalisedPayload = {
+        ...payload,
+        email: payload.email.trim().toLowerCase(),
+      }
+
       // Check for duplicate email first
       const { data: existing } = await supabase
         .from("employees")
         .select("id")
-        .eq("email", payload.email)
+        .eq("email", normalisedPayload.email)
         .maybeSingle()
 
       if (existing)
@@ -997,7 +1018,7 @@ export function useInviteEmployee() {
       const { data, error } = await supabase
         .from("employees")
         .insert({
-          ...payload,
+          ...normalisedPayload,
           user_id: null, // linked on first login
           employment_status: "active",
           onboarding_completed: false,
@@ -1012,21 +1033,6 @@ export function useInviteEmployee() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-employees"] })
       qc.invalidateQueries({ queryKey: keys.employees() })
-    },
-  })
-}
-
-/** All employees regardless of status — admin only. For reporting purposes. */
-export function useAllEmployeesForReports() {
-  return useQuery({
-    queryKey: ["admin-employees-reports"] as const,
-    queryFn: async (): Promise<Employee[]> => {
-      const { data, error } = await supabase
-        .from("employees")
-        .select("*")
-        .order("last_name")
-      if (error) throw error
-      return data ?? []
     },
   })
 }
