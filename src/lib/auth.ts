@@ -12,25 +12,18 @@ export function useSession() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // 1. Hydrate from localStorage on first mount
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
-      setIsLoading(false)
-    })
-
-    // 2. Keep in sync with auth events
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setSession(session)
+    } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      // Set session immediately so the UI isn't "stuck" waiting for DB queries
+      setSession(currentSession)
       setIsLoading(false)
 
-      // 3. On first sign-in, attempt to link an unlinked employee row
-      if (event === "SIGNED_IN" && session?.user) {
-        await linkEmployeeRecord(
-          session.user.id,
-          // Email comes from the JWT — no auth.users query needed
-          session.user.email ?? ""
+      if (event === "SIGNED_IN" && currentSession?.user) {
+        // Run this in the background; don't 'await' it if it blocks the UI
+        linkEmployeeRecord(
+          currentSession.user.id,
+          currentSession.user.email ?? ""
         )
       }
     })
