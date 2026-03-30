@@ -336,3 +336,48 @@ create policy "link own employee record" on employees
         select email from auth.users where id = auth.uid()
       )
     );
+    -- Drop the old "own record" policy and recreate it
+    drop policy if exists "own record" on employees;
+
+    create policy "own record" on employees
+      for all using (
+        user_id = auth.uid()
+        or user_id is null
+      )
+      with check (
+        user_id = auth.uid()  -- once linked, can only write to own row
+      );
+
+    -- Allow linking on first sign-in (separate update policy for null rows)
+    drop policy if exists "link unlinked employee" on employees;
+
+    create policy "link unlinked employee" on employees
+      for update
+      using (user_id is null)
+      with check (user_id = auth.uid());  -- can only set to YOUR own uid
+
+    -- Allow admins to create employee records
+    drop policy if exists "admin insert employees" on employees;
+
+    create policy "admin insert employees" on employees
+      for insert with check (
+        (select role from employees where user_id = auth.uid() limit 1) = 'admin'
+      );
+
+
+      create policy "manager admin read info changes" on info_change_requests
+        for select using (
+          (select role from employees where user_id = auth.uid() limit 1)
+          in ('manager', 'admin')
+        );
+
+      create policy "manager admin update info changes" on info_change_requests
+        for update using (
+          (select role from employees where user_id = auth.uid() limit 1)
+          in ('manager', 'admin')
+        );
+
+        create policy "admin corrections update" on clock_corrections
+          for update using (
+            (select role from employees where user_id = auth.uid() limit 1) = 'admin'
+          );

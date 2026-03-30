@@ -6,7 +6,13 @@ import {
   eachDayOfInterval,
   addDays,
 } from "date-fns"
-import { ChevronLeft, ChevronRight, Clock, Pencil } from "lucide-react"
+import {
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Pencil,
+  ArrowRight,
+} from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,14 +21,22 @@ import {
   useCurrentEmployee,
   useClockHistory,
   useMyCorrections,
+  useAllCorrections,
 } from "@/lib/queries"
 import { formatMinutes } from "@/lib/supabase"
 import type { ClockEntry, BreakEntry } from "@/lib/supabase"
 import { ClockCorrectionDialog } from "@/components/ClockCorrectionDialog"
+import type { TabId } from "@/components/AppShell"
 
-export function TimeSheetTab() {
+interface Props {
+  onNavigate?: (tab: TabId) => void
+}
+
+export function TimeSheetTab({ onNavigate }: Props) {
   const { data: employee } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
+  const role = employee?.role ?? "employee"
+  const isManagerOrAdmin = role === "manager" || role === "admin"
 
   const [weekOffset, setWeekOffset] = useState(0)
   const baseDate = addWeeks(new Date(), weekOffset)
@@ -35,6 +49,11 @@ export function TimeSheetTab() {
     weekStartStr
   )
   const { data: corrections = [] } = useMyCorrections(employeeId)
+  // Manager/admin also sees all pending corrections across employees
+  const { data: allCorrections = [] } = useAllCorrections()
+  const pendingAllCount = isManagerOrAdmin
+    ? allCorrections.filter((c) => c.status === "pending").length
+    : 0
 
   // Entry selected for correction dialog
   const [correcting, setCorrecting] = useState<
@@ -75,6 +94,16 @@ export function TimeSheetTab() {
               {pendingCount} correction{" "}
               {pendingCount === 1 ? "request" : "requests"} pending review
             </p>
+          )}
+          {isManagerOrAdmin && pendingAllCount > 0 && (
+            <button
+              className="mt-0.5 flex items-center gap-1 text-xs text-primary hover:underline"
+              onClick={() => onNavigate?.("approvals")}
+            >
+              {pendingAllCount} team correction{pendingAllCount > 1 ? "s" : ""}{" "}
+              need review
+              <ArrowRight className="h-3 w-3" />
+            </button>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -302,7 +331,7 @@ export function TimeSheetTab() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border">
-              {corrections.map((c) => (
+              {corrections.map((c, idx) => (
                 <div
                   key={c.id}
                   className="flex items-start justify-between gap-4 px-4 py-3"

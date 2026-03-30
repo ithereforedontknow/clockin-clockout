@@ -8,6 +8,7 @@ import {
   User,
   Calendar,
   AlertCircle,
+  Clock,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -31,50 +32,99 @@ import {
   usePendingInfoChanges,
   useReviewTimeOff,
   useReviewInfoChange,
+  useAllCorrections,
+  useReviewCorrection,
+  useCurrentEmployee,
 } from "@/lib/queries"
 import type {
   TimeOffRequest,
   InfoChangeRequest,
   Employee,
+  ClockCorrection,
+  ClockEntry,
 } from "@/lib/supabase"
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type ReviewTarget =
-  | { kind: "timeoff"; item: TimeOffRequest }
-  | { kind: "infochange"; item: InfoChangeRequest }
+  | { kind: "timeoff"; item: TimeOffRequest; decision: "approved" | "denied" }
+  | {
+      kind: "infochange"
+      item: InfoChangeRequest
+      decision: "approved" | "denied"
+    }
+  | {
+      kind: "correction"
+      item: ClockCorrection
+      decision: "approved" | "denied"
+    }
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function ApprovalsTab() {
+  const { data: reviewer } = useCurrentEmployee()
+
   const { data: timeOffReqs = [], isLoading: toLoading } =
     usePendingTimeOffRequests()
   const { data: infoChanges = [], isLoading: icLoading } =
     usePendingInfoChanges()
+  const { data: allCorrections = [], isLoading: corrLoading } =
+    useAllCorrections()
+
+  const pendingCorrections = allCorrections.filter(
+    (c) => c.status === "pending"
+  )
+
   const reviewTimeOff = useReviewTimeOff()
   const reviewInfoChange = useReviewInfoChange()
+  const reviewCorrection = useReviewCorrection()
 
   const [target, setTarget] = useState<ReviewTarget | null>(null)
   const [comment, setComment] = useState("")
 
-  const isReviewing = reviewTimeOff.isPending || reviewInfoChange.isPending
+  const isReviewing =
+    reviewTimeOff.isPending ||
+    reviewInfoChange.isPending ||
+    reviewCorrection.isPending
 
-  const totalPending = timeOffReqs.length + infoChanges.length
+  const totalPending =
+    timeOffReqs.length + infoChanges.length + pendingCorrections.length
 
-  async function handleDecision(decision: "approved" | "denied") {
+  // ── Open review dialog ────────────────────────────────────────────────────
+  function openReview(target: ReviewTarget) {
+    setTarget(target)
+    setComment("")
+  }
+
+  // ── Submit decision ───────────────────────────────────────────────────────
+  async function handleDecision() {
     if (!target) return
+
     if (target.kind === "timeoff") {
       await reviewTimeOff.mutateAsync({
         request: target.item,
-        decision,
+        decision: target.decision,
+        comment,
+      })
+    } else if (target.kind === "infochange") {
+      await reviewInfoChange.mutateAsync({
+        request: target.item,
+        decision: target.decision,
         comment,
       })
     } else {
-      await reviewInfoChange.mutateAsync({
-        request: target.item,
-        decision,
-        comment,
+      if (!reviewer) return
+      await reviewCorrection.mutateAsync({
+        correction: target.item,
+        decision: target.decision,
+        reviewerComment: comment,
+        reviewerId: reviewer.id,
       })
     }
+
     toast.success(
-      decision === "approved" ? "Request approved ✓" : "Request denied",
-      { description: comment ? `Comment sent to employee.` : undefined }
+      target.decision === "approved" ? "Request approved ✓" : "Request denied",
+      { description: comment ? "Comment sent to employee." : undefined }
     )
     setTarget(null)
     setComment("")
@@ -82,6 +132,7 @@ export function ApprovalsTab() {
 
   return (
     <div className="max-w-4xl space-y-4">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Approvals</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -97,7 +148,7 @@ export function ApprovalsTab() {
             <Calendar className="h-4 w-4" />
             Time Off
             {timeOffReqs.length > 0 && (
-              <Badge className="ml-1 h-5 px-1.5 text-[10px]">
+              <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">
                 {timeOffReqs.length}
               </Badge>
             )}
@@ -106,14 +157,23 @@ export function ApprovalsTab() {
             <User className="h-4 w-4" />
             Profile Changes
             {infoChanges.length > 0 && (
-              <Badge className="ml-1 h-5 px-1.5 text-[10px]">
+              <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">
                 {infoChanges.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="corrections" className="gap-2">
+            <Clock className="h-4 w-4" />
+            Time Corrections
+            {pendingCorrections.length > 0 && (
+              <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">
+                {pendingCorrections.length}
               </Badge>
             )}
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Time Off Requests ── */}
+        {/* ── Time Off ── */}
         <TabsContent value="timeoff" className="mt-4">
           <Card>
             <CardHeader className="pb-3">
@@ -132,71 +192,31 @@ export function ApprovalsTab() {
                   {timeOffReqs.map((req) => {
                     const emp = req.employee as Employee | undefined
                     return (
-                      <div
+                      <RequestRow
                         key={req.id}
-                        className="flex items-start justify-between gap-4 px-4 py-4"
-                      >
-                        <div className="flex min-w-0 items-start gap-3">
-                          <Avatar className="h-8 w-8 shrink-0">
-                            <AvatarFallback className="bg-primary/10 text-xs text-primary">
-                              {emp?.first_name?.[0]}
-                              {emp?.last_name?.[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 space-y-1">
-                            <p className="text-sm font-medium">
-                              {emp?.first_name} {emp?.last_name}
-                              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                {emp?.department}
-                              </span>
-                            </p>
-                            <p className="text-sm">
-                              <span className="font-medium">
-                                {req.category?.name}
-                              </span>
-                              {" — "}
-                              {format(new Date(req.start_date), "MMM d")} –{" "}
-                              {format(new Date(req.end_date), "MMM d, yyyy")}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {req.amount} {req.category?.unit}
-                              {req.note && <> · "{req.note}"</>}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Requested{" "}
-                              {format(
-                                new Date(req.created_at),
-                                "MMM d 'at' h:mm a"
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 border-red-200 text-red-600 hover:bg-red-50"
-                            onClick={() => {
-                              setTarget({ kind: "timeoff", item: req })
-                              setComment("")
-                            }}
-                          >
-                            <X className="mr-1 h-3.5 w-3.5" />
-                            Deny
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="h-8"
-                            onClick={() => {
-                              setTarget({ kind: "timeoff", item: req })
-                              setComment("")
-                            }}
-                          >
-                            <Check className="mr-1 h-3.5 w-3.5" />
-                            Approve
-                          </Button>
-                        </div>
-                      </div>
+                        avatar={`${emp?.first_name?.[0]}${emp?.last_name?.[0]}`}
+                        title={`${emp?.first_name} ${emp?.last_name}`}
+                        subtitle={emp?.department}
+                        lines={[
+                          `${req.category?.name} — ${format(new Date(req.start_date), "MMM d")} – ${format(new Date(req.end_date), "MMM d, yyyy")}`,
+                          `${req.amount} ${req.category?.unit}${req.note ? ` · "${req.note}"` : ""}`,
+                          `Requested ${format(new Date(req.created_at), "MMM d 'at' h:mm a")}`,
+                        ]}
+                        onApprove={() =>
+                          openReview({
+                            kind: "timeoff",
+                            item: req,
+                            decision: "approved",
+                          })
+                        }
+                        onDeny={() =>
+                          openReview({
+                            kind: "timeoff",
+                            item: req,
+                            decision: "denied",
+                          })
+                        }
+                      />
                     )
                   })}
                 </div>
@@ -205,7 +225,7 @@ export function ApprovalsTab() {
           </Card>
         </TabsContent>
 
-        {/* ── Info Change Requests ── */}
+        {/* ── Profile Changes ── */}
         <TabsContent value="infochange" className="mt-4">
           <Card>
             <CardHeader className="pb-3">
@@ -224,73 +244,102 @@ export function ApprovalsTab() {
                   {infoChanges.map((req) => {
                     const emp = req.employee as Employee | undefined
                     return (
-                      <div
+                      <RequestRow
                         key={req.id}
-                        className="flex items-start justify-between gap-4 px-4 py-4"
-                      >
-                        <div className="flex min-w-0 items-start gap-3">
-                          <Avatar className="h-8 w-8 shrink-0">
-                            <AvatarFallback className="bg-primary/10 text-xs text-primary">
-                              {emp?.first_name?.[0]}
-                              {emp?.last_name?.[0]}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 space-y-1">
-                            <p className="text-sm font-medium">
-                              {emp?.first_name} {emp?.last_name}
-                              <span className="ml-2 text-xs font-normal text-muted-foreground">
-                                {emp?.department}
-                              </span>
-                            </p>
-                            <p className="text-sm capitalize">
-                              <span className="font-medium">
-                                {req.field_name.replace(/_/g, " ")}
-                              </span>
-                            </p>
-                            <div className="flex items-center gap-2 text-xs">
-                              <span className="text-muted-foreground line-through">
-                                {req.old_value || "—"}
-                              </span>
-                              <span className="text-muted-foreground">→</span>
-                              <span className="font-medium text-foreground">
-                                {req.new_value}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                              Requested{" "}
-                              {format(
-                                new Date(req.created_at),
-                                "MMM d 'at' h:mm a"
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 border-red-200 text-red-600 hover:bg-red-50"
-                            onClick={() => {
-                              setTarget({ kind: "infochange", item: req })
-                              setComment("")
-                            }}
-                          >
-                            <X className="mr-1 h-3.5 w-3.5" />
-                            Deny
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="h-8"
-                            onClick={() => {
-                              setTarget({ kind: "infochange", item: req })
-                              setComment("")
-                            }}
-                          >
-                            <Check className="mr-1 h-3.5 w-3.5" />
-                            Approve
-                          </Button>
-                        </div>
-                      </div>
+                        avatar={`${emp?.first_name?.[0]}${emp?.last_name?.[0]}`}
+                        title={`${emp?.first_name} ${emp?.last_name}`}
+                        subtitle={emp?.department}
+                        lines={[
+                          `${req.field_name.replace(/_/g, " ")} change`,
+                          `${req.old_value || "—"} → ${req.new_value}`,
+                          `Requested ${format(new Date(req.created_at), "MMM d 'at' h:mm a")}`,
+                        ]}
+                        onApprove={() =>
+                          openReview({
+                            kind: "infochange",
+                            item: req,
+                            decision: "approved",
+                          })
+                        }
+                        onDeny={() =>
+                          openReview({
+                            kind: "infochange",
+                            item: req,
+                            decision: "denied",
+                          })
+                        }
+                      />
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── Time Corrections ── */}
+        <TabsContent value="corrections" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <Clock className="h-4 w-4 text-primary" />
+                Pending Time Corrections
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              {corrLoading ? (
+                <LoadingSkeleton />
+              ) : pendingCorrections.length === 0 ? (
+                <EmptyState message="No pending corrections" />
+              ) : (
+                <div className="divide-y divide-border">
+                  {pendingCorrections.map((c) => {
+                    const emp = c.employee as Employee | undefined
+                    const entry = c.clock_entry as ClockEntry | undefined
+                    const changes: string[] = []
+                    if (c.requested_clock_in)
+                      changes.push(
+                        `Clock in → ${format(new Date(c.requested_clock_in), "h:mm a")}`
+                      )
+                    if (c.requested_clock_out)
+                      changes.push(
+                        `Clock out → ${format(new Date(c.requested_clock_out), "h:mm a")}`
+                      )
+                    if (c.requested_break_minutes !== null)
+                      changes.push(`Break → ${c.requested_break_minutes} min`)
+                    if (c.requested_notes !== null)
+                      changes.push(`Notes → "${c.requested_notes}"`)
+
+                    return (
+                      <RequestRow
+                        key={c.id}
+                        avatar={`${emp?.first_name?.[0]}${emp?.last_name?.[0]}`}
+                        title={`${emp?.first_name} ${emp?.last_name}`}
+                        subtitle={
+                          entry
+                            ? format(new Date(entry.date), "EEE, MMM d")
+                            : undefined
+                        }
+                        lines={[
+                          changes.join(" · "),
+                          `Reason: "${c.reason}"`,
+                          `Submitted ${format(new Date(c.created_at), "MMM d 'at' h:mm a")}`,
+                        ]}
+                        onApprove={() =>
+                          openReview({
+                            kind: "correction",
+                            item: c,
+                            decision: "approved",
+                          })
+                        }
+                        onDeny={() =>
+                          openReview({
+                            kind: "correction",
+                            item: c,
+                            decision: "denied",
+                          })
+                        }
+                      />
                     )
                   })}
                 </div>
@@ -300,7 +349,7 @@ export function ApprovalsTab() {
         </TabsContent>
       </Tabs>
 
-      {/* ── Review Dialog ── */}
+      {/* ── Review dialog ── */}
       {target && (
         <Dialog
           open
@@ -315,17 +364,20 @@ export function ApprovalsTab() {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <ClipboardCheck className="h-5 w-5 text-primary" />
-                Review Request
+                {target.decision === "approved"
+                  ? "Approve Request"
+                  : "Deny Request"}
               </DialogTitle>
               <DialogDescription>
-                Choose to approve or deny. An optional comment will be sent to
-                the employee.
+                {target.decision === "approved"
+                  ? "Approving will apply the change immediately."
+                  : "The employee will be notified with your reason."}
               </DialogDescription>
             </DialogHeader>
 
             {/* Summary */}
             <div className="space-y-1.5 rounded-lg bg-muted/50 p-4 text-sm">
-              {target.kind === "timeoff" ? (
+              {target.kind === "timeoff" && (
                 <>
                   <p>
                     <span className="text-muted-foreground">Employee: </span>
@@ -351,7 +403,8 @@ export function ApprovalsTab() {
                     </p>
                   )}
                 </>
-              ) : (
+              )}
+              {target.kind === "infochange" && (
                 <>
                   <p>
                     <span className="text-muted-foreground">Employee: </span>
@@ -374,12 +427,59 @@ export function ApprovalsTab() {
                   </p>
                 </>
               )}
+              {target.kind === "correction" && (
+                <>
+                  <p>
+                    <span className="text-muted-foreground">Employee: </span>
+                    {
+                      (target.item.employee as Employee | undefined)?.first_name
+                    }{" "}
+                    {(target.item.employee as Employee | undefined)?.last_name}
+                  </p>
+                  {target.item.requested_clock_in && (
+                    <p>
+                      <span className="text-muted-foreground">Clock in → </span>
+                      {format(
+                        new Date(target.item.requested_clock_in),
+                        "h:mm a"
+                      )}
+                    </p>
+                  )}
+                  {target.item.requested_clock_out && (
+                    <p>
+                      <span className="text-muted-foreground">
+                        Clock out →{" "}
+                      </span>
+                      {format(
+                        new Date(target.item.requested_clock_out),
+                        "h:mm a"
+                      )}
+                    </p>
+                  )}
+                  {target.item.requested_break_minutes !== null && (
+                    <p>
+                      <span className="text-muted-foreground">Break → </span>
+                      {target.item.requested_break_minutes} min
+                    </p>
+                  )}
+                  <p className="text-muted-foreground italic">
+                    "{target.item.reason}"
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm">Comment for employee (optional)</Label>
+              <Label className="text-sm">
+                Comment{" "}
+                {target.decision === "denied" ? "(recommended)" : "(optional)"}
+              </Label>
               <Textarea
-                placeholder="Add a note to the employee…"
+                placeholder={
+                  target.decision === "denied"
+                    ? "Tell the employee why this was denied…"
+                    : "Add a note (optional)…"
+                }
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 className="h-20 resize-none"
@@ -397,33 +497,90 @@ export function ApprovalsTab() {
                 Cancel
               </Button>
               <Button
-                variant="outline"
-                className="border-red-200 text-red-600 hover:bg-red-50"
+                variant={
+                  target.decision === "denied" ? "destructive" : "default"
+                }
                 disabled={isReviewing}
-                onClick={() => handleDecision("denied")}
+                onClick={handleDecision}
               >
                 {isReviewing ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : target.decision === "approved" ? (
+                  <Check className="mr-2 h-4 w-4" />
                 ) : (
                   <X className="mr-2 h-4 w-4" />
                 )}
-                Deny
-              </Button>
-              <Button
-                disabled={isReviewing}
-                onClick={() => handleDecision("approved")}
-              >
-                {isReviewing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="mr-2 h-4 w-4" />
-                )}
-                Approve
+                {target.decision === "approved"
+                  ? "Confirm Approval"
+                  : "Confirm Denial"}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       )}
+    </div>
+  )
+}
+
+// ─── Shared row component ─────────────────────────────────────────────────────
+
+function RequestRow({
+  avatar,
+  title,
+  subtitle,
+  lines,
+  onApprove,
+  onDeny,
+}: {
+  avatar: string
+  title: string
+  subtitle?: string
+  lines: string[]
+  onApprove: () => void
+  onDeny: () => void
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 px-4 py-4">
+      <div className="flex min-w-0 items-start gap-3">
+        <Avatar className="h-8 w-8 shrink-0">
+          <AvatarFallback className="bg-primary/10 text-xs text-primary">
+            {avatar}
+          </AvatarFallback>
+        </Avatar>
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-sm font-medium">
+            {title}
+            {subtitle && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {subtitle}
+              </span>
+            )}
+          </p>
+          {lines.map((line, i) => (
+            <p
+              key={i}
+              className={`text-xs ${i === 0 ? "text-foreground" : "text-muted-foreground"}`}
+            >
+              {line}
+            </p>
+          ))}
+        </div>
+      </div>
+      <div className="flex shrink-0 gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 border-red-200 text-red-600 hover:bg-red-50"
+          onClick={onDeny}
+        >
+          <X className="mr-1 h-3.5 w-3.5" />
+          Deny
+        </Button>
+        <Button size="sm" className="h-8" onClick={onApprove}>
+          <Check className="mr-1 h-3.5 w-3.5" />
+          Approve
+        </Button>
+      </div>
     </div>
   )
 }

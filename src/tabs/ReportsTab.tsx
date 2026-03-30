@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react"
+import { useState } from "react"
 import {
   format,
   startOfWeek,
@@ -45,7 +45,7 @@ import {
 } from "@/components/ui/dialog"
 import {
   useAllClockEntries,
-  useEmployees,
+  useAllEmployeesForReports,
   useAllCorrections,
   useReviewCorrection,
   useCurrentEmployee,
@@ -80,7 +80,8 @@ export function ReportsTab() {
 
   const { data: allEntries = [], isLoading: entriesLoading } =
     useAllClockEntries(weekStartStr)
-  const { data: employees = [], isLoading: empLoading } = useEmployees()
+  const { data: employees = [], isLoading: empLoading } =
+    useAllEmployeesForReports()
   const { data: corrections = [] } = useAllCorrections()
   const reviewCorrection = useReviewCorrection()
 
@@ -109,7 +110,7 @@ export function ReportsTab() {
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd })
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
-  const handleExportCSV = useCallback(() => {
+  function handleExportCSV() {
     const rows: string[][] = [
       [
         "Employee",
@@ -151,7 +152,7 @@ export function ReportsTab() {
     })
     a.click()
     URL.revokeObjectURL(url)
-  }, [summaries, weekStartStr])
+  }
 
   // ── Review handlers ─────────────────────────────────────────────────────────
   async function handleReview(decision: "approved" | "denied") {

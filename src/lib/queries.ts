@@ -1015,3 +1015,18 @@ export function useInviteEmployee() {
     },
   })
 }
+
+/** All employees regardless of status — admin only. For reporting purposes. */
+export function useAllEmployeesForReports() {
+  return useQuery({
+    queryKey: ["admin-employees-reports"] as const,
+    queryFn: async (): Promise<Employee[]> => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .order("last_name")
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}

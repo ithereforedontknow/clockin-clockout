@@ -23,10 +23,36 @@ export type TabId =
   | "approvals"
   | "admin"
 
-export function Appshell() {
+export function AppShell() {
   const [activeTab, setActiveTab] = useState<TabId>("home")
-  const { data: employee, isLoading } = useCurrentEmployee()
+  const { data: employee, isLoading, error } = useCurrentEmployee()
   const role = employee?.role ?? "employee"
+
+  // ── Error state (no employee record linked to this auth user) ───────────
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <div className="max-w-sm space-y-3 text-center">
+          <div className="text-4xl">🚧</div>
+          <h2 className="text-lg font-semibold">Account not set up yet</h2>
+          <p className="text-sm text-muted-foreground">
+            Your account exists but no employee record has been created for it
+            yet. Please contact your HR administrator to get access.
+          </p>
+          <button
+            className="text-sm text-primary underline"
+            onClick={async () => {
+              const { supabase } = await import("@/lib/supabase")
+              await supabase.auth.signOut()
+              window.location.href = "/login"
+            }}
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // ── Loading skeleton ────────────────────────────────────────────────────
   if (isLoading) {
@@ -71,7 +97,7 @@ export function Appshell() {
       case "home":
         return <HomeTab />
       case "timesheet":
-        return <TimeSheetTab />
+        return <TimeSheetTab onNavigate={setActiveTab} />
       case "timeoff":
         return <TimeOffTab />
       case "people":

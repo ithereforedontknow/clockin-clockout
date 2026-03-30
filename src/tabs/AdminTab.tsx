@@ -5,6 +5,7 @@ import {
   Pencil,
   UserX,
   UserCheck,
+  Download,
   MoreHorizontal,
   Shield,
   Loader2,
@@ -139,43 +140,43 @@ export function AdminTab() {
   }
 
   // Bulk CSV export
-  // const handleExport = useCallback(() => {
-  //   const rows = [
-  //     [
-  //       "Name",
-  //       "Email",
-  //       "Role",
-  //       "Department",
-  //       "Job Title",
-  //       "Location",
-  //       "Status",
-  //       "Hire Date",
-  //       "Std Hrs/Day",
-  //       "Std Hrs/Week",
-  //     ],
-  //     ...employees.map((e) => [
-  //       `${e.first_name} ${e.last_name}`,
-  //       e.email,
-  //       e.role,
-  //       e.department,
-  //       e.job_title,
-  //       e.location,
-  //       e.employment_status,
-  //       e.hire_date,
-  //       String(e.standard_hours_per_day),
-  //       String(e.standard_hours_per_week),
-  //     ]),
-  //   ]
-  //   const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n")
-  //   const blob = new Blob([csv], { type: "text/csv" })
-  //   const url = URL.createObjectURL(blob)
-  //   const a = Object.assign(document.createElement("a"), {
-  //     href: url,
-  //     download: `employees-${new Date().toISOString().slice(0, 10)}.csv`,
-  //   })
-  //   a.click()
-  //   URL.revokeObjectURL(url)
-  // }, [employees])
+  function handleExport() {
+    const rows = [
+      [
+        "Name",
+        "Email",
+        "Role",
+        "Department",
+        "Job Title",
+        "Location",
+        "Status",
+        "Hire Date",
+        "Std Hrs/Day",
+        "Std Hrs/Week",
+      ],
+      ...employees.map((e) => [
+        `${e.first_name} ${e.last_name}`,
+        e.email,
+        e.role,
+        e.department,
+        e.job_title,
+        e.location,
+        e.employment_status,
+        e.hire_date,
+        String(e.standard_hours_per_day),
+        String(e.standard_hours_per_week),
+      ]),
+    ]
+    const csv = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n")
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = Object.assign(document.createElement("a"), {
+      href: url,
+      download: `employees-${new Date().toISOString().slice(0, 10)}.csv`,
+    })
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   // Confirm deactivate / reactivate
   async function handleConfirmAction() {
@@ -197,7 +198,7 @@ export function AdminTab() {
   const inactiveCount = employees.filter(
     (e) => e.employment_status === "inactive"
   ).length
-  // const adminCount = employees.filter((e) => e.role === "admin").length
+  const adminCount = employees.filter((e) => e.role === "admin").length
 
   return (
     <div className="max-w-6xl space-y-5">
@@ -259,19 +260,25 @@ export function AdminTab() {
           )}
         </div>
 
-        <Select value={statusFilter || "all"} onValueChange={setStatusFilter}>
+        <Select
+          value={statusFilter || "all"}
+          onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}
+        >
           <SelectTrigger className="w-36">
             <SelectValue placeholder="All statuses" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>{" "}
+            <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="active">Active</SelectItem>
             <SelectItem value="inactive">Inactive</SelectItem>
             <SelectItem value="on_leave">On Leave</SelectItem>
           </SelectContent>
         </Select>
 
-        <Select value={roleFilter || "all"} onValueChange={setRoleFilter}>
+        <Select
+          value={roleFilter || "all"}
+          onValueChange={(v) => setRoleFilter(v === "all" ? "" : v)}
+        >
           <SelectTrigger className="w-32">
             <SelectValue placeholder="All roles" />
           </SelectTrigger>
@@ -283,12 +290,15 @@ export function AdminTab() {
           </SelectContent>
         </Select>
 
-        <Select value={deptFilter} onValueChange={setDeptFilter}>
+        <Select
+          value={deptFilter || "all"}
+          onValueChange={(v) => setDeptFilter(v === "all" ? "" : v)}
+        >
           <SelectTrigger className="w-40">
             <SelectValue placeholder="All departments" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All departments</SelectItem>
+            <SelectItem value="all">All departments</SelectItem>
             {departments.map((d) => (
               <SelectItem key={d} value={d}>
                 {d}
@@ -315,10 +325,10 @@ export function AdminTab() {
               </Button>
             </>
           )}
-          {/*<Button variant="outline" size="sm" onClick={handleExport}>
+          <Button variant="outline" size="sm" onClick={handleExport}>
             <Download className="mr-2 h-3.5 w-3.5" />
             Export CSV
-          </Button>*/}
+          </Button>
         </div>
       </div>
 
