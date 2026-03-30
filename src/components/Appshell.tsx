@@ -1,7 +1,8 @@
 import { useState } from "react"
 import { AppSidebar } from "@/components/AppSidebar"
-import { OnboardingFlow } from "@/components/OnboardingFlow"
+// import { OnboardingFlow } from "@/components/OnboardingFlow"
 import { HomeTab } from "@/tabs/HomeTab"
+
 import { MyInfoTab } from "@/tabs/MyInfoTab"
 import { PeopleTab } from "@/tabs/PeopleTab"
 import { TimeOffTab } from "@/tabs/TimeOffTab"
@@ -87,9 +88,9 @@ export function AppShell() {
   }
 
   // ── Onboarding intercept ────────────────────────────────────────────────
-  if (employee && !employee.onboarding_completed) {
-    return <OnboardingFlow employee={employee} onComplete={() => {}} />
-  }
+  // if (employee && !employee.onboarding_completed) {
+  //   return <OnboardingFlow employee={employee} onComplete={() => {}} />
+  // }
 
   // ── Tab renderer ────────────────────────────────────────────────────────
   const renderTab = () => {
