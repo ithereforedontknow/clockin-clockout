@@ -24,7 +24,7 @@ export type TabId =
   | "approvals"
   | "admin"
 
-export function AppShell() {
+export function Appshell() {
   const [activeTab, setActiveTab] = useState<TabId>("home")
   const { data: employee, isLoading, error } = useCurrentEmployee()
   const role = employee?.role ?? "employee"

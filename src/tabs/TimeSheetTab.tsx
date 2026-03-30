@@ -13,7 +13,7 @@ import {
   Pencil,
   ArrowRight,
 } from "lucide-react"
-import type { TabId } from "@/components/AppShell"
+import type { TabId } from "@/components/Appshell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"

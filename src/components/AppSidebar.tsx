@@ -19,7 +19,7 @@ import {
   UserPlus,
   Shield,
 } from "lucide-react"
-import type { TabId } from "@/components/AppShell"
+import type { TabId } from "@/components/Appshell"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
