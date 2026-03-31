@@ -85,7 +85,6 @@ const NAV_ITEMS: NavItem[] = [
   { id: "timesheet", label: "Timesheet", icon: Timer },
   { id: "timeoff", label: "Time Off", icon: Clock },
   { id: "people", label: "People", icon: Users },
-  { id: "myinfo", label: "My Info", icon: User },
   {
     id: "approvals",
     label: "Approvals",

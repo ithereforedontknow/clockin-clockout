@@ -6,6 +6,7 @@ import type {
   BreakEntry,
   TimeOffBalance,
   TimeOffRequest,
+  InfoChangeRequest,
   CompanyHoliday,
 } from "./supabase"
 
@@ -47,11 +48,13 @@ export function useCurrentEmployee() {
       if (byUserId) return byUserId
 
       // 2. First login — admin pre-created the record with no user_id yet.
-      //    Find the row by email and link it to this auth user.
+      //    Find the row by email (normalised) and link it atomically.
+      const normalisedEmail = (user.email ?? "").trim().toLowerCase()
+
       const { data: byEmail, error: emailErr } = await supabase
         .from("employees")
         .select("*")
-        .eq("email", user.email!)
+        .eq("email", normalisedEmail)
         .is("user_id", null)
         .maybeSingle()
 
@@ -186,6 +189,7 @@ export function useCancelInfoChange() {
   return useMutation({
     mutationFn: async ({
       requestId,
+      employeeId,
     }: {
       requestId: string
       employeeId: string
@@ -270,6 +274,7 @@ export function useUpdateTimeOffRequest() {
   return useMutation({
     mutationFn: async ({
       id,
+      employeeId,
       updates,
     }: {
       id: string
@@ -442,6 +447,7 @@ export function useClockOut() {
   return useMutation({
     mutationFn: async ({
       entryId,
+      employeeId,
       totalMinutes,
     }: {
       entryId: string
@@ -472,6 +478,7 @@ export function useStartBreak() {
   return useMutation({
     mutationFn: async ({
       entryId,
+      employeeId,
     }: {
       entryId: string
       employeeId: string
@@ -498,6 +505,7 @@ export function useEndBreak() {
   return useMutation({
     mutationFn: async ({
       breakId,
+      employeeId,
       durationMinutes,
     }: {
       breakId: string
@@ -712,7 +720,13 @@ export function useNotifications(employeeId: string) {
 export function useMarkNotificationRead() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({ id }: { id: string; employeeId: string }) => {
+    mutationFn: async ({
+      id,
+      employeeId,
+    }: {
+      id: string
+      employeeId: string
+    }) => {
       const { error } = await supabase
         .from("notifications")
         .update({ read: true })

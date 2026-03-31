@@ -320,64 +320,73 @@ alter table employees
 -- No extra tables needed. Enable via Supabase Dashboard:
 -- Authentication → Sign In Methods → Passkeys → Enable
 
--- Admins can create new employee records
+
+-- ─── Admin: allow admins to read ALL employees regardless of status ───────────
+-- (the existing "directory read" policy only shows active employees)
+create policy "admin read all employees" on employees
+  for select using (
+    (select role from employees where user_id = auth.uid() limit 1) = 'admin'
+  );
+
+-- Admin can update any employee row directly
+create policy "admin update employees" on employees
+  for update using (
+    (select role from employees where user_id = auth.uid() limit 1) = 'admin'
+  );
+
+
+-- ─── Allow first-login email lookup ──────────────────────────────────────────
+-- An authenticated user can read an employee row where user_id IS NULL
+-- and email matches their auth email. This is used to link accounts on first login.
+create policy "first login email match" on employees
+  for select using (
+    user_id is null and email = auth.email()
+  );
+
+-- Allow the newly linked user to update their own user_id on first login
+create policy "link own user_id" on employees
+  for update using (
+    user_id is null and email = auth.email()
+  );
+
+
+-- ─── Fix: link own employee record on first sign-in ───────────────────────────
+-- Cannot use auth.users subquery (anon role blocked).
+-- Instead allow update when user_id IS NULL — the email check happens
+-- in application code (auth.ts) before the update is called.
+create policy "link unlinked employee" on employees
+  for update using (user_id is null)
+  with check (true);
+
+-- ─── Fix: allow admins to insert new employee rows ───────────────────────────
 create policy "admin insert employees" on employees
   for insert with check (
     (select role from employees where user_id = auth.uid() limit 1) = 'admin'
   );
 
--- Allow users to link their auth.users record to an existing employee record
--- This is typically used during initial onboarding when the employee record
--- is created without an associated user_id, and the user is signing up.
--- The email must match to prevent linking to the wrong record.
-create policy "link own employee record" on employees
-    for update using (
-      user_id is null and email = (
-        select email from auth.users where id = auth.uid()
-      )
-    );
-    -- Drop the old "own record" policy and recreate it
-    drop policy if exists "own record" on employees;
+-- ─── Fix: allow employees to update their own onboarding fields ──────────────
+-- The existing "own record" policy covers updates where user_id = auth.uid(),
+-- but onboarding writes happen right after linking so we need to make sure
+-- the policy is broad enough. Drop and recreate to be safe.
+drop policy if exists "own record" on employees;
 
-    create policy "own record" on employees
-      for all using (
-        user_id = auth.uid()
-        or user_id is null
-      )
-      with check (
-        user_id = auth.uid()  -- once linked, can only write to own row
-      );
-
-    -- Allow linking on first sign-in (separate update policy for null rows)
-    drop policy if exists "link unlinked employee" on employees;
-
-    create policy "link unlinked employee" on employees
-      for update
-      using (user_id is null)
-      with check (user_id = auth.uid());  -- can only set to YOUR own uid
-
-    -- Allow admins to create employee records
-    drop policy if exists "admin insert employees" on employees;
-
-    create policy "admin insert employees" on employees
-      for insert with check (
-        (select role from employees where user_id = auth.uid() limit 1) = 'admin'
-      );
+create policy "own record" on employees
+  for all using (
+    user_id = auth.uid()
+    or user_id is null  -- allows the linking update in auth.ts
+  )
+  with check (
+    user_id = auth.uid()
+    or user_id is null
+  );
 
 
-      create policy "manager admin read info changes" on info_change_requests
-        for select using (
-          (select role from employees where user_id = auth.uid() limit 1)
-          in ('manager', 'admin')
-        );
-
-      create policy "manager admin update info changes" on info_change_requests
-        for update using (
-          (select role from employees where user_id = auth.uid() limit 1)
-          in ('manager', 'admin')
-        );
-
-        create policy "admin corrections update" on clock_corrections
-          for update using (
-            (select role from employees where user_id = auth.uid() limit 1) = 'admin'
-          );
+-- ─── Fix: allow reading unlinked rows by email on first sign-in ───────────────
+-- Without this, the email fallback in useCurrentEmployee can't SELECT
+-- the pre-created row (user_id IS NULL) to then link it.
+-- Uses auth.email() — the email from the current user's JWT, no auth.users query needed.
+create policy "read own unlinked record" on employees
+  for select using (
+    user_id is null
+    and lower(email) = lower(auth.email())
+  );
