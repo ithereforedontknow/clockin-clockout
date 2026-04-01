@@ -3,16 +3,11 @@ import { createClient } from "@supabase/supabase-js"
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    "Missing Supabase environment variables. Check Cloudflare Pages settings."
-  )
-}
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // ─── Database Types ────────────────────────────────────────────────────────
 
-export type UserRole = "employee" | "manager" | "admin"
+export type UserRole = "employee" | "employer" | "admin"
 
 export interface Employee {
   id: string
@@ -199,4 +194,29 @@ export function liveMinutes(clockIn: string, breakMinutes = 0): number {
     Math.floor((Date.now() - new Date(clockIn).getTime()) / 60000) -
       breakMinutes
   )
+}
+
+// ─── Company Settings ──────────────────────────────────────────────────────
+
+export interface CompanySettings {
+  id: string
+  company_name: string
+  standard_hours_per_day: number
+  standard_hours_per_week: number
+  standard_start_time: string // "HH:MM"
+  working_days: number[] // 0=Sun,1=Mon,...,6=Sat
+  overtime_threshold_daily: number // hours before daily OT kicks in
+  overtime_threshold_weekly: number // hours before weekly OT kicks in
+  logo_url: string | null
+  updated_at: string
+}
+
+// ─── Live clock status (for monitoring) ───────────────────────────────────
+
+export interface LiveClockStatus {
+  employee_id: string
+  employee: Employee
+  clock_entry: ClockEntry & { breaks: BreakEntry[] }
+  status: "clocked_in" | "on_break"
+  elapsed_minutes: number
 }

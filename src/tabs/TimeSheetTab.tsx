@@ -13,7 +13,6 @@ import {
   Pencil,
   ArrowRight,
 } from "lucide-react"
-import type { TabId } from "@/components/Appshell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +26,7 @@ import {
 import { formatMinutes } from "@/lib/supabase"
 import type { ClockEntry, BreakEntry } from "@/lib/supabase"
 import { ClockCorrectionDialog } from "@/components/ClockCorrectionDialog"
+import type { TabId } from "@/components/Appshell"
 
 interface Props {
   onNavigate?: (tab: TabId) => void
@@ -36,7 +36,7 @@ export function TimeSheetTab({ onNavigate }: Props) {
   const { data: employee } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
   const role = employee?.role ?? "employee"
-  const isManagerOrAdmin = role === "manager" || role === "admin"
+  const isManagerOrAdmin = role === "employer" || role === "admin"
 
   const [weekOffset, setWeekOffset] = useState(0)
   const baseDate = addWeeks(new Date(), weekOffset)

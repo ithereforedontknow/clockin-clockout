@@ -18,8 +18,9 @@ import {
   AlertCircle,
   UserPlus,
   Shield,
+  Search,
+  Settings,
 } from "lucide-react"
-import type { TabId } from "@/components/Appshell"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
 import { supabase } from "@/lib/supabase"
@@ -53,6 +54,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import type { TabId } from "@/components/Appshell"
 import type {
   UserRole,
   AppNotification,
@@ -85,17 +87,18 @@ const NAV_ITEMS: NavItem[] = [
   { id: "timesheet", label: "Timesheet", icon: Timer },
   { id: "timeoff", label: "Time Off", icon: Clock },
   { id: "people", label: "People", icon: Users },
+  { id: "myinfo", label: "My Info", icon: User },
   {
     id: "approvals",
     label: "Approvals",
     icon: ClipboardCheck,
-    roles: ["manager", "admin"],
+    roles: ["employer", "admin"],
   },
   {
     id: "reports",
     label: "Reports",
     icon: BarChart3,
-    roles: ["manager", "admin"],
+    roles: ["employer", "admin"],
   },
   { id: "admin", label: "Admin", icon: Shield, roles: ["admin"] },
 ]
@@ -127,6 +130,8 @@ interface AppSidebarProps {
   onTabChange: (tab: TabId) => void
   role: UserRole
   children: ReactNode
+  onOpenSettings: () => void
+  onOpenPalette: () => void
 }
 
 export function AppSidebar({
@@ -134,6 +139,8 @@ export function AppSidebar({
   onTabChange,
   role,
   children,
+  onOpenSettings,
+  onOpenPalette,
 }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -214,6 +221,36 @@ export function AppSidebar({
                   Menu
                 </p>
               )}
+
+              {/* ⌘K search button */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onOpenPalette}
+                    className={cn(
+                      "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
+                      "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+                      collapsed && "justify-center px-0"
+                    )}
+                  >
+                    <Search className="h-4 w-4 shrink-0" />
+                    {!collapsed && (
+                      <>
+                        <span className="flex-1 text-left">Search</span>
+                        <kbd className="rounded border border-sidebar-border bg-sidebar-accent/30 px-1.5 py-0.5 text-[10px] text-sidebar-foreground/40">
+                          ⌘K
+                        </kbd>
+                      </>
+                    )}
+                  </button>
+                </TooltipTrigger>
+                {collapsed && (
+                  <TooltipContent side="right">Search (⌘K)</TooltipContent>
+                )}
+              </Tooltip>
+
+              <div className="my-1 border-t border-sidebar-border/50" />
+
               {visibleNav.map(({ id, label, icon: Icon }) => (
                 <NavButton
                   key={id}
@@ -234,6 +271,7 @@ export function AppSidebar({
               collapsed={collapsed}
               role={role}
               onNavigate={onTabChange}
+              onOpenSettings={onOpenSettings}
             />
           </aside>
 
@@ -301,10 +339,12 @@ function SidebarFooter({
   collapsed,
   role,
   onNavigate,
+  onOpenSettings,
 }: {
   collapsed: boolean
   role: UserRole
   onNavigate: (tab: TabId) => void
+  onOpenSettings: () => void
 }) {
   const { data: employee, isLoading } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
@@ -515,6 +555,10 @@ function SidebarFooter({
           >
             <User className="mr-2 h-4 w-4" />
             My Profile
+          </DropdownMenuItem>
+          <DropdownMenuItem className="cursor-pointer" onClick={onOpenSettings}>
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

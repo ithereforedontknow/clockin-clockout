@@ -44,13 +44,13 @@ const NAV_ITEMS: NavItem[] = [
     id: "approvals",
     label: "Approvals",
     icon: ClipboardCheck,
-    roles: ["manager", "admin"],
+    roles: ["employer", "admin"],
   },
   {
     id: "reports",
     label: "Reports",
     icon: BarChart3,
-    roles: ["manager", "admin"],
+    roles: ["employer", "admin"],
   },
 ]
 

@@ -8,9 +8,12 @@ import type {
   TimeOffRequest,
   InfoChangeRequest,
   CompanyHoliday,
+  ClockCorrection,
+  AppNotification,
+  CompanySettings,
 } from "./supabase"
 
-// ─── Query Keys ──────────────────────────────────────────────────────────────
+// ─── Query Keys ───────────────────────────────────────────────────────────────
 export const keys = {
   currentEmployee: () => ["current-employee"] as const,
   employee: (id: string) => ["employee", id] as const,
@@ -26,7 +29,7 @@ export const keys = {
   allClockEntries: (week: string) => ["all-clock-entries", week] as const,
 }
 
-// ─── Current Employee (auth-aware) ───────────────────────────────────────────
+// ─── Current Employee ─────────────────────────────────────────────────────────
 
 export function useCurrentEmployee() {
   return useQuery({
@@ -38,30 +41,23 @@ export function useCurrentEmployee() {
       } = await supabase.auth.getUser()
       if (authErr || !user) throw new Error("Not authenticated")
 
-      // 1. Try to find by user_id (normal case — returning user)
       const { data: byUserId } = await supabase
         .from("employees")
         .select("*")
         .eq("user_id", user.id)
         .maybeSingle()
-
       if (byUserId) return byUserId
 
-      // 2. First login — admin pre-created the record with no user_id yet.
-      //    Find the row by email (normalised) and link it atomically.
       const normalisedEmail = (user.email ?? "").trim().toLowerCase()
-
       const { data: byEmail, error: emailErr } = await supabase
         .from("employees")
         .select("*")
         .eq("email", normalisedEmail)
         .is("user_id", null)
         .maybeSingle()
-
       if (emailErr) throw emailErr
 
       if (byEmail) {
-        // Patch the row with the real user_id now that we know it
         const { data: linked, error: linkErr } = await supabase
           .from("employees")
           .update({ user_id: user.id, updated_at: new Date().toISOString() })
@@ -72,15 +68,12 @@ export function useCurrentEmployee() {
         return linked
       }
 
-      // 3. No record at all — account exists in auth but not in employees table.
-      //    This shouldn't happen in normal flow but gives a clear error.
       throw new Error(
         "No employee record found. Contact your HR administrator."
       )
     },
     staleTime: 1000 * 60 * 10,
     retry: (failureCount, error: any) => {
-      // Don't retry the "no record found" error — it won't resolve on its own
       if (error?.message?.includes("No employee record")) return false
       return failureCount < 2
     },
@@ -102,7 +95,6 @@ export function useEmployees() {
   })
 }
 
-/** All employees including inactive — for Reports and Admin tabs. */
 export function useAllEmployeesForReports() {
   return useQuery({
     queryKey: [...keys.employees(), "all"] as const,
@@ -114,6 +106,23 @@ export function useAllEmployeesForReports() {
       if (error) throw error
       return data ?? []
     },
+  })
+}
+
+export function useMyTeam(employerId: string) {
+  return useQuery({
+    queryKey: ["my-team", employerId],
+    queryFn: async (): Promise<Employee[]> => {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("*")
+        .eq("manager_id", employerId)
+        .eq("employment_status", "active")
+        .order("last_name")
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!employerId,
   })
 }
 
@@ -189,7 +198,6 @@ export function useCancelInfoChange() {
   return useMutation({
     mutationFn: async ({
       requestId,
-      employeeId,
     }: {
       requestId: string
       employeeId: string
@@ -274,7 +282,6 @@ export function useUpdateTimeOffRequest() {
   return useMutation({
     mutationFn: async ({
       id,
-      employeeId,
       updates,
     }: {
       id: string
@@ -353,7 +360,6 @@ export function calculateFutureBalance(
 
 // ─── Clock In / Out ───────────────────────────────────────────────────────────
 
-/** Today's open or most-recently-closed entry for the employee. */
 export function useTodayClockEntry(employeeId: string) {
   return useQuery({
     queryKey: keys.todayClock(employeeId),
@@ -373,11 +379,10 @@ export function useTodayClockEntry(employeeId: string) {
       return data
     },
     enabled: !!employeeId,
-    refetchInterval: 30_000, // refresh every 30s to keep live timer accurate
+    refetchInterval: 30_000,
   })
 }
 
-/** Weekly clock entries for one employee (for Timesheet tab). */
 export function useClockHistory(employeeId: string, weekStart: string) {
   return useQuery({
     queryKey: keys.clockHistory(employeeId, weekStart),
@@ -398,7 +403,6 @@ export function useClockHistory(employeeId: string, weekStart: string) {
   })
 }
 
-/** All employees' clock entries for a week — admin/manager only. */
 export function useAllClockEntries(weekStart: string) {
   return useQuery({
     queryKey: keys.allClockEntries(weekStart),
@@ -416,6 +420,24 @@ export function useAllClockEntries(weekStart: string) {
       if (error) throw error
       return data ?? []
     },
+  })
+}
+
+export function useLiveClockedIn() {
+  return useQuery({
+    queryKey: ["live-clocked-in"],
+    queryFn: async () => {
+      const today = new Date().toISOString().slice(0, 10)
+      const { data, error } = await supabase
+        .from("clock_entries")
+        .select("*, employee:employees(*), breaks:break_entries(*)")
+        .eq("date", today)
+        .is("clock_out", null)
+        .order("clock_in")
+      if (error) throw error
+      return data ?? []
+    },
+    refetchInterval: 30_000,
   })
 }
 
@@ -438,6 +460,7 @@ export function useClockIn() {
     },
     onSuccess: (_, employeeId) => {
       qc.invalidateQueries({ queryKey: keys.todayClock(employeeId) })
+      qc.invalidateQueries({ queryKey: ["live-clocked-in"] })
     },
   })
 }
@@ -447,7 +470,6 @@ export function useClockOut() {
   return useMutation({
     mutationFn: async ({
       entryId,
-      employeeId,
       totalMinutes,
     }: {
       entryId: string
@@ -469,6 +491,7 @@ export function useClockOut() {
     onSuccess: (_, { employeeId }) => {
       qc.invalidateQueries({ queryKey: keys.todayClock(employeeId) })
       qc.invalidateQueries({ queryKey: ["clock-history"] })
+      qc.invalidateQueries({ queryKey: ["live-clocked-in"] })
     },
   })
 }
@@ -478,7 +501,6 @@ export function useStartBreak() {
   return useMutation({
     mutationFn: async ({
       entryId,
-      employeeId,
     }: {
       entryId: string
       employeeId: string
@@ -505,7 +527,6 @@ export function useEndBreak() {
   return useMutation({
     mutationFn: async ({
       breakId,
-      employeeId,
       durationMinutes,
     }: {
       breakId: string
@@ -532,14 +553,11 @@ export function useEndBreak() {
 
 // ─── Clock Corrections ────────────────────────────────────────────────────────
 
-import type { ClockCorrection } from "./supabase"
-
 export const correctionKeys = {
   myCorrections: (empId: string) => ["corrections", "mine", empId] as const,
   allCorrections: () => ["corrections", "all"] as const,
 }
 
-/** Employee's own correction requests. */
 export function useMyCorrections(employeeId: string) {
   return useQuery({
     queryKey: correctionKeys.myCorrections(employeeId),
@@ -556,7 +574,6 @@ export function useMyCorrections(employeeId: string) {
   })
 }
 
-/** All pending corrections — manager/admin only. */
 export function useAllCorrections() {
   return useQuery({
     queryKey: correctionKeys.allCorrections(),
@@ -571,7 +588,6 @@ export function useAllCorrections() {
   })
 }
 
-/** Employee submits a correction request. */
 export function useSubmitCorrection() {
   const qc = useQueryClient()
   return useMutation({
@@ -604,7 +620,6 @@ export function useSubmitCorrection() {
   })
 }
 
-/** Manager/Admin approves or denies — if approved, also patches clock_entries. */
 export function useReviewCorrection() {
   const qc = useQueryClient()
   return useMutation({
@@ -619,7 +634,6 @@ export function useReviewCorrection() {
       reviewerComment: string
       reviewerId: string
     }) => {
-      // 1. Update the correction row
       const { error: corrErr } = await supabase
         .from("clock_corrections")
         .update({
@@ -631,7 +645,6 @@ export function useReviewCorrection() {
         .eq("id", correction.id)
       if (corrErr) throw corrErr
 
-      // 2. If approved, patch the original clock_entry
       if (decision === "approved") {
         const patch: Record<string, unknown> = {}
         if (correction.requested_clock_in)
@@ -641,32 +654,27 @@ export function useReviewCorrection() {
         if (correction.requested_notes !== null)
           patch.notes = correction.requested_notes
 
-        // Recalculate total_minutes from the (possibly updated) times minus break
         const clockIn = new Date(
           correction.requested_clock_in ??
-            correction.clock_entry?.clock_in ??
+            (correction.clock_entry as ClockEntry | undefined)?.clock_in ??
             ""
         )
         const clockOut = new Date(
           correction.requested_clock_out ??
-            correction.clock_entry?.clock_out ??
+            (correction.clock_entry as ClockEntry | undefined)?.clock_out ??
             ""
         )
         const breakMins =
           correction.requested_break_minutes ??
           (
-            correction.clock_entry?.breaks as
-              | { duration_minutes: number }[]
-              | undefined
-          )?.reduce((s, b) => s + (b.duration_minutes ?? 0), 0) ??
-          0
+            (
+              correction.clock_entry as
+                | (ClockEntry & { breaks: BreakEntry[] })
+                | undefined
+            )?.breaks ?? []
+          ).reduce((s, b) => s + (b.duration_minutes ?? 0), 0)
 
-        if (
-          clockIn &&
-          clockOut &&
-          !isNaN(clockIn.getTime()) &&
-          !isNaN(clockOut.getTime())
-        ) {
+        if (!isNaN(clockIn.getTime()) && !isNaN(clockOut.getTime())) {
           patch.total_minutes = Math.max(
             0,
             Math.floor((clockOut.getTime() - clockIn.getTime()) / 60000) -
@@ -693,8 +701,6 @@ export function useReviewCorrection() {
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 
-import type { AppNotification, InfoChangeRequest } from "./supabase"
-
 export const notifKeys = {
   mine: (empId: string) => ["notifications", empId] as const,
 }
@@ -720,13 +726,7 @@ export function useNotifications(employeeId: string) {
 export function useMarkNotificationRead() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({
-      id,
-      employeeId,
-    }: {
-      id: string
-      employeeId: string
-    }) => {
+    mutationFn: async ({ id }: { id: string; employeeId: string }) => {
       const { error } = await supabase
         .from("notifications")
         .update({ read: true })
@@ -756,7 +756,6 @@ export function useMarkAllRead() {
   })
 }
 
-/** Write a notification row — called after approve/deny mutations. */
 export async function createNotification(
   payload: Pick<
     AppNotification,
@@ -766,7 +765,7 @@ export async function createNotification(
   await supabase.from("notifications").insert(payload)
 }
 
-// ─── Admin Approvals ──────────────────────────────────────────────────────────
+// ─── Approvals ────────────────────────────────────────────────────────────────
 
 export const approvalKeys = {
   pendingTimeOff: () => ["approvals", "timeoff"] as const,
@@ -825,7 +824,6 @@ export function useReviewTimeOff() {
         .eq("id", request.id)
       if (error) throw error
 
-      // Write notification to the requesting employee
       await createNotification({
         employee_id: request.employee_id,
         type: decision === "approved" ? "timeoff_approved" : "timeoff_denied",
@@ -860,14 +858,10 @@ export function useReviewInfoChange() {
     }) => {
       const { error } = await supabase
         .from("info_change_requests")
-        .update({
-          status: decision,
-          approver_comment: comment || null,
-        })
+        .update({ status: decision, approver_comment: comment || null })
         .eq("id", request.id)
       if (error) throw error
 
-      // If approved, apply the change to employees table
       if (decision === "approved") {
         await supabase
           .from("employees")
@@ -878,7 +872,6 @@ export function useReviewInfoChange() {
           .eq("id", request.employee_id)
       }
 
-      // Notify the employee
       await createNotification({
         employee_id: request.employee_id,
         type:
@@ -898,7 +891,7 @@ export function useReviewInfoChange() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: approvalKeys.pendingInfoChange() })
-      qc.invalidateQueries({ queryKey: ["current-employee"] })
+      qc.invalidateQueries({ queryKey: keys.currentEmployee() })
       qc.invalidateQueries({ queryKey: ["inbox-sent"] })
     },
   })
@@ -911,7 +904,6 @@ export const adminKeys = {
     ["admin-employees", filters ?? ""] as const,
 }
 
-/** All employees regardless of status — admin only. */
 export function useAllEmployees(
   search = "",
   statusFilter = "",
@@ -928,7 +920,6 @@ export function useAllEmployees(
       if (deptFilter) q = q.eq("department", deptFilter)
       const { data, error } = await q
       if (error) throw error
-      // Client-side search across name/email/title
       const s = search.toLowerCase()
       return (data ?? []).filter(
         (e) =>
@@ -941,7 +932,6 @@ export function useAllEmployees(
   })
 }
 
-/** Admin direct-edit of an employee (bypasses approval workflow). */
 export function useAdminUpdateEmployee() {
   const qc = useQueryClient()
   return useMutation({
@@ -969,7 +959,6 @@ export function useAdminUpdateEmployee() {
   })
 }
 
-/** Deactivate or reactivate an employee. */
 export function useSetEmployeeStatus() {
   const qc = useQueryClient()
   return useMutation({
@@ -996,9 +985,6 @@ export function useSetEmployeeStatus() {
   })
 }
 
-/** Admin creates an employee record directly. The employee signs in via
- *  magic link — on first login auth.ts links their auth user
- *  to this pre-created row by email. */
 export function useInviteEmployee() {
   const qc = useQueryClient()
   return useMutation({
@@ -1013,19 +999,16 @@ export function useInviteEmployee() {
       standard_hours_per_day: number
       standard_hours_per_week: number
     }) => {
-      // Normalise email to lowercase so it always matches the auth user
       const normalisedPayload = {
         ...payload,
         email: payload.email.trim().toLowerCase(),
       }
 
-      // Check for duplicate email first
       const { data: existing } = await supabase
         .from("employees")
         .select("id")
         .eq("email", normalisedPayload.email)
         .maybeSingle()
-
       if (existing)
         throw new Error("An employee with this email already exists.")
 
@@ -1033,20 +1016,104 @@ export function useInviteEmployee() {
         .from("employees")
         .insert({
           ...normalisedPayload,
-          user_id: null, // linked on first login
+          user_id: null,
           employment_status: "active",
           onboarding_completed: false,
           hire_date: new Date().toISOString().slice(0, 10),
         })
         .select()
         .single()
-
       if (error) throw error
+
+      await seedTimeOffBalances(data.id)
       return data
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-employees"] })
       qc.invalidateQueries({ queryKey: keys.employees() })
+    },
+  })
+}
+
+// ─── Time Off Balance Seeding ─────────────────────────────────────────────────
+
+export async function seedTimeOffBalances(employeeId: string) {
+  const { data: existing } = await supabase
+    .from("time_off_balances")
+    .select("id")
+    .eq("employee_id", employeeId)
+    .limit(1)
+    .maybeSingle()
+  if (existing) return
+
+  const { data: categories } = await supabase
+    .from("time_off_categories")
+    .select("id")
+  if (!categories?.length) return
+
+  await supabase.from("time_off_balances").insert(
+    categories.map((c) => ({
+      employee_id: employeeId,
+      category_id: c.id,
+      balance: 0,
+      scheduled: 0,
+    }))
+  )
+}
+
+export function useSeedMyBalances(employeeId: string) {
+  return useQuery({
+    queryKey: ["seed-balances", employeeId],
+    queryFn: async () => {
+      await seedTimeOffBalances(employeeId)
+      return true
+    },
+    enabled: !!employeeId,
+    staleTime: Infinity,
+    retry: false,
+  })
+}
+
+// ─── Company Settings ─────────────────────────────────────────────────────────
+
+export const settingsKeys = {
+  company: () => ["company-settings"] as const,
+}
+
+export function useCompanySettings() {
+  return useQuery({
+    queryKey: settingsKeys.company(),
+    queryFn: async (): Promise<CompanySettings | null> => {
+      const { data, error } = await supabase
+        .from("company_settings")
+        .select("*")
+        .limit(1)
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+    staleTime: 1000 * 60 * 10,
+  })
+}
+
+export function useUpdateCompanySettings() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (updates: Partial<CompanySettings>) => {
+      const { data, error } = await supabase
+        .from("company_settings")
+        .upsert({
+          id: "singleton",
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: settingsKeys.company() })
     },
   })
 }

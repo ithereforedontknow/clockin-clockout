@@ -17,6 +17,7 @@ import {
 } from "@/lib/queries"
 import type { Employee } from "@/lib/supabase"
 
+// Only HR-sensitive fields require approval — personal info saves directly
 const APPROVAL_REQUIRED_FIELDS: (keyof Employee)[] = [
   "job_title",
   "department",
@@ -35,10 +36,12 @@ const EDITABLE_FIELDS: EditableField[] = [
   { key: "address_line1", label: "Address", section: "Personal" },
   { key: "city", label: "City", section: "Personal" },
   { key: "country", label: "Country", section: "Personal" },
+  // Work fields — require approval
   { key: "job_title", label: "Job Title", section: "Work" },
   { key: "department", label: "Department", section: "Work" },
   { key: "location", label: "Location", section: "Work" },
   { key: "hire_date", label: "Hire Date", section: "Work" },
+  // Emergency — direct save, no approval needed
   { key: "emergency_name", label: "Emergency Contact", section: "Emergency" },
   { key: "emergency_phone", label: "Emergency Phone", section: "Emergency" },
   { key: "emergency_relation", label: "Relationship", section: "Emergency" },

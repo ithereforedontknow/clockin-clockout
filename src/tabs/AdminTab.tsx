@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { inviteEmployeeSchema } from "@/lib/schemas"
 import {
   Search,
   UserPlus,
@@ -70,7 +71,7 @@ const STATUS_STYLE: Record<string, string> = {
 }
 const ROLE_STYLE: Record<string, string> = {
   employee: "bg-slate-50 text-slate-600 border-slate-200",
-  manager: "bg-blue-50 text-blue-700 border-blue-200",
+  employer: "bg-blue-50 text-blue-700 border-blue-200",
   admin: "bg-purple-50 text-purple-700 border-purple-200",
 }
 
@@ -285,7 +286,7 @@ export function AdminTab() {
           <SelectContent>
             <SelectItem value="all">All roles</SelectItem>
             <SelectItem value="employee">Employee</SelectItem>
-            <SelectItem value="manager">Manager</SelectItem>
+            <SelectItem value="employer">Employer</SelectItem>
             <SelectItem value="admin">Admin</SelectItem>
           </SelectContent>
         </Select>
@@ -585,14 +586,23 @@ function InviteDialog({
     })
   }
 
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+
   async function handleSubmit() {
-    if (!form.email || !form.first_name || !form.last_name) {
-      toast.error("Email, first name and last name are required")
+    const result = inviteEmployeeSchema.safeParse(form)
+    if (!result.success) {
+      const errs: Record<string, string> = {}
+      result.error.issues.forEach((e) => {
+        if (e.path[0]) errs[String(e.path[0])] = e.message
+      })
+      setFormErrors(errs)
+      toast.error("Please fix the errors below")
       return
     }
-    await invite.mutateAsync(form)
-    toast.success(`Employee record created for ${form.email}`, {
-      description: `${form.first_name} can now sign in using their work email.`,
+    setFormErrors({})
+    await invite.mutateAsync(result.data)
+    toast.success(`Employee record created for ${result.data.email}`, {
+      description: `${result.data.first_name} can now sign in using their work email.`,
     })
     reset()
     onClose()
@@ -630,8 +640,16 @@ function InviteDialog({
               <Input
                 placeholder="Jane"
                 value={form.first_name}
-                onChange={(e) => set("first_name", e.target.value)}
+                onChange={(e) => {
+                  set("first_name", e.target.value)
+                  setFormErrors((p) => ({ ...p, first_name: "" }))
+                }}
               />
+              {formErrors.first_name && (
+                <p className="text-xs text-destructive">
+                  {formErrors.first_name}
+                </p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm">
@@ -640,8 +658,16 @@ function InviteDialog({
               <Input
                 placeholder="Doe"
                 value={form.last_name}
-                onChange={(e) => set("last_name", e.target.value)}
+                onChange={(e) => {
+                  set("last_name", e.target.value)
+                  setFormErrors((p) => ({ ...p, last_name: "" }))
+                }}
               />
+              {formErrors.last_name && (
+                <p className="text-xs text-destructive">
+                  {formErrors.last_name}
+                </p>
+              )}
             </div>
           </div>
 
@@ -654,8 +680,14 @@ function InviteDialog({
               type="email"
               placeholder="jane@company.com"
               value={form.email}
-              onChange={(e) => set("email", e.target.value)}
+              onChange={(e) => {
+                set("email", e.target.value)
+                setFormErrors((p) => ({ ...p, email: "" }))
+              }}
             />
+            {formErrors.email && (
+              <p className="text-xs text-destructive">{formErrors.email}</p>
+            )}
           </div>
 
           <Separator />
@@ -673,7 +705,7 @@ function InviteDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="employer">Employer</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>
@@ -845,7 +877,7 @@ function EditEmployeeDialog({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="manager">Manager</SelectItem>
+                  <SelectItem value="employer">Employer</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>
               </Select>

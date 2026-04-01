@@ -29,6 +29,7 @@ import {
   useUpdateTimeOffRequest,
   calculateFutureBalance,
   useCurrentEmployee,
+  useSeedMyBalances,
 } from "@/lib/queries"
 import type { TimeOffRequest } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
@@ -51,6 +52,9 @@ export function TimeOffTab() {
   // ✅ ?? "" keeps TypeScript happy; enabled: !!employeeId inside
   //    each hook prevents firing until the id is ready.
   const employeeId = employee?.id ?? ""
+
+  // Auto-seed balances if this employee has none (e.g. pre-existing accounts)
+  useSeedMyBalances(employeeId)
 
   const { data: balances = [], isLoading: balLoading } =
     useTimeOffBalances(employeeId)

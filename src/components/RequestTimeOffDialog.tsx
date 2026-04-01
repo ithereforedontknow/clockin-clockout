@@ -26,6 +26,7 @@ import {
   useCurrentEmployee,
 } from "@/lib/queries"
 import { countWeekdays } from "@/lib/supabase"
+import { requestTimeOffSchema } from "@/lib/schemas"
 
 interface Props {
   open: boolean
@@ -43,10 +44,9 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
   const [startDate, setStartDate] = useState(today)
   const [endDate, setEndDate] = useState(today)
   const [note, setNote] = useState("")
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   const selectedBalance = balances.find((b) => b.category_id === categoryId)
-
-  // ✅ Uses countWeekdays — Saturday and Sunday are never counted
   const weekdayCount =
     startDate && endDate ? countWeekdays(startDate, endDate) : 0
   const unit = selectedBalance?.category?.unit ?? "days"
@@ -59,23 +59,36 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
     setStartDate(today)
     setEndDate(today)
     setNote("")
+    setErrors({})
   }
 
   async function handleSubmit() {
-    if (!categoryId || !startDate || !endDate || !employeeId) {
-      toast.error("Please fill in all required fields")
-      return
-    }
-    if (endDate < startDate) {
-      toast.error("End date must be on or after start date")
-      return
-    }
-    if (weekdayCount === 0) {
-      toast.error("Selected range has no weekdays", {
-        description: "Please choose dates that include at least one weekday.",
+    const result = requestTimeOffSchema.safeParse({
+      category_id: categoryId,
+      start_date: startDate,
+      end_date: endDate,
+      note,
+    })
+
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {}
+      result.error.issues.forEach((e) => {
+        if (e.path[0]) fieldErrors[String(e.path[0])] = e.message
       })
+      setErrors(fieldErrors)
       return
     }
+
+    if (!employeeId) {
+      toast.error("Not authenticated")
+      return
+    }
+
+    if (weekdayCount === 0) {
+      setErrors({ end_date: "Selected range has no weekdays" })
+      return
+    }
+
     if (available !== null && weekdayCount > available) {
       toast.warning("Insufficient balance", {
         description: `You have ${available} ${unit} available but requested ${weekdayCount}.`,
@@ -92,9 +105,8 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
     })
 
     toast.success("Time off request submitted!", {
-      description: "Your manager will be notified to review your request.",
+      description: "Your employer will be notified to review your request.",
     })
-
     reset()
     onOpenChange(false)
   }
@@ -119,12 +131,17 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {/* Category */}
           <div className="space-y-1.5">
             <Label>
               Time Off Type <span className="text-destructive">*</span>
             </Label>
-            <Select value={categoryId} onValueChange={setCategoryId}>
+            <Select
+              value={categoryId}
+              onValueChange={(v) => {
+                setCategoryId(v)
+                setErrors((e) => ({ ...e, category_id: "" }))
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select type…" />
               </SelectTrigger>
@@ -140,9 +157,11 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
                 ))}
               </SelectContent>
             </Select>
+            {errors.category_id && (
+              <p className="text-xs text-destructive">{errors.category_id}</p>
+            )}
           </div>
 
-          {/* Date range */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>
@@ -155,8 +174,12 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
                 onChange={(e) => {
                   setStartDate(e.target.value)
                   if (e.target.value > endDate) setEndDate(e.target.value)
+                  setErrors((er) => ({ ...er, start_date: "" }))
                 }}
               />
+              {errors.start_date && (
+                <p className="text-xs text-destructive">{errors.start_date}</p>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label>
@@ -166,27 +189,34 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
                 type="date"
                 value={endDate}
                 min={startDate}
-                onChange={(e) => setEndDate(e.target.value)}
+                onChange={(e) => {
+                  setEndDate(e.target.value)
+                  setErrors((er) => ({ ...er, end_date: "" }))
+                }}
               />
+              {errors.end_date && (
+                <p className="text-xs text-destructive">{errors.end_date}</p>
+              )}
             </div>
           </div>
 
-          {/* Summary */}
           {categoryId && startDate && endDate && (
-            <div className="flex items-center justify-between rounded-lg border border-primary/10 bg-primary/5 px-4 py-3 text-sm">
+            <div
+              className={`flex items-center justify-between rounded-lg border px-4 py-3 text-sm ${
+                weekdayCount === 0
+                  ? "border-destructive/20 bg-destructive/5"
+                  : "border-primary/10 bg-primary/5"
+              }`}
+            >
               <span className="text-muted-foreground">Weekdays requested</span>
-              <span className="font-semibold text-primary">
+              <span
+                className={`font-semibold ${weekdayCount === 0 ? "text-destructive" : "text-primary"}`}
+              >
                 {weekdayCount} {unit}
-                {weekdayCount === 0 && (
-                  <span className="ml-2 text-xs font-normal text-destructive">
-                    (no weekdays selected)
-                  </span>
-                )}
               </span>
             </div>
           )}
 
-          {/* Note */}
           <div className="space-y-1.5">
             <Label>Note (optional)</Label>
             <Textarea

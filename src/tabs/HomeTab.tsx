@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { format, startOfWeek } from "date-fns"
 import {
   Users,
@@ -12,6 +12,7 @@ import {
   Timer,
   CalendarDays,
   Loader2,
+  AlarmClock,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,10 +30,12 @@ import {
   useClockOut,
   useStartBreak,
   useEndBreak,
+  useLiveClockedIn,
 } from "@/lib/queries"
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
-import type { BreakEntry } from "@/lib/supabase"
+import type { BreakEntry, Employee, ClockEntry } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
+import { toTimeManila } from "@/lib/timezone"
 
 export function HomeTab() {
   const [requestOpen, setRequestOpen] = useState(false)
@@ -57,12 +60,11 @@ export function HomeTab() {
   const startBreak = useStartBreak()
   const endBreak = useEndBreak()
 
-  // Live tick for the timer
-  // const [tick, setTick] = useState(0)
-  // useEffect(() => {
-  //   const id = setInterval(() => setTick((t) => t + 1), 1000)
-  //   return () => clearInterval(id)
-  // }, [])
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // ── Clock derived state ───────────────────────────────────────────────────
   const isClockedIn = !!entry && !entry.clock_out
@@ -74,10 +76,10 @@ export function HomeTab() {
     (s: number, b: BreakEntry) => s + (b.duration_minutes ?? 0),
     0
   )
-  // Moved Date.now() outside of render for purity
-  const now = Date.now()
   const liveBreakMins = openBreak
-    ? Math.floor((now - new Date(openBreak.break_start).getTime()) / 60000)
+    ? Math.floor(
+        (Date.now() - new Date(openBreak.break_start).getTime()) / 60000
+      )
     : 0
   const totalBreakMins = completedBreakMins + liveBreakMins
   const workedMins = isClockedIn
@@ -92,6 +94,10 @@ export function HomeTab() {
     clockOut.isPending ||
     startBreak.isPending ||
     endBreak.isPending
+
+  const { data: liveEntries = [], isLoading: liveLoading } = useLiveClockedIn()
+  const isEmployerOrAdmin =
+    employee?.role === "employer" || employee?.role === "admin"
 
   const upcomingHoliday = holidays.find((h) => new Date(h.date) >= new Date())
 
@@ -350,6 +356,102 @@ export function HomeTab() {
               </Card>
             ))}
       </div>
+
+      {/* ── Live Clock Monitoring (employer/admin only) ── */}
+      {isEmployerOrAdmin && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base font-semibold">
+              <AlarmClock className="h-4 w-4 text-green-600" />
+              Currently Clocked In
+              {!liveLoading && (
+                <Badge variant="secondary" className="ml-1 text-xs">
+                  {liveEntries.length} active
+                </Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {liveLoading ? (
+              <div className="space-y-2">
+                {Array(3)
+                  .fill(0)
+                  .map((_, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <Skeleton className="h-7 w-7 rounded-full" />
+                      <Skeleton className="h-4 w-40" />
+                      <Skeleton className="ml-auto h-4 w-16" />
+                    </div>
+                  ))}
+              </div>
+            ) : liveEntries.length === 0 ? (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No one is clocked in right now
+              </p>
+            ) : (
+              <div className="divide-y divide-border">
+                {liveEntries.map(
+                  (
+                    entry: ClockEntry & {
+                      employee: Employee
+                      breaks: BreakEntry[]
+                    }
+                  ) => {
+                    const emp = entry.employee
+                    const openBreak = entry.breaks?.find(
+                      (b: BreakEntry) => !b.break_end
+                    )
+                    const isOnBreak = !!openBreak
+                    const breakMins = (entry.breaks ?? []).reduce(
+                      (s: number, b: BreakEntry) =>
+                        s + (b.duration_minutes ?? 0),
+                      0
+                    )
+                    const worked = liveMinutes(entry.clock_in, breakMins)
+                    return (
+                      <div
+                        key={entry.id}
+                        className="flex items-center gap-3 py-2.5"
+                      >
+                        <Avatar className="h-7 w-7 shrink-0">
+                          <AvatarImage src={emp?.avatar_url ?? undefined} />
+                          <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                            {emp?.first_name?.[0]}
+                            {emp?.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {emp?.first_name} {emp?.last_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Since {toTimeManila(entry.clock_in)}
+                          </p>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <p className="text-sm font-medium">
+                            {formatMinutes(worked)}
+                          </p>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${
+                              isOnBreak
+                                ? "border-amber-200 bg-amber-50 text-amber-700"
+                                : "border-green-200 bg-green-50 text-green-700"
+                            }`}
+                          >
+                            {isOnBreak ? "On Break" : "Working"}
+                          </Badge>
+                        </div>
+                      </div>
+                    )
+                  }
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Bottom widgets ── */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
