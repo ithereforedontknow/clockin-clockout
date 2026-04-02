@@ -1,8 +1,7 @@
 import { useState } from "react"
-import { Search, UserPlus } from "lucide-react"
+import { Search } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -62,12 +61,6 @@ export function PeopleTab() {
               : `${employees.length} active employee${employees.length !== 1 ? "s" : ""}`}
           </p>
         </div>
-        {isEmployer && (
-          <Button size="sm">
-            <UserPlus className="mr-2 h-4 w-4" />
-            Add to Team
-          </Button>
-        )}
       </div>
 
       <div className="relative">

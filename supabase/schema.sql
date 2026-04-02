@@ -425,3 +425,95 @@ create policy "authenticated read settings" on company_settings
 -- Only admin can update
 create policy "admin update settings" on company_settings
   for update using (get_my_role() = 'admin');
+
+
+-- ─── Departments ──────────────────────────────────────────────────────────────
+
+create table if not exists departments (
+  id         text primary key default gen_random_uuid()::text,
+  name       text not null unique,
+  created_by text references employees(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+alter table departments enable row level security;
+
+-- All authenticated users can read departments (needed for dropdowns)
+create policy "authenticated read departments" on departments
+  for select using (auth.uid() is not null);
+
+-- Only admins can insert/update/delete
+create policy "admin manage departments" on departments
+  for all using (get_my_role() = 'admin')
+  with check (get_my_role() = 'admin');
+
+-- ─── Announcements ────────────────────────────────────────────────────────────
+
+create table if not exists announcements (
+  id                 text primary key default gen_random_uuid()::text,
+  title              text not null,
+  body               text not null,
+  posted_by          text not null references employees(id) on delete cascade,
+  target             text not null default 'all'
+                     check (target in ('all', 'employer_team')),
+  target_employer_id text references employees(id) on delete cascade,
+  created_at         timestamptz not null default now()
+);
+
+create index announcements_target on announcements(target, target_employer_id, created_at desc);
+
+alter table announcements enable row level security;
+
+-- Employees see all company-wide + announcements targeted at their employer
+create policy "read own announcements" on announcements
+  for select using (
+    target = 'all'
+    or (
+      target = 'employer_team'
+      and target_employer_id = (
+        select manager_id from employees where user_id = auth.uid() limit 1
+      )
+    )
+    or posted_by = (select id from employees where user_id = auth.uid() limit 1)
+  );
+
+-- Admin and employers can post announcements
+create policy "employer admin insert announcements" on announcements
+  for insert with check (
+    get_my_role() in ('employer', 'admin')
+    and posted_by = (select id from employees where user_id = auth.uid() limit 1)
+  );
+
+-- Authors and admins can delete their own announcements
+create policy "author admin delete announcements" on announcements
+  for delete using (
+    posted_by = (select id from employees where user_id = auth.uid() limit 1)
+    or get_my_role() = 'admin'
+  );
+
+-- ─── Seed initial departments ─────────────────────────────────────────────────
+-- Remove or edit these to match your company
+insert into departments (name) values
+  ('Engineering'),
+  ('Human Resources'),
+  ('Finance'),
+  ('Operations'),
+  ('Sales'),
+  ('Marketing')
+on conflict (name) do nothing;
+
+-- ─── Enforce: only admin can create employee records ──────────────────────────
+-- Drop the old employer insert policy if it exists (from AddTeamMember era)
+drop policy if exists "employer insert employees" on employees;
+
+-- Ensure admin insert policy exists and is the ONLY insert policy
+drop policy if exists "admin insert" on employees;
+create policy "admin insert" on employees
+  for insert with check (get_my_role() = 'admin');
+
+-- ─── Admin reassign: allow updating manager_id ────────────────────────────────
+-- Already covered by "admin update" policy, no additional policy needed.
+-- But make sure employer update policy CANNOT touch manager_id.
+-- Since employers don't have an update policy on employees at all,
+-- this is already safe. Document it clearly:
+-- Employers can only read employees assigned to them (via "directory read" + manager_id filter in app).

@@ -87,6 +87,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "timesheet", label: "Timesheet", icon: Timer },
   { id: "timeoff", label: "Time Off", icon: Clock },
   { id: "people", label: "People", icon: Users },
+  { id: "myinfo", label: "My Info", icon: User },
   {
     id: "approvals",
     label: "Approvals",
@@ -276,8 +277,10 @@ export function AppSidebar({
 
           {/* ── Main content — only this scrolls ── */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-            <main className="flex-1 overflow-y-auto">
-              <div className="mx-auto max-w-5xl p-6">{children}</div>
+            <main className="flex-1 overflow-y-auto overscroll-contain">
+              <div className="pb-safe mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-6">
+                {children}
+              </div>
             </main>
 
             {/* ── Mobile bottom nav ── */}
@@ -586,22 +589,47 @@ function MobileNav({
   activeTab: TabId
   onTabChange: (tab: TabId) => void
 }) {
+  // Show max 5 items — prioritise the most common ones
   const mobileItems = items.slice(0, 5)
   return (
-    <nav className="flex shrink-0 border-t border-border bg-background md:hidden">
-      {mobileItems.map(({ id, icon: Icon, label }) => (
-        <button
-          key={id}
-          onClick={() => onTabChange(id)}
-          className={cn(
-            "flex flex-1 flex-col items-center justify-center gap-1 py-2.5 text-[10px] font-medium transition-colors",
-            activeTab === id ? "text-primary" : "text-muted-foreground"
-          )}
-        >
-          <Icon className="h-5 w-5" />
-          <span>{label}</span>
-        </button>
-      ))}
+    <nav
+      className="flex shrink-0 border-t border-border bg-background/95 backdrop-blur-sm md:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+    >
+      {mobileItems.map(({ id, icon: Icon, label }) => {
+        const isActive = activeTab === id
+        return (
+          <button
+            key={id}
+            onClick={() => onTabChange(id)}
+            className={cn(
+              "flex flex-1 flex-col items-center justify-center gap-0.5",
+              "min-h-[56px] px-1 py-2 transition-colors",
+              "active:scale-95 active:bg-accent/50",
+              isActive
+                ? "text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <div
+              className={cn(
+                "flex h-6 w-10 items-center justify-center rounded-full transition-colors",
+                isActive && "bg-primary/10"
+              )}
+            >
+              <Icon className="h-5 w-5" />
+            </div>
+            <span
+              className={cn(
+                "max-w-full truncate px-0.5 text-[10px] font-medium",
+                isActive && "text-primary"
+              )}
+            >
+              {label}
+            </span>
+          </button>
+        )
+      })}
     </nav>
   )
 }

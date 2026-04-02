@@ -164,15 +164,23 @@ export interface AppNotification {
 // ─── Computed helpers ──────────────────────────────────────────────────────
 
 /** Count weekdays (Mon–Fri) between two date strings inclusive. */
-export function countWeekdays(start: string, end: string): number {
+/**
+ * Count working days between two date strings (inclusive).
+ * workingDays defaults to Mon-Fri [1,2,3,4,5] but accepts company_settings.working_days.
+ * 0=Sun, 1=Mon, ..., 6=Sat
+ */
+export function countWeekdays(
+  start: string,
+  end: string,
+  workingDays: number[] = [1, 2, 3, 4, 5]
+): number {
   let count = 0
   const cur = new Date(start)
   const last = new Date(end)
   cur.setHours(0, 0, 0, 0)
   last.setHours(0, 0, 0, 0)
   while (cur <= last) {
-    const day = cur.getDay()
-    if (day !== 0 && day !== 6) count++
+    if (workingDays.includes(cur.getDay())) count++
     cur.setDate(cur.getDate() + 1)
   }
   return count
@@ -219,4 +227,28 @@ export interface LiveClockStatus {
   clock_entry: ClockEntry & { breaks: BreakEntry[] }
   status: "clocked_in" | "on_break"
   elapsed_minutes: number
+}
+
+// ─── Departments ───────────────────────────────────────────────────────────
+
+export interface Department {
+  id: string
+  name: string
+  created_by: string | null // employee_id of creator
+  created_at: string
+}
+
+// ─── Announcements ─────────────────────────────────────────────────────────
+
+export type AnnouncementTarget = "all" | "employer_team"
+
+export interface Announcement {
+  id: string
+  title: string
+  body: string
+  posted_by: string // employee_id
+  target: AnnouncementTarget
+  target_employer_id: string | null // if target = "employer_team"
+  created_at: string
+  author?: Employee
 }

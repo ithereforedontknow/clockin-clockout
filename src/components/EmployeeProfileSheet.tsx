@@ -67,8 +67,9 @@ export function EmployeeProfileSheet({ employee: emp, onClose }: Props) {
         className="fixed inset-0 z-40 h-screen animate-in bg-black/10 fade-in-0"
         onClick={onClose}
       />
+
       {/* Sheet */}
-      <div className="fixed top-0 right-0 z-50 flex h-full w-full max-w-sm animate-in flex-col border-l border-border bg-background shadow-xl fade-in-0">
+      <div className="fixed top-0 right-0 z-50 flex h-full w-full flex-col border-l border-border bg-background shadow-xl sm:max-w-sm">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <p className="font-semibold">Employee Profile</p>

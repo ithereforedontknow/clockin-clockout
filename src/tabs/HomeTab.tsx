@@ -35,6 +35,7 @@ import {
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
 import type { BreakEntry, Employee, ClockEntry } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
+import { AnnouncementsCard } from "@/components/AnnouncementsCard"
 import { toTimeManila } from "@/lib/timezone"
 
 export function HomeTab() {
@@ -60,6 +61,7 @@ export function HomeTab() {
   const startBreak = useStartBreak()
   const endBreak = useEndBreak()
 
+  // Live tick for the timer
   const [, setTick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000)
@@ -356,6 +358,9 @@ export function HomeTab() {
               </Card>
             ))}
       </div>
+
+      {/* ── Announcements ── */}
+      {employee && <AnnouncementsCard currentEmployee={employee} />}
 
       {/* ── Live Clock Monitoring (employer/admin only) ── */}
       {isEmployerOrAdmin && (

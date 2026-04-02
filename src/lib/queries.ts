@@ -11,6 +11,8 @@ import type {
   ClockCorrection,
   AppNotification,
   CompanySettings,
+  Department,
+  Announcement,
 } from "./supabase"
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
@@ -998,6 +1000,7 @@ export function useInviteEmployee() {
       location: string
       standard_hours_per_day: number
       standard_hours_per_week: number
+      manager_id?: string | null
     }) => {
       const normalisedPayload = {
         ...payload,
@@ -1115,5 +1118,169 @@ export function useUpdateCompanySettings() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: settingsKeys.company() })
     },
+  })
+}
+
+// ─── Departments ──────────────────────────────────────────────────────────────
+
+export function useDepartments() {
+  return useQuery({
+    queryKey: ["departments"],
+    queryFn: async (): Promise<Department[]> => {
+      const { data, error } = await supabase
+        .from("departments")
+        .select("*")
+        .order("name")
+      if (error) throw error
+      return data ?? []
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+}
+
+export function useCreateDepartment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      name,
+      createdBy,
+    }: {
+      name: string
+      createdBy: string
+    }) => {
+      const { data, error } = await supabase
+        .from("departments")
+        .insert({ name: name.trim(), created_by: createdBy })
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["departments"] }),
+  })
+}
+
+export function useDeleteDepartment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("departments").delete().eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["departments"] }),
+  })
+}
+
+// ─── Employer adds employee to their team ─────────────────────────────────────
+
+export function useAddTeamMember() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      email: string
+      first_name: string
+      last_name: string
+      department: string
+      job_title: string
+      location: string
+      manager_id: string // locked to employer's id
+      standard_hours_per_day: number
+      standard_hours_per_week: number
+    }) => {
+      const normalisedEmail = payload.email.trim().toLowerCase()
+
+      const { data: existing } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("email", normalisedEmail)
+        .maybeSingle()
+      if (existing)
+        throw new Error("An employee with this email already exists.")
+
+      const { data, error } = await supabase
+        .from("employees")
+        .insert({
+          ...payload,
+          email: normalisedEmail,
+          role: "employee", // employer can only add employees
+          user_id: null,
+          employment_status: "active",
+          onboarding_completed: false,
+          hire_date: new Date().toISOString().slice(0, 10),
+        })
+        .select()
+        .single()
+      if (error) throw error
+
+      await seedTimeOffBalances(data.id)
+      return data
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["my-team"] })
+      qc.invalidateQueries({ queryKey: keys.employees() })
+    },
+  })
+}
+
+// ─── Announcements ────────────────────────────────────────────────────────────
+
+export function useAnnouncements(employeeId: string, employerId?: string) {
+  return useQuery({
+    queryKey: ["announcements", employeeId],
+    queryFn: async (): Promise<Announcement[]> => {
+      // Fetch company-wide + any targeted at this employer's team
+      const { data, error } = await supabase
+        .from("announcements")
+        .select(
+          "*, author:employees!posted_by(first_name,last_name,avatar_url)"
+        )
+        .or(
+          employerId
+            ? `target.eq.all,and(target.eq.employer_team,target_employer_id.eq.${employerId})`
+            : `target.eq.all`
+        )
+        .order("created_at", { ascending: false })
+        .limit(10)
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!employeeId,
+    staleTime: 1000 * 60 * 2,
+  })
+}
+
+export function useCreateAnnouncement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      title: string
+      body: string
+      posted_by: string
+      target: "all" | "employer_team"
+      target_employer_id: string | null
+    }) => {
+      const { data, error } = await supabase
+        .from("announcements")
+        .insert(payload)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["announcements"] }),
+  })
+}
+
+export function useDeleteAnnouncement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("announcements")
+        .delete()
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["announcements"] }),
   })
 }
