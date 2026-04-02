@@ -116,17 +116,22 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
 }
 
 // ─── Single announcement row ──────────────────────────────────────────────────
-
 function AnnouncementItem({
   announcement: a,
   currentEmployee,
   onDelete,
 }: {
-  announcement: Announcement
+  announcement: Announcement & {
+    author?: {
+      first_name: string
+      last_name: string
+      avatar_url: string | null
+    }
+  }
   currentEmployee: Employee
   onDelete: () => void
 }) {
-  const author = a.author as any
+  const author = a.author
   const canDelete =
     a.posted_by === currentEmployee.id || currentEmployee.role === "admin"
 
@@ -181,7 +186,6 @@ function AnnouncementItem({
     </div>
   )
 }
-
 // ─── Post dialog ──────────────────────────────────────────────────────────────
 
 function PostAnnouncementDialog({

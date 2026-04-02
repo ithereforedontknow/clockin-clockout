@@ -517,3 +517,65 @@ create policy "admin insert" on employees
 -- Since employers don't have an update policy on employees at all,
 -- this is already safe. Document it clearly:
 -- Employers can only read employees assigned to them (via "directory read" + manager_id filter in app).
+-- Deduct time off balance safely
+create or replace function deduct_time_off_balance(
+  p_employee_id uuid,
+  p_category_id uuid,
+  p_days numeric
+) returns void language plpgsql security definer as $$
+begin
+  update time_off_balances
+  set balance = balance - p_days
+  where employee_id = p_employee_id
+    and category_id = p_category_id;
+end;
+$$;
+
+-- RLS: employer/admin can read all time_off_requests for their scope
+create policy "employer admin read time off requests"
+  on time_off_requests for select
+  using (get_my_role() in ('employer', 'admin'));
+
+create policy "employer admin update time off requests"
+  on time_off_requests for update
+  using (get_my_role() in ('employer', 'admin'));
+
+-- RLS: employer/admin can read/update clock_corrections
+create policy "employer admin read corrections"
+  on clock_corrections for select
+  using (get_my_role() in ('employer', 'admin'));
+
+create policy "employer admin update corrections"
+  on clock_corrections for update
+  using (get_my_role() in ('employer', 'admin'));
+
+-- RLS: employer/admin can update time_off_balances
+create policy "admin employer update balances"
+  on time_off_balances for update
+  using (get_my_role() in ('employer', 'admin'));
+
+create policy "admin employer insert balances"
+  on time_off_balances for insert
+  with check (get_my_role() in ('employer', 'admin'));
+
+-- RLS: admin can edit emplyee
+create policy "admin can update any employee"
+  on employees for update
+  using (get_my_role() = 'admin');
+
+-- departments
+create table if not exists departments (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  created_at timestamptz default now()
+);
+
+create policy "admin manage departments"
+  on departments for all
+  using (get_my_role() = 'admin');
+
+create policy "all read departments"
+  on departments for select
+  using (true);
+
+alter table departments enable row level security;

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { addDays } from "date-fns"
 import { supabase } from "./supabase"
 import type {
   Employee,
@@ -22,6 +23,7 @@ export const keys = {
   employees: () => ["employees"] as const,
   balances: (id: string) => ["balances", id] as const,
   timeOffHistory: (id: string) => ["timeoff-history", id] as const,
+  timeOffRequests: () => ["time-off-requests"] as const,
   whosOut: (d: string) => ["whos-out", d] as const,
   holidays: () => ["holidays"] as const,
   inboxSent: (id: string) => ["inbox-sent", id] as const,
@@ -153,7 +155,51 @@ export function useUpdateEmployee() {
     },
   })
 }
+export function useUpdateMyPersonalInfo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      field,
+      value,
+    }: {
+      id: string
+      field: string
+      value: string
+    }) => {
+      const { error } = await supabase
+        .from("employees")
+        .update({ [field]: value })
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.currentEmployee() }),
+  })
+}
 
+export function useRequestInfoChange() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      employeeId,
+      field,
+      newValue,
+    }: {
+      employeeId: string
+      field: string
+      newValue: string
+    }) => {
+      const { error } = await supabase.from("info_change_requests").insert({
+        employee_id: employeeId,
+        field_name: field,
+        new_value: newValue,
+        status: "pending",
+      })
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.currentEmployee() }),
+  })
+}
 // ─── Info Change Requests ─────────────────────────────────────────────────────
 
 export function useSubmitInfoChange() {
@@ -898,7 +944,89 @@ export function useReviewInfoChange() {
     },
   })
 }
+// ─── APPROVE TIME OFF ────────────────────────────────────────────────────────
+export function useApproveTimeOff() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      requestId,
+      employeeId,
+      categoryId,
+      days,
+    }: {
+      requestId: string
+      employeeId: string
+      categoryId: string
+      days: number
+    }) => {
+      // 1. Update request status
+      const { error: reqErr } = await supabase
+        .from("time_off_requests")
+        .update({ status: "approved" })
+        .eq("id", requestId)
+      if (reqErr) throw reqErr
 
+      // 2. Deduct from balance
+      const { error: balErr } = await supabase.rpc("deduct_time_off_balance", {
+        p_employee_id: employeeId,
+        p_category_id: categoryId,
+        p_days: days,
+      })
+      if (balErr) throw balErr
+    },
+    onSuccess: (_, { employeeId }) => {
+      qc.invalidateQueries({ queryKey: keys.timeOffRequests() })
+      qc.invalidateQueries({ queryKey: keys.balances(employeeId) })
+    },
+  })
+}
+
+// ─── REJECT TIME OFF ─────────────────────────────────────────────────────────
+export function useRejectTimeOff() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ requestId }: { requestId: string }) => {
+      const { error } = await supabase
+        .from("time_off_requests")
+        .update({ status: "rejected" })
+        .eq("id", requestId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: keys.timeOffRequests() })
+    },
+  })
+}
+
+// ─── SET EMPLOYEE BALANCE (admin) ─────────────────────────────────────────────
+export function useSetTimeOffBalance() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      employeeId,
+      categoryId,
+      balance,
+    }: {
+      employeeId: string
+      categoryId: string
+      balance: number
+    }) => {
+      const { error } = await supabase.from("time_off_balances").upsert(
+        {
+          employee_id: employeeId,
+          category_id: categoryId,
+          balance,
+          scheduled: 0,
+        },
+        { onConflict: "employee_id,category_id" }
+      )
+      if (error) throw error
+    },
+    onSuccess: (_, { employeeId }) => {
+      qc.invalidateQueries({ queryKey: keys.balances(employeeId) })
+    },
+  })
+}
 // ─── Admin ────────────────────────────────────────────────────────────────────
 
 export const adminKeys = {
@@ -1137,24 +1265,26 @@ export function useDepartments() {
     staleTime: 1000 * 60 * 5,
   })
 }
+export function useGetDepartments() {
+  return useQuery({
+    queryKey: ["departments"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("departments")
+        .select("*")
+        .order("name")
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
 
 export function useCreateDepartment() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async ({
-      name,
-      createdBy,
-    }: {
-      name: string
-      createdBy: string
-    }) => {
-      const { data, error } = await supabase
-        .from("departments")
-        .insert({ name: name.trim(), created_by: createdBy })
-        .select()
-        .single()
+    mutationFn: async (name: string) => {
+      const { error } = await supabase.from("departments").insert({ name })
       if (error) throw error
-      return data
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["departments"] }),
   })
@@ -1282,5 +1412,37 @@ export function useDeleteAnnouncement() {
       if (error) throw error
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["announcements"] }),
+  })
+}
+
+// --- Reports
+
+export function useReportEntries(
+  week: string,
+  role: string,
+  managerId: string
+) {
+  return useQuery({
+    queryKey: ["report-entries", week, managerId],
+    queryFn: async () => {
+      let empQuery = supabase
+        .from("employees")
+        .select("id")
+        .eq("employment_status", "active")
+      if (role === "employer") {
+        empQuery = empQuery.eq("manager_id", managerId)
+      }
+      const { data: emps } = await empQuery
+      const ids = emps?.map((e) => e.id) ?? []
+
+      const { data, error } = await supabase
+        .from("clock_entries")
+        .select("*, employee:employees(first_name, last_name, job_title)")
+        .in("employee_id", ids)
+        .gte("clock_in", `${week}T00:00:00`)
+        .lt("clock_in", addDays(week, 7))
+      if (error) throw error
+      return data ?? []
+    },
   })
 }

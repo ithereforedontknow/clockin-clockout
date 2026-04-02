@@ -24,29 +24,24 @@ interface Props {
   onClose: () => void
 }
 
-/** Convert an ISO timestamp to the local datetime-local input value (YYYY-MM-DDTHH:mm) */
 function toLocalInput(iso: string): string {
   const d = new Date(iso)
   const pad = (n: number) => String(n).padStart(2, "0")
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-/** Parse a datetime-local input value back to ISO string */
 function fromLocalInput(val: string): string {
   return new Date(val).toISOString()
 }
 
 export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
   const submitCorrection = useSubmitCorrection()
-
-  // Form state — initialised from the entry when it opens
   const [clockIn, setClockIn] = useState("")
   const [clockOut, setClockOut] = useState("")
   const [breakMinutes, setBreakMinutes] = useState("")
   const [notes, setNotes] = useState("")
   const [reason, setReason] = useState("")
 
-  // Reset form whenever a new entry is opened
   useEffect(() => {
     if (!entry) return
     setClockIn(entry.clock_in ? toLocalInput(entry.clock_in) : "")
@@ -62,7 +57,19 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
 
   if (!entry) return null
 
-  // Live preview of corrected worked minutes
+  const originalBreakMins = (entry.breaks ?? []).reduce(
+    (s, b) => s + (b.duration_minutes ?? 0),
+    0
+  )
+
+  const hasChanges =
+    (clockIn && clockIn !== toLocalInput(entry.clock_in)) ||
+    (clockOut &&
+      entry.clock_out &&
+      clockOut !== toLocalInput(entry.clock_out)) ||
+    parseInt(breakMinutes) !== originalBreakMins ||
+    notes !== (entry.notes ?? "")
+
   const previewWorked = (() => {
     if (!clockIn || !clockOut) return null
     const inMs = new Date(clockIn).getTime()
@@ -72,20 +79,6 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
       Math.floor((outMs - inMs) / 60000) - (parseInt(breakMinutes) || 0)
     return Math.max(0, diff)
   })()
-
-  const originalBreakMins = (entry.breaks ?? []).reduce(
-    (s, b) => s + (b.duration_minutes ?? 0),
-    0
-  )
-
-  // Check if anything actually changed
-  const hasChanges =
-    (clockIn && clockIn !== toLocalInput(entry.clock_in)) ||
-    (clockOut &&
-      entry.clock_out &&
-      clockOut !== toLocalInput(entry.clock_out)) ||
-    parseInt(breakMinutes) !== originalBreakMins ||
-    notes !== (entry.notes ?? "")
 
   async function handleSubmit() {
     if (!reason.trim()) {
@@ -119,12 +112,7 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
   }
 
   return (
-    <Dialog
-      open={!!entry}
-      onOpenChange={(open) => {
-        if (!open) onClose()
-      }}
-    >
+    <Dialog open={!!entry} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -216,7 +204,6 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
             />
           </div>
 
-          {/* Live preview */}
           {previewWorked !== null && (
             <div className="flex items-center justify-between rounded-lg border border-primary/10 bg-primary/5 px-4 py-3 text-sm">
               <span className="text-muted-foreground">Corrected total</span>
@@ -228,7 +215,6 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
 
           <Separator />
 
-          {/* Reason — required */}
           <div className="space-y-1.5">
             <Label className="text-sm">
               Reason for correction <span className="text-destructive">*</span>
