@@ -101,7 +101,7 @@ export function HomeTab() {
   const isEmployerOrAdmin =
     employee?.role === "employer" || employee?.role === "admin"
 
-  const upcomingHoliday = holidays.find((h) => new Date(h.date) >= new Date())
+  const upcomingHoliday = holidays.find((h) => new Date(h.day) >= new Date())
 
   // ── Handlers ─────────────────────────────────────────────────────────────
   async function handleMainButton() {
@@ -545,7 +545,7 @@ export function HomeTab() {
                       {upcomingHoliday.name}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {format(new Date(upcomingHoliday.date), "MMMM d, yyyy")}
+                      {format(new Date(upcomingHoliday.day), "MMMM d")}
                     </p>
                   </div>
                 </div>

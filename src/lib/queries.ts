@@ -403,8 +403,8 @@ export function useWhosOut(weekStart: string) {
     },
   })
 }
-export function useHolidays(year?: number) {
-  const y = year ?? new Date().getFullYear()
+export function useHolidays() {
+  // const y = year ?? new Date().getFullYear()
   return useQuery({
     queryKey: keys.holidays(),
     queryFn: async (): Promise<CompanyHoliday[]> => {

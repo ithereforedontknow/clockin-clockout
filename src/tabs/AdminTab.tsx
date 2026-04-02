@@ -1300,7 +1300,7 @@ function HolidaysTab() {
   const [name, setName] = useState("")
   const [date, setDate] = useState("")
 
-  const { data: holidays = [], isLoading } = useHolidays(year)
+  const { data: holidays = [], isLoading } = useHolidays()
   const createHoliday = useCreateHoliday()
   const deleteHoliday = useDeleteHoliday()
 
