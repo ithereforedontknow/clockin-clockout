@@ -153,7 +153,7 @@ export function MyInfoTab() {
 
     try {
       const fileExt = file.name.split(".").pop() || "jpg"
-      const fileName = `${employee.id}.${fileExt}`
+      const fileName = `${employee.id}/${employee.id}.${fileExt}`
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")

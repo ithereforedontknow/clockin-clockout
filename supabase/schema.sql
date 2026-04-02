@@ -582,11 +582,20 @@ alter table departments enable row level security;
 
 
 -- Allow authenticated users to upload to their own folder
-drop policy if exists "Users can upload their own avatar" on storage.objects;
-
-create policy "Users can upload avatars"
-on storage.objects for insert
-with check (
+CREATE POLICY "Users can manage own avatar in folder"
+ON storage.objects
+FOR ALL
+TO authenticated
+USING (
   bucket_id = 'avatars'
-  and auth.role() = 'authenticated'
+)
+WITH CHECK (
+  bucket_id = 'avatars'
+  AND (storage.foldername(name))[1] = auth.uid()::text
 );
+
+CREATE POLICY "Public read avatars"
+ON storage.objects
+FOR SELECT
+TO public
+USING (bucket_id = 'avatars');
