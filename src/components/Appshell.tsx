@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { AppSidebar } from "@/components/AppSidebar"
 import { CommandPalette } from "@/components/CommandPallete"
 import { SettingsModal } from "@/components/SettingsModal"
+import { WelcomeTutorialDialog } from "@/components/WelcomeTutorialDialog"
 import { HomeTab } from "@/tabs/HomeTab"
 import { MyInfoTab } from "@/tabs/MyInfoTab"
 import { PeopleTab } from "@/tabs/PeopleTab"
@@ -28,6 +29,7 @@ export function Appshell() {
   const [activeTab, setActiveTab] = useState<TabId>("home")
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [showWelcomeTutorial, setShowWelcomeTutorial] = useState(false)
 
   const { data: employee, isLoading, error } = useCurrentEmployee()
   const role = employee?.role ?? "employee"
@@ -43,25 +45,57 @@ export function Appshell() {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [])
-
-  // ── Profile completion toast ───────────────────────────────────────────────
   useEffect(() => {
     if (!employee || employee.onboarding_completed) return
+    setShowWelcomeTutorial(true)
+  }, [employee])
+  // // ── Profile completion toast ───────────────────────────────────────────────
+  // useEffect(() => {
+  //   if (!employee || employee.onboarding_completed) return
+  //   const missing = [
+  //     !employee.phone && "phone number",
+  //     !employee.birthday && "birthday",
+  //     !employee.emergency_name && "emergency contact",
+  //     !employee.address_line1 && "address",
+  //   ].filter(Boolean) as string[]
+  //   if (!missing.length) return
+  //   toast("Complete your profile", {
+  //     description: `Missing: ${missing.slice(0, 2).join(", ")}${missing.length > 2 ? ` +${missing.length - 2} more` : ""}.`,
+  //     duration: 8000,
+  //     action: { label: "Go to My Info", onClick: () => setActiveTab("myinfo") },
+  //   })
+  //   // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [!!employee])
+  // ── Welcome + Profile Completion ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!employee) return
+
+    // Show tutorial for new users
+    if (!employee.onboarding_completed) {
+      setShowWelcomeTutorial(true)
+      return
+    }
+
+    // Optional: Keep a lighter toast for users who already completed onboarding
+    // but still have missing info
     const missing = [
       !employee.phone && "phone number",
       !employee.birthday && "birthday",
       !employee.emergency_name && "emergency contact",
       !employee.address_line1 && "address",
     ].filter(Boolean) as string[]
-    if (!missing.length) return
-    toast("Complete your profile", {
-      description: `Missing: ${missing.slice(0, 2).join(", ")}${missing.length > 2 ? ` +${missing.length - 2} more` : ""}.`,
-      duration: 8000,
-      action: { label: "Go to My Info", onClick: () => setActiveTab("myinfo") },
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [!!employee])
 
+    if (missing.length > 0) {
+      toast("Your profile is almost complete", {
+        description: `Missing: ${missing.slice(0, 2).join(", ")}${missing.length > 2 ? ` +${missing.length - 2} more` : ""}.`,
+        duration: 6000,
+        action: {
+          label: "Go to My Info",
+          onClick: () => setActiveTab("myinfo"),
+        },
+      })
+    }
+  }, [employee])
   // ── Error state ────────────────────────────────────────────────────────────
   if (error) {
     return (
@@ -185,6 +219,11 @@ export function Appshell() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         role={role}
+      />
+      <WelcomeTutorialDialog
+        open={showWelcomeTutorial}
+        onClose={() => setShowWelcomeTutorial(false)}
+        employeeId={employee?.id ?? ""}
       />
     </>
   )
