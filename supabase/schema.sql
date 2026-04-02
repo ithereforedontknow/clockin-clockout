@@ -579,3 +579,14 @@ create policy "all read departments"
   using (true);
 
 alter table departments enable row level security;
+
+
+-- Allow authenticated users to upload to their own folder
+drop policy if exists "Users can upload their own avatar" on storage.objects;
+
+create policy "Users can upload avatars"
+on storage.objects for insert
+with check (
+  bucket_id = 'avatars'
+  and auth.role() = 'authenticated'
+);

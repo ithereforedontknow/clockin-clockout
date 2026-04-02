@@ -1,12 +1,8 @@
 import { useState } from "react"
-import {
-  useCurrentEmployee,
-  useUpdateMyPersonalInfo,
-  useRequestInfoChange,
-} from "../lib/queries"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { Upload, Pencil, X, Save } from "lucide-react"
+import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
+
 import {
   Card,
   CardContent,
@@ -14,10 +10,18 @@ import {
   CardTitle,
   CardDescription,
 } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
-import { Pencil, Check, X } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+
+import {
+  useCurrentEmployee,
+  useUpdateMyPersonalInfo,
+  useRequestInfoChange,
+} from "../lib/queries"
 
 function EditableField({
   label,
@@ -74,7 +78,7 @@ function EditableField({
             onClick={handleSave}
             disabled={saving}
           >
-            <Check className="h-4 w-4 text-green-600" />
+            <Save className="h-4 w-4 text-green-600" />
           </Button>
           <Button
             size="icon"
@@ -117,16 +121,72 @@ export function MyInfoTab() {
   const updatePersonal = useUpdateMyPersonalInfo()
   const requestChange = useRequestInfoChange()
 
-  if (isLoading || !me)
-    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+
+  // Early return - after this, me is guaranteed to be defined
+  if (isLoading || !me) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">
+        Loading profile...
+      </div>
+    )
+  }
+
+  // Capture the non-null employee for use in callbacks
+  const employee = me
+
+  // Avatar Upload Handler
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file (JPG, PNG, GIF)")
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be smaller than 5MB")
+      return
+    }
+
+    setUploadingAvatar(true)
+
+    try {
+      const fileExt = file.name.split(".").pop() || "jpg"
+      const fileName = `${employee.id}.${fileExt}`
+
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName)
+
+      await updatePersonal.mutateAsync({
+        id: employee.id,
+        field: "avatar_url",
+        value: urlData.publicUrl,
+      })
+
+      toast.success("Profile picture updated successfully")
+    } catch (err: any) {
+      console.error(err)
+      toast.error("Failed to upload avatar", { description: err.message })
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
 
   async function savePersonal(field: string, value: string) {
-    await updatePersonal.mutateAsync({ id: me!.id, field, value })
+    await updatePersonal.mutateAsync({ id: employee.id, field, value })
   }
 
   async function requestWork(field: string, value: string) {
     await requestChange.mutateAsync({
-      employeeId: me!.id,
+      employeeId: employee.id,
       field,
       newValue: value,
     })
@@ -134,26 +194,58 @@ export function MyInfoTab() {
   }
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">My Information</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Changes require approval from your employer.
-          </p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">My Information</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Personal info saves immediately. Work info requires approval.
+        </p>
       </div>
 
-      {/* Personal Info */}
+      {/* Avatar Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Profile Picture</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col items-center gap-6 sm:flex-row">
+          <Avatar className="h-28 w-28 ring-2 ring-background ring-offset-4">
+            <AvatarImage src={me.avatar_url ?? undefined} />
+            <AvatarFallback className="bg-primary/10 text-4xl font-semibold text-primary">
+              {me.first_name?.[0]}
+              {me.last_name?.[0]}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="space-y-3">
+            <Label htmlFor="avatar-upload" className="cursor-pointer">
+              <div className="inline-flex items-center gap-2 rounded-md border px-4 py-2 transition-colors hover:bg-accent">
+                <Upload className="h-4 w-4" />
+                {uploadingAvatar ? "Uploading..." : "Change profile picture"}
+              </div>
+            </Label>
+            <input
+              id="avatar-upload"
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarUpload}
+              disabled={uploadingAvatar}
+            />
+            <p className="text-xs text-muted-foreground">
+              JPG, PNG or GIF • Max 5MB • Square recommended
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Personal Information */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Personal Information</CardTitle>
-          <CardDescription className="text-xs">
-            Changes save immediately — no approval needed.
-          </CardDescription>
+          <CardDescription>Changes save immediately</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <EditableField
               label="First Name"
               value={me.first_name ?? ""}
@@ -165,22 +257,14 @@ export function MyInfoTab() {
               onSave={(v) => savePersonal("last_name", v)}
             />
           </div>
+
           <EditableField
             label="Phone"
             value={me.phone ?? ""}
             onSave={(v) => savePersonal("phone", v)}
             type="tel"
           />
-          {/*<EditableField
-            label="Address"
-            value={me.address ?? ""}
-            onSave={(v) => savePersonal("address", v)}
-          />
-          <EditableField
-            label="Emergency Contact"
-            value={me.emergency_contact ?? ""}
-            onSave={(v) => savePersonal("emergency_contact", v)}
-          />*/}
+
           <EditableField
             label="Emergency Phone"
             value={me.emergency_phone ?? ""}
@@ -190,17 +274,19 @@ export function MyInfoTab() {
         </CardContent>
       </Card>
 
-      {/* Work Info */}
+      {/* Work Information */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Work Information</CardTitle>
+          <CardDescription>Requires manager approval</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex justify-between text-sm">
+        <CardContent className="space-y-5">
+          <div className="flex justify-between py-1 text-sm">
             <span className="text-muted-foreground">Email</span>
             <span>{me.email}</span>
           </div>
           <Separator />
+
           <EditableField
             label="Job Title"
             value={me.job_title ?? ""}
@@ -219,23 +305,22 @@ export function MyInfoTab() {
         </CardContent>
       </Card>
 
-      {/* Read-only */}
+      {/* Employment Details */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Employment Details</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 text-sm">
           {[
             [
               "Role",
-              <Badge key="role" variant="secondary" className="capitalize">
+              <Badge variant="secondary" className="capitalize">
                 {me.role}
               </Badge>,
             ],
             [
               "Status",
               <Badge
-                key="status"
                 variant={
                   me.employment_status === "active" ? "default" : "destructive"
                 }
@@ -245,10 +330,10 @@ export function MyInfoTab() {
               </Badge>,
             ],
             ["Hire Date", me.hire_date ?? "—"],
-            ["Standard Hours/Day", `${me.standard_hours_per_day}h`],
-            ["Standard Hours/Week", `${me.standard_hours_per_week}h`],
+            ["Standard Hours / Day", `${me.standard_hours_per_day}h`],
+            ["Standard Hours / Week", `${me.standard_hours_per_week}h`],
           ].map(([label, val]) => (
-            <div key={String(label)} className="flex justify-between text-sm">
+            <div key={String(label)} className="flex justify-between">
               <span className="text-muted-foreground">{label}</span>
               <span>{val}</span>
             </div>
