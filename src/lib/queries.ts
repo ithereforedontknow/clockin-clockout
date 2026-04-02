@@ -126,9 +126,9 @@ export function useAllEmployeesForReports() {
         // Employer sees:
         //   - employees they manage (manager_id = their own id)
         //   - themselves (so they can view their own timesheet)
-        query = query
-          .eq("manager_id", currentEmployee.id)
-          .or(`id.eq.${currentEmployee.id}`)
+        query = query.or(
+          `manager_id.eq.${currentEmployee.id},id.eq.${currentEmployee.id}`
+        )
       } else if (currentEmployee?.role === "employee") {
         // Regular employees should only see themselves (if this hook is ever used by them)
         query = query.eq("id", currentEmployee.id)

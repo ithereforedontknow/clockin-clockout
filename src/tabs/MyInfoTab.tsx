@@ -117,14 +117,14 @@ function EditableField({
 }
 
 export function MyInfoTab() {
-  const { data: me, isLoading } = useCurrentEmployee()
+  const { data: user, isLoading } = useCurrentEmployee()
   const updatePersonal = useUpdateMyPersonalInfo()
   const requestChange = useRequestInfoChange()
 
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
   // Early return - after this, me is guaranteed to be defined
-  if (isLoading || !me) {
+  if (isLoading || !user) {
     return (
       <div className="p-6 text-sm text-muted-foreground">
         Loading profile...
@@ -133,7 +133,7 @@ export function MyInfoTab() {
   }
 
   // Capture the non-null employee for use in callbacks
-  const employee = me
+  const employee = user
 
   // Avatar Upload Handler
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -153,7 +153,11 @@ export function MyInfoTab() {
 
     try {
       const fileExt = file.name.split(".").pop() || "jpg"
-      const fileName = `${employee.id}/${employee.id}.${fileExt}`
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+      const fileName = `${user.id}/${employee.id}.${fileExt}`
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
@@ -209,10 +213,10 @@ export function MyInfoTab() {
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-6 sm:flex-row">
           <Avatar className="h-28 w-28 ring-2 ring-background ring-offset-4">
-            <AvatarImage src={me.avatar_url ?? undefined} />
+            <AvatarImage src={user.avatar_url ?? undefined} />
             <AvatarFallback className="bg-primary/10 text-4xl font-semibold text-primary">
-              {me.first_name?.[0]}
-              {me.last_name?.[0]}
+              {user.first_name?.[0]}
+              {user.last_name?.[0]}
             </AvatarFallback>
           </Avatar>
 
@@ -248,26 +252,26 @@ export function MyInfoTab() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <EditableField
               label="First Name"
-              value={me.first_name ?? ""}
+              value={user.first_name ?? ""}
               onSave={(v) => savePersonal("first_name", v)}
             />
             <EditableField
               label="Last Name"
-              value={me.last_name ?? ""}
+              value={user.last_name ?? ""}
               onSave={(v) => savePersonal("last_name", v)}
             />
           </div>
 
           <EditableField
             label="Phone"
-            value={me.phone ?? ""}
+            value={user.phone ?? ""}
             onSave={(v) => savePersonal("phone", v)}
             type="tel"
           />
 
           <EditableField
             label="Emergency Phone"
-            value={me.emergency_phone ?? ""}
+            value={user.emergency_phone ?? ""}
             onSave={(v) => savePersonal("emergency_phone", v)}
             type="tel"
           />
@@ -283,23 +287,23 @@ export function MyInfoTab() {
         <CardContent className="space-y-5">
           <div className="flex justify-between py-1 text-sm">
             <span className="text-muted-foreground">Email</span>
-            <span>{me.email}</span>
+            <span>{user.email}</span>
           </div>
           <Separator />
 
           <EditableField
             label="Job Title"
-            value={me.job_title ?? ""}
+            value={user.job_title ?? ""}
             onSave={(v) => requestWork("job_title", v)}
           />
           <EditableField
             label="Department"
-            value={me.department ?? ""}
+            value={user.department ?? ""}
             onSave={(v) => requestWork("department", v)}
           />
           <EditableField
             label="Location"
-            value={me.location ?? ""}
+            value={user.location ?? ""}
             onSave={(v) => requestWork("location", v)}
           />
         </CardContent>
@@ -315,23 +319,25 @@ export function MyInfoTab() {
             [
               "Role",
               <Badge variant="secondary" className="capitalize">
-                {me.role}
+                {user.role}
               </Badge>,
             ],
             [
               "Status",
               <Badge
                 variant={
-                  me.employment_status === "active" ? "default" : "destructive"
+                  user.employment_status === "active"
+                    ? "default"
+                    : "destructive"
                 }
                 className="capitalize"
               >
-                {me.employment_status}
+                {user.employment_status}
               </Badge>,
             ],
-            ["Hire Date", me.hire_date ?? "—"],
-            ["Standard Hours / Day", `${me.standard_hours_per_day}h`],
-            ["Standard Hours / Week", `${me.standard_hours_per_week}h`],
+            ["Hire Date", user.hire_date ?? "—"],
+            ["Standard Hours / Day", `${user.standard_hours_per_day}h`],
+            ["Standard Hours / Week", `${user.standard_hours_per_week}h`],
           ].map(([label, val]) => (
             <div key={String(label)} className="flex justify-between">
               <span className="text-muted-foreground">{label}</span>
