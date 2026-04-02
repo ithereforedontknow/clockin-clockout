@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react"
 import { AppSidebar } from "@/components/AppSidebar"
-import { CommandPalette } from "@/components/CommandPallete"
 import { SettingsModal } from "@/components/SettingsModal"
 import { WelcomeTutorialDialog } from "@/components/WelcomeTutorialDialog"
+import { HelpCenterDialog } from "@/components/HelpCenterDialog"
+import { CommandPalette } from "@/components/CommandPallete"
 import { HomeTab } from "@/tabs/HomeTab"
 import { MyInfoTab } from "@/tabs/MyInfoTab"
 import { PeopleTab } from "@/tabs/PeopleTab"
@@ -11,6 +12,7 @@ import { TimeSheetTab } from "@/tabs/TimeSheetTab"
 import { ReportsTab } from "@/tabs/ReportsTab"
 import { ApprovalsTab } from "@/tabs/ApprovalsTab"
 import { AdminTab } from "@/tabs/AdminTab"
+
 import { useCurrentEmployee } from "@/lib/queries"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
@@ -30,11 +32,12 @@ export function Appshell() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showWelcomeTutorial, setShowWelcomeTutorial] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   const { data: employee, isLoading, error } = useCurrentEmployee()
   const role = employee?.role ?? "employee"
 
-  // ── ⌘K / Ctrl+K shortcut ──────────────────────────────────────────────────
+  // ⌘K shortcut
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
@@ -45,39 +48,16 @@ export function Appshell() {
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [])
-  useEffect(() => {
-    if (!employee || employee.onboarding_completed) return
-    setShowWelcomeTutorial(true)
-  }, [employee])
-  // // ── Profile completion toast ───────────────────────────────────────────────
-  // useEffect(() => {
-  //   if (!employee || employee.onboarding_completed) return
-  //   const missing = [
-  //     !employee.phone && "phone number",
-  //     !employee.birthday && "birthday",
-  //     !employee.emergency_name && "emergency contact",
-  //     !employee.address_line1 && "address",
-  //   ].filter(Boolean) as string[]
-  //   if (!missing.length) return
-  //   toast("Complete your profile", {
-  //     description: `Missing: ${missing.slice(0, 2).join(", ")}${missing.length > 2 ? ` +${missing.length - 2} more` : ""}.`,
-  //     duration: 8000,
-  //     action: { label: "Go to My Info", onClick: () => setActiveTab("myinfo") },
-  //   })
-  //   // eslint-disable-next-line react-hooks/exhaustive-deps
-  // }, [!!employee])
-  // ── Welcome + Profile Completion ─────────────────────────────────────────────
+
+  // Show welcome tutorial for new users
   useEffect(() => {
     if (!employee) return
 
-    // Show tutorial for new users
     if (!employee.onboarding_completed) {
       setShowWelcomeTutorial(true)
       return
     }
 
-    // Optional: Keep a lighter toast for users who already completed onboarding
-    // but still have missing info
     const missing = [
       !employee.phone && "phone number",
       !employee.birthday && "birthday",
@@ -87,7 +67,9 @@ export function Appshell() {
 
     if (missing.length > 0) {
       toast("Your profile is almost complete", {
-        description: `Missing: ${missing.slice(0, 2).join(", ")}${missing.length > 2 ? ` +${missing.length - 2} more` : ""}.`,
+        description: `Missing: ${missing.slice(0, 2).join(", ")}${
+          missing.length > 2 ? ` +${missing.length - 2} more` : ""
+        }.`,
         duration: 6000,
         action: {
           label: "Go to My Info",
@@ -96,7 +78,7 @@ export function Appshell() {
       })
     }
   }, [employee])
-  // ── Error state ────────────────────────────────────────────────────────────
+
   if (error) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-6">
@@ -122,7 +104,6 @@ export function Appshell() {
     )
   }
 
-  // ── Loading skeleton ───────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="flex h-screen overflow-hidden bg-background">
@@ -152,7 +133,6 @@ export function Appshell() {
     )
   }
 
-  // ── Tab renderer ───────────────────────────────────────────────────────────
   const renderTab = () => {
     switch (activeTab) {
       case "home":
@@ -200,6 +180,7 @@ export function Appshell() {
         role={role}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenPalette={() => setPaletteOpen(true)}
+        onOpenHelp={() => setHelpOpen(true)}
       >
         {renderTab()}
       </AppSidebar>
@@ -220,9 +201,16 @@ export function Appshell() {
         onClose={() => setSettingsOpen(false)}
         role={role}
       />
+
       <WelcomeTutorialDialog
         open={showWelcomeTutorial}
         onClose={() => setShowWelcomeTutorial(false)}
+        employeeId={employee?.id ?? ""}
+      />
+
+      <HelpCenterDialog
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
         employeeId={employee?.id ?? ""}
       />
     </>

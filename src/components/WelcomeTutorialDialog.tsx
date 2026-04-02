@@ -12,6 +12,7 @@ import {
   Timer,
   CalendarDays,
   User,
+  Users,
   Bell,
   CheckCircle2,
 } from "lucide-react"
@@ -33,36 +34,41 @@ export function WelcomeTutorialDialog({ open, onClose, employeeId }: Props) {
       icon: <Clock className="h-10 w-10 text-primary" />,
       title: "Welcome to ClockIn/Out! 👋",
       content:
-        "A simple and modern time tracking system. No passwords — just your work email.",
+        "Simple employee time tracking. Clock in/out, request time off, and manage your profile — all in one place.",
     },
     {
       icon: <Timer className="h-10 w-10 text-primary" />,
-      title: "Clock In & Out",
+      title: "Step 1: Clock In & Out",
       content:
-        "Use the big button on the Home or Timesheet tab. You can also start/end breaks while clocked in.",
+        "Use the big button on the Home tab or Timesheet tab. While clocked in, you can start/end breaks.",
     },
     {
       icon: <CalendarDays className="h-10 w-10 text-primary" />,
-      title: "Request Time Off",
+      title: "Step 2: Request Time Off",
       content:
-        "Go to Time Off tab → Request Time Off. Your manager will review it quickly.",
+        "Go to the Time Off tab → Request Time Off. See your balance and submit requests for manager approval.",
     },
     {
       icon: <User className="h-10 w-10 text-primary" />,
-      title: "Complete Your Profile",
+      title: "Step 3: Update Your Profile",
       content:
-        "Fill in your details in the My Info tab. Some fields require manager approval.",
+        "In My Info, fill in your phone, birthday, address, and emergency contact. Some fields need approval.",
+    },
+    {
+      icon: <Users className="h-10 w-10 text-primary" />,
+      title: "Step 4: See Your Team",
+      content: "Use the People tab to browse colleagues and view profiles.",
     },
     {
       icon: <Bell className="h-10 w-10 text-primary" />,
-      title: "Notifications",
-      content:
-        "Important updates (approvals, corrections, new team members) appear in the top-right bell.",
+      title: "Step 5: Notifications",
+      content: "The bell icon shows approvals, corrections, and team updates.",
     },
     {
       icon: <CheckCircle2 className="h-10 w-10 text-green-600" />,
-      title: "You're all set!",
-      content: "You can always reopen this guide from the Help Center.",
+      title: "You're Ready!",
+      content:
+        "You can always reopen this guide from the Help button in the sidebar.",
     },
   ]
 
@@ -75,9 +81,7 @@ export function WelcomeTutorialDialog({ open, onClose, employeeId }: Props) {
         updates: { onboarding_completed: true },
       })
     }
-    toast.success("Welcome aboard! 🎉", {
-      description: "You can always access the guide from Help → Tutorial",
-    })
+    toast.success("You're all set! 🎉")
     onClose()
   }
 
@@ -88,9 +92,7 @@ export function WelcomeTutorialDialog({ open, onClose, employeeId }: Props) {
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10">
             {current.icon}
           </div>
-          <DialogTitle className="text-center text-xl">
-            {current.title}
-          </DialogTitle>
+          <DialogTitle className="text-center">{current.title}</DialogTitle>
         </DialogHeader>
 
         <Card>
@@ -99,14 +101,11 @@ export function WelcomeTutorialDialog({ open, onClose, employeeId }: Props) {
           </CardContent>
         </Card>
 
-        {/* Progress */}
         <div className="mt-6 flex justify-center gap-2">
           {steps.map((_, i) => (
             <div
               key={i}
-              className={`h-1.5 w-8 rounded-full transition-all ${
-                i === step ? "bg-primary" : "bg-muted"
-              }`}
+              className={`h-1.5 w-8 rounded-full ${i === step ? "bg-primary" : "bg-muted"}`}
             />
           ))}
         </div>

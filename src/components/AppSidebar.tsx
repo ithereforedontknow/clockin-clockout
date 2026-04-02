@@ -20,6 +20,7 @@ import {
   Shield,
   Search,
   Settings,
+  HelpCircle,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -132,6 +133,7 @@ interface AppSidebarProps {
   children: ReactNode
   onOpenSettings: () => void
   onOpenPalette: () => void
+  onOpenHelp: () => void
 }
 
 export function AppSidebar({
@@ -141,6 +143,7 @@ export function AppSidebar({
   children,
   onOpenSettings,
   onOpenPalette,
+  onOpenHelp,
 }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -272,6 +275,7 @@ export function AppSidebar({
               role={role}
               onNavigate={onTabChange}
               onOpenSettings={onOpenSettings}
+              onOpenHelp={onOpenHelp}
             />
           </aside>
 
@@ -342,18 +346,19 @@ function SidebarFooter({
   role,
   onNavigate,
   onOpenSettings,
+  onOpenHelp,
 }: {
   collapsed: boolean
   role: UserRole
   onNavigate: (tab: TabId) => void
   onOpenSettings: () => void
+  onOpenHelp: () => void
 }) {
   const { data: employee, isLoading } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
   const { data: notifications = [] } = useNotifications(employeeId)
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllRead()
-
   const unreadCount = notifications.filter((n) => !n.read).length
   const initials = employee
     ? `${employee.first_name[0]}${employee.last_name[0]}`
@@ -487,7 +492,23 @@ function SidebarFooter({
           </ScrollArea>
         </PopoverContent>
       </Popover>
-
+      {/* Help Button */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={onOpenHelp}
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm",
+              "text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+              collapsed && "justify-center px-0"
+            )}
+          >
+            <HelpCircle className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>Help</span>}
+          </button>
+        </TooltipTrigger>
+        {collapsed && <TooltipContent side="right">Help Center</TooltipContent>}
+      </Tooltip>
       {/* User menu */}
       <DropdownMenu>
         <Tooltip>
