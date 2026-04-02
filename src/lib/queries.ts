@@ -103,10 +103,39 @@ export function useAllEmployeesForReports() {
   return useQuery({
     queryKey: [...keys.employees(), "all"] as const,
     queryFn: async (): Promise<Employee[]> => {
-      const { data, error } = await supabase
+      // 1. Get the current user's employee record (role + id)
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+
+      const { data: currentEmployee, error: empError } = await supabase
         .from("employees")
-        .select("*")
-        .order("last_name")
+        .select("id, role")
+        .eq("user_id", user.id)
+        .single()
+
+      // If the user is not linked to an employee record, treat as no access
+      if (empError && empError.code !== "PGRST116") throw empError
+
+      // 2. Start with all active employees (you may also want to filter by employment_status)
+      let query = supabase.from("employees").select("*").order("last_name")
+
+      // 3. Apply role‑based filters
+      if (currentEmployee?.role === "employer") {
+        // Employer sees:
+        //   - employees they manage (manager_id = their own id)
+        //   - themselves (so they can view their own timesheet)
+        query = query
+          .eq("manager_id", currentEmployee.id)
+          .or(`id.eq.${currentEmployee.id}`)
+      } else if (currentEmployee?.role === "employee") {
+        // Regular employees should only see themselves (if this hook is ever used by them)
+        query = query.eq("id", currentEmployee.id)
+      }
+      // Admin sees all – no extra filter
+
+      const { data, error } = await query
       if (error) throw error
       return data ?? []
     },

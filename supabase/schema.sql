@@ -599,3 +599,47 @@ ON storage.objects
 FOR SELECT
 TO public
 USING (bucket_id = 'avatars');
+
+
+-- Drop old policies first (to avoid conflicts)
+DROP POLICY IF EXISTS "Users see their own clock entries" ON clock_entries;
+DROP POLICY IF EXISTS "Employers see their direct reports" ON clock_entries;
+DROP POLICY IF EXISTS "Admins see all clock entries" ON clock_entries;
+
+-- New, cleaner policies
+ALTER TABLE clock_entries ENABLE ROW LEVEL SECURITY;
+
+-- 1. Employees see only their own entries
+CREATE POLICY "employee_own_entries"
+ON clock_entries FOR SELECT
+TO authenticated
+USING (
+  employee_id IN (
+    SELECT id FROM employees WHERE user_id = auth.uid()
+  )
+);
+
+-- 2. Employers see ONLY their direct reports
+CREATE POLICY "employer_team_entries"
+ON clock_entries FOR SELECT
+TO authenticated
+USING (
+  employee_id IN (
+    SELECT id FROM employees
+    WHERE manager_id IN (
+      SELECT id FROM employees
+      WHERE user_id = auth.uid() AND role = 'employer'
+    )
+  )
+);
+
+-- 3. Admins see everything
+CREATE POLICY "admin_all_entries"
+ON clock_entries FOR SELECT
+TO authenticated
+USING (
+  EXISTS (
+    SELECT 1 FROM employees
+    WHERE user_id = auth.uid() AND role = 'admin'
+  )
+);

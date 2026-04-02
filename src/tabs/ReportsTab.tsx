@@ -169,26 +169,37 @@ export function ReportsTab() {
   const { data: corrections = [] } = useAllCorrections()
   const reviewCorrection = useReviewCorrection()
   const isLoading = entriesLoading || empLoading
-
+  const [deptFilter, setDeptFilter] = useState<string>("")
   const pendingCorrections = corrections.filter((c) => c.status === "pending")
 
-  const summaries: EmployeeWeekSummary[] = employees.map((emp) => {
-    const empEntries = allEntries.filter(
-      (e) => e.employee_id === emp.id
-    ) as (ClockEntry & { breaks: BreakEntry[]; employee: Employee })[]
-    const totalMins = empEntries.reduce((s, e) => s + (e.total_minutes ?? 0), 0)
-    const stdWeekMins = emp.standard_hours_per_week * 60
-    const overtimeMins = Math.max(0, totalMins - stdWeekMins)
-    const daysLogged = empEntries.filter((e) => e.total_minutes).length
-    return {
-      employee: emp,
-      totalMins,
-      overtimeMins,
-      daysLogged,
-      entries: empEntries,
-    }
-  })
+  const summaries: EmployeeWeekSummary[] = employees
+    .filter((emp) => {
+      if (!deptFilter || deptFilter === "all") return true
+      return emp.department === deptFilter
+    })
+    .map((emp) => {
+      const empEntries = allEntries.filter(
+        (e) => e.employee_id === emp.id
+      ) as (ClockEntry & { breaks: BreakEntry[]; employee: Employee })[]
+      const totalMins = empEntries.reduce(
+        (s, e) => s + (e.total_minutes ?? 0),
+        0
+      )
+      const stdWeekMins = emp.standard_hours_per_week * 60
+      const overtimeMins = Math.max(0, totalMins - stdWeekMins)
+      const daysLogged = empEntries.filter((e) => e.total_minutes).length
 
+      return {
+        employee: emp,
+        totalMins,
+        overtimeMins,
+        daysLogged,
+        entries: empEntries,
+      }
+    })
+  const departments = [
+    ...new Set(employees.map((e) => e.department).filter(Boolean)),
+  ].sort()
   const totalOTEmployees = summaries.filter((s) => s.overtimeMins > 0).length
   const avgMins = summaries.length
     ? Math.round(
@@ -310,12 +321,12 @@ export function ReportsTab() {
 
         {/* ── Timesheets ── */}
         <TabsContent value="timesheets" className="mt-4 space-y-4">
+          {/* Replace the existing controls with this */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
                 onClick={() => setWeekOffset((w) => w - 1)}
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -326,22 +337,38 @@ export function ReportsTab() {
               <Button
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
                 onClick={() => setWeekOffset((w) => w + 1)}
                 disabled={weekOffset >= 0}
               >
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExportTimesheetCSV}
-              disabled={isLoading}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
+
+            {/* Department Filter */}
+            <div className="flex items-center gap-2">
+              <Select value={deptFilter} onValueChange={setDeptFilter}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="All Departments" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map((d) => (
+                    <SelectItem key={d} value={d}>
+                      {d}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportTimesheetCSV}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+            </div>
           </div>
 
           <TimesheetTable
