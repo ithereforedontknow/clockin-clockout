@@ -150,44 +150,48 @@ export function CommandPalette({
         ]
       : []),
   ]
+  // AFTER
+  const isClocked0utForDay = !!clockEntry?.clock_out // has an entry AND it's finished
 
-  const clockItems: CommandItem[] = !isClockedIn
-    ? [
-        {
-          id: "clock-in",
-          label: "Clock In",
-          sublabel: "Start your shift",
-          icon: Play,
-          group: "Clock",
-          keywords: ["start", "begin", "work"],
-          action: async () => {
-            if (!employee) return
-            await clockIn.mutateAsync(employee.id)
-            toast.success("Clocked in!")
-            onClose()
+  const clockItems: CommandItem[] = isClocked0utForDay
+    ? [] // already done for the day — show nothing
+    : !isClockedIn
+      ? [
+          {
+            id: "clock-in",
+            label: "Clock In",
+            sublabel: "Start your shift",
+            icon: Play,
+            group: "Clock",
+            keywords: ["start", "begin", "work"],
+            action: async () => {
+              if (!employee) return
+              await clockIn.mutateAsync(employee.id)
+              toast.success("Clocked in!")
+              onClose()
+            },
           },
-        },
-      ]
-    : [
-        {
-          id: "clock-out",
-          label: "Clock Out",
-          sublabel: `${formatMinutes(workedMins)} worked today`,
-          icon: Square,
-          group: "Clock",
-          keywords: ["stop", "end", "finish"],
-          action: async () => {
-            if (!employee || !clockEntry) return
-            await clockOut.mutateAsync({
-              entryId: clockEntry.id,
-              employeeId: employee.id,
-              totalMinutes: workedMins,
-            })
-            toast.success("Clocked out!")
-            onClose()
+        ]
+      : [
+          {
+            id: "clock-out",
+            label: "Clock Out",
+            sublabel: `${formatMinutes(workedMins)} worked today`,
+            icon: Square,
+            group: "Clock",
+            keywords: ["stop", "end", "finish"],
+            action: async () => {
+              if (!employee || !clockEntry) return
+              await clockOut.mutateAsync({
+                entryId: clockEntry.id,
+                employeeId: employee.id,
+                totalMinutes: workedMins,
+              })
+              toast.success("Clocked out!")
+              onClose()
+            },
           },
-        },
-      ]
+        ]
 
   const actionItems: CommandItem[] = [
     {
