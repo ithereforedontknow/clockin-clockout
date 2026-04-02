@@ -403,24 +403,56 @@ export function useWhosOut(weekStart: string) {
     },
   })
 }
-
-export function useHolidays() {
+export function useHolidays(year?: number) {
+  const y = year ?? new Date().getFullYear()
   return useQuery({
     queryKey: keys.holidays(),
     queryFn: async (): Promise<CompanyHoliday[]> => {
-      const year = new Date().getFullYear()
       const { data, error } = await supabase
         .from("company_holidays")
         .select("*")
-        .gte("date", `${year}-01-01`)
-        .lte("date", `${year}-12-31`)
-        .order("date")
+        .order("month")
+        .order("day")
       if (error) throw error
       return data ?? []
     },
   })
 }
 
+export function useCreateHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      name,
+      month,
+      day,
+    }: {
+      name: string
+      month: number
+      day: number
+    }) => {
+      const { error } = await supabase
+        .from("company_holidays")
+        .insert({ name, month, day })
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.holidays() }),
+  })
+}
+
+export function useDeleteHoliday() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("company_holidays")
+        .delete()
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.holidays() }),
+  })
+}
 export function calculateFutureBalance(
   currentBalance: number,
   scheduledOff: number,

@@ -643,3 +643,52 @@ USING (
     WHERE user_id = auth.uid() AND role = 'admin'
   )
 );
+
+-- Create holidays
+CREATE POLICY "admin manage holidays"
+ON company_holidays
+FOR ALL
+TO authenticated
+USING (get_my_role() = 'admin')
+WITH CHECK (get_my_role() = 'admin');
+-- 1. Drop old table (clears the US/duplicate data anyway)
+DROP TABLE company_holidays;
+
+-- 2. Recreate with month + day only
+CREATE TABLE company_holidays (
+  id    text primary key default gen_random_uuid()::text,
+  name  text not null,
+  month integer not null CHECK (month BETWEEN 1 AND 12),
+  day   integer not null CHECK (day BETWEEN 1 AND 31),
+  UNIQUE (month, day)
+);
+
+-- 3. Restore RLS
+ALTER TABLE company_holidays ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "public read holidays"
+ON company_holidays FOR SELECT USING (true);
+
+CREATE POLICY "admin manage holidays"
+ON company_holidays FOR ALL
+TO authenticated
+USING (get_my_role() = 'admin')
+WITH CHECK (get_my_role() = 'admin');
+
+-- 4. Seed PH holidays (no year)
+INSERT INTO company_holidays (name, month, day) VALUES
+  ('New Year''s Day',                    1,  1),
+  ('People Power Anniversary',           2, 25),
+  ('Labor Day',                          5,  1),
+  ('Independence Day',                   6, 12),
+  ('Ninoy Aquino Day',                   8, 21),
+  ('National Heroes Day',                8, 25),
+  ('All Saints'' Day',                  11,  1),
+  ('All Souls'' Day',                   11,  2),
+  ('Bonifacio Day',                     11, 30),
+  ('Feast of the Immaculate Conception',12,  8),
+  ('Christmas Eve',                     12, 24),
+  ('Christmas Day',                     12, 25),
+  ('Rizal Day',                         12, 30),
+  ('New Year''s Eve',                   12, 31);
+-- Note: Maundy Thursday & Good Friday change yearly — add those manually via the UI each year

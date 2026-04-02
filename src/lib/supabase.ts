@@ -115,7 +115,8 @@ export interface InfoChangeRequest {
 export interface CompanyHoliday {
   id: string
   name: string
-  date: string
+  month: number
+  day: number
 }
 
 export type CorrectionStatus = "pending" | "approved" | "denied"
