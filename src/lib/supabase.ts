@@ -254,10 +254,11 @@ export interface Announcement {
   id: string
   title: string
   body: string
-  posted_by: string // employee_id
+  posted_by: string
   target: AnnouncementTarget
-  target_employer_id: string | null // if target = "employer_team"
+  target_employer_id: string | null
   created_at: string
+  pinned: boolean
   author?: Employee
 }
 

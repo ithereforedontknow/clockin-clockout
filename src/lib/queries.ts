@@ -1418,7 +1418,6 @@ export function useAnnouncements(employeeId: string, employerId?: string) {
   return useQuery({
     queryKey: ["announcements", employeeId],
     queryFn: async (): Promise<Announcement[]> => {
-      // Fetch company-wide + any targeted at this employer's team
       const { data, error } = await supabase
         .from("announcements")
         .select(
@@ -1429,8 +1428,9 @@ export function useAnnouncements(employeeId: string, employerId?: string) {
             ? `target.eq.all,and(target.eq.employer_team,target_employer_id.eq.${employerId})`
             : `target.eq.all`
         )
+        .order("pinned", { ascending: false })
         .order("created_at", { ascending: false })
-        .limit(10)
+        .limit(20)
       if (error) throw error
       return data ?? []
     },
@@ -1474,7 +1474,19 @@ export function useDeleteAnnouncement() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["announcements"] }),
   })
 }
-
+export function usePinAnnouncement() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, pinned }: { id: string; pinned: boolean }) => {
+      const { error } = await supabase
+        .from("announcements")
+        .update({ pinned })
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["announcements"] }),
+  })
+}
 // --- Reports
 
 export function useReportEntries(

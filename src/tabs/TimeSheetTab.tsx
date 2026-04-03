@@ -25,6 +25,7 @@ import {
 } from "@/lib/queries"
 import { formatMinutes } from "@/lib/supabase"
 import type { ClockEntry, BreakEntry } from "@/lib/supabase"
+import { lateMins, undertimeMins } from "@/lib/attendance"
 import { ClockCorrectionDialog } from "@/components/ClockCorrectionDialog"
 import type { TabId } from "@/components/Appshell"
 
@@ -83,6 +84,14 @@ export function TimeSheetTab({ onNavigate }: Props) {
   const weekOvertimeMins = Math.max(0, totalWorkedMins - standardWeekMins)
   const pendingCount = corrections.filter((c) => c.status === "pending").length
 
+  // late
+
+  const lateDaysCount = weekdayEntries.filter(
+    (e) =>
+      e.clock_in &&
+      lateMins(e.clock_in, employee?.standard_start_time ?? null) > 0
+  ).length
+
   return (
     <div className="max-w-4xl space-y-4">
       {/* Header + week nav */}
@@ -135,7 +144,7 @@ export function TimeSheetTab({ onNavigate }: Props) {
       </div>
 
       {/* Summary strip */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <SummaryCard
           label="Total Worked"
           value={isLoading ? null : formatMinutes(totalWorkedMins)}
@@ -159,6 +168,13 @@ export function TimeSheetTab({ onNavigate }: Props) {
               ? null
               : `${weekdayEntries.filter((e) => e.total_minutes).length} / 5`
           }
+        />
+        <SummaryCard
+          label="Late Days"
+          value={
+            isLoading ? null : lateDaysCount > 0 ? String(lateDaysCount) : "—"
+          }
+          highlight={lateDaysCount > 0}
         />
       </div>
 
@@ -214,6 +230,19 @@ export function TimeSheetTab({ onNavigate }: Props) {
                   !isFuture &&
                   !hasPending
 
+                // add these computed values inside the weekDays.map, alongside existing `ot`
+                const late = entry?.clock_in
+                  ? lateMins(
+                      entry.clock_in,
+                      employee?.standard_start_time ?? null
+                    )
+                  : 0
+                const undertime = entry?.clock_out
+                  ? undertimeMins(
+                      entry.total_minutes,
+                      employee?.standard_hours_per_day ?? 8
+                    )
+                  : 0
                 return (
                   <div
                     key={dateStr}
@@ -269,6 +298,16 @@ export function TimeSheetTab({ onNavigate }: Props) {
                           {ot > 0 && (
                             <p className="text-xs text-amber-600">
                               +{formatMinutes(ot)} OT
+                            </p>
+                          )}
+                          {late > 0 && (
+                            <p className="text-xs text-red-500">
+                              {formatMinutes(late)} late
+                            </p>
+                          )}
+                          {undertime > 0 && !ot && (
+                            <p className="text-xs text-orange-500">
+                              -{formatMinutes(undertime)} undertime
                             </p>
                           )}
                         </div>

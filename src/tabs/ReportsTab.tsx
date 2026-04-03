@@ -74,6 +74,9 @@ type EmployeeWeekSummary = {
   employee: Employee
   totalMins: number
   overtimeMins: number
+  lateMins: number
+  undertimeMins: number
+  absentDays: number
   daysLogged: number
   entries: (ClockEntry & { breaks: BreakEntry[] })[]
 }
@@ -142,7 +145,26 @@ function downloadCSV(rows: string[][], filename: string) {
   a.click()
   URL.revokeObjectURL(url)
 }
+function calcLateMins(
+  clockIn: string,
+  standardStart: string | null,
+  graceMins = 5
+): number {
+  if (!standardStart) return 0
+  const ci = new Date(clockIn)
+  const [h, m] = standardStart.split(":").map(Number)
+  const expected = new Date(ci)
+  expected.setHours(h, m + graceMins, 0, 0)
+  return Math.max(0, Math.round((ci.getTime() - expected.getTime()) / 60000))
+}
 
+function calcUndertimeMins(
+  totalMinutes: number | null,
+  stdHoursPerDay: number
+): number {
+  if (!totalMinutes) return 0
+  return Math.max(0, stdHoursPerDay * 60 - totalMinutes)
+}
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ReportsTab() {
@@ -172,6 +194,10 @@ export function ReportsTab() {
   const [deptFilter, setDeptFilter] = useState<string>("")
   const pendingCorrections = corrections.filter((c) => c.status === "pending")
 
+  const weekdayDates = weekDays
+    .filter((d) => ![0, 6].includes(d.getDay()))
+    .map((d) => format(d, "yyyy-MM-dd"))
+
   const summaries: EmployeeWeekSummary[] = employees
     .filter((emp) => {
       if (!deptFilter || deptFilter === "all") return true
@@ -181,6 +207,7 @@ export function ReportsTab() {
       const empEntries = allEntries.filter(
         (e) => e.employee_id === emp.id
       ) as (ClockEntry & { breaks: BreakEntry[]; employee: Employee })[]
+
       const totalMins = empEntries.reduce(
         (s, e) => s + (e.total_minutes ?? 0),
         0
@@ -188,11 +215,33 @@ export function ReportsTab() {
       const stdWeekMins = emp.standard_hours_per_week * 60
       const overtimeMins = Math.max(0, totalMins - stdWeekMins)
       const daysLogged = empEntries.filter((e) => e.total_minutes).length
+      const absentDays = weekdayDates.filter(
+        (d) => !empEntries.find((e) => e.date === d && e.total_minutes)
+      ).length
+
+      const lateMins = empEntries.reduce((s, e) => {
+        return (
+          s +
+          (e.clock_in
+            ? calcLateMins(e.clock_in, emp.standard_start_time ?? null)
+            : 0)
+        )
+      }, 0)
+
+      const undertimeMins = empEntries.reduce((s, e) => {
+        if (!e.clock_out) return s
+        return (
+          s + calcUndertimeMins(e.total_minutes, emp.standard_hours_per_day)
+        )
+      }, 0)
 
       return {
         employee: emp,
         totalMins,
         overtimeMins,
+        lateMins,
+        undertimeMins,
+        absentDays,
         daysLogged,
         entries: empEntries,
       }
@@ -219,6 +268,8 @@ export function ReportsTab() {
         "Break (min)",
         "Worked (min)",
         "Overtime (min)",
+        "Late (min)",
+        "Undertime (min)",
       ],
     ]
     for (const { employee: emp, entries } of summaries) {
@@ -231,6 +282,12 @@ export function ReportsTab() {
           0,
           (e.total_minutes ?? 0) - emp.standard_hours_per_day * 60
         )
+        const late = e.clock_in
+          ? calcLateMins(e.clock_in, emp.standard_start_time ?? null)
+          : 0
+        const undertime = e.clock_out
+          ? calcUndertimeMins(e.total_minutes, emp.standard_hours_per_day)
+          : 0
         rows.push([
           `${emp.first_name} ${emp.last_name}`,
           emp.department,
@@ -240,6 +297,8 @@ export function ReportsTab() {
           String(breakMins),
           String(e.total_minutes ?? 0),
           String(otMins),
+          String(late),
+          String(undertime),
         ])
       }
     }
@@ -277,7 +336,7 @@ export function ReportsTab() {
       </div>
 
       {/* KPI strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <KPICard
           icon={Users}
           label="Employees"
@@ -285,12 +344,12 @@ export function ReportsTab() {
         />
         <KPICard
           icon={Clock}
-          label="Avg Hours This Week"
+          label="Avg Hours"
           value={isLoading ? null : formatMinutes(avgMins)}
         />
         <KPICard
           icon={TrendingUp}
-          label="Employees w/ OT"
+          label="With OT"
           value={isLoading ? null : String(totalOTEmployees)}
           highlight={totalOTEmployees > 0}
         />
@@ -300,8 +359,27 @@ export function ReportsTab() {
           value={String(pendingCorrections.length)}
           highlight={pendingCorrections.length > 0}
         />
+        <KPICard
+          icon={AlertCircle}
+          label="Late This Week"
+          value={
+            isLoading
+              ? null
+              : String(summaries.filter((s) => s.lateMins > 0).length)
+          }
+          highlight={summaries.filter((s) => s.lateMins > 0).length > 0}
+        />
+        <KPICard
+          icon={X}
+          label="Absent This Week"
+          value={
+            isLoading
+              ? null
+              : String(summaries.reduce((s, e) => s + e.absentDays, 0))
+          }
+          highlight={summaries.reduce((s, e) => s + e.absentDays, 0) > 0}
+        />
       </div>
-
       <Tabs defaultValue="timesheets">
         <TabsList>
           <TabsTrigger value="timesheets">Timesheets</TabsTrigger>
@@ -552,6 +630,9 @@ function PayrollExportPanel({
           "Overtime Hours",
           "Total Hours",
           "Break Hours",
+          "Late (min)",
+          "Undertime (min)",
+          "Absent Days",
         ],
       ]
 
@@ -566,6 +647,8 @@ function PayrollExportPanel({
         let regularMins = 0
         let overtimeMins = 0
         let breakMins = 0
+        let lateMinsTotal = 0
+        let undertimeMinsTotal = 0
 
         for (const entry of empEntries) {
           const bMins = ((entry.breaks ?? []) as BreakEntry[]).reduce(
@@ -579,7 +662,23 @@ function PayrollExportPanel({
           const ot = Math.max(0, worked - stdDay)
           regularMins += worked - ot
           overtimeMins += ot
+          lateMinsTotal += entry.clock_in
+            ? calcLateMins(entry.clock_in, emp.standard_start_time ?? null)
+            : 0
+          undertimeMinsTotal += entry.clock_out
+            ? calcUndertimeMins(entry.total_minutes, emp.standard_hours_per_day)
+            : 0
         }
+        const periodDays: string[] = []
+        const cur = new Date(start)
+        while (cur <= end) {
+          if (![0, 6].includes(cur.getDay()))
+            periodDays.push(format(cur, "yyyy-MM-dd"))
+          cur.setDate(cur.getDate() + 1)
+        }
+        const absentDaysCount = periodDays.filter(
+          (d) => !empEntries.find((e) => e.date === d && e.total_minutes)
+        ).length
 
         const toHours = (m: number) => (m / 60).toFixed(2)
 
@@ -595,6 +694,9 @@ function PayrollExportPanel({
           toHours(overtimeMins),
           toHours(regularMins + overtimeMins),
           toHours(breakMins),
+          String(lateMinsTotal),
+          String(undertimeMinsTotal),
+          String(absentDaysCount),
         ])
       }
 
@@ -756,7 +858,9 @@ function TimesheetTable({
                 <TableHead className="text-right">Days</TableHead>
                 <TableHead className="text-right">Hours</TableHead>
                 <TableHead className="text-right">Overtime</TableHead>
-                <TableHead className="text-right">Target</TableHead>
+                <TableHead className="text-right">Late</TableHead>
+                <TableHead className="text-right">Undertime</TableHead>
+                <TableHead className="text-right">Absent</TableHead>
                 <TableHead className="w-6" />
               </TableRow>
             </TableHeader>
@@ -766,6 +870,9 @@ function TimesheetTable({
                   employee: emp,
                   totalMins,
                   overtimeMins,
+                  lateMins,
+                  undertimeMins,
+                  absentDays,
                   daysLogged,
                   entries,
                 }) => {
@@ -816,6 +923,39 @@ function TimesheetTable({
                             </span>
                           )}
                         </TableCell>
+                        <TableCell className="text-right">
+                          {lateMins > 0 ? (
+                            <span className="text-sm text-red-500">
+                              {formatMinutes(lateMins)}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              —
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {undertimeMins > 0 ? (
+                            <span className="text-sm text-orange-500">
+                              -{formatMinutes(undertimeMins)}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              —
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {absentDays > 0 ? (
+                            <span className="text-sm text-red-500">
+                              {absentDays}d
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">
+                              —
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell className="text-right text-xs text-muted-foreground">
                           {emp.standard_hours_per_week}h/wk
                         </TableCell>
@@ -853,6 +993,18 @@ function TimesheetTable({
                                           emp.standard_hours_per_day * 60
                                       )
                                     : 0
+                                  const late = e?.clock_in
+                                    ? calcLateMins(
+                                        e.clock_in,
+                                        emp.standard_start_time ?? null
+                                      )
+                                    : 0
+                                  const undertime = e?.clock_out
+                                    ? calcUndertimeMins(
+                                        e.total_minutes,
+                                        emp.standard_hours_per_day
+                                      )
+                                    : 0
                                   return (
                                     <div
                                       key={dateStr}
@@ -885,6 +1037,17 @@ function TimesheetTable({
                                           {ot > 0 && (
                                             <span className="text-amber-600">
                                               +{formatMinutes(ot)} OT
+                                            </span>
+                                          )}
+                                          {late > 0 && (
+                                            <span className="text-red-500">
+                                              {formatMinutes(late)} late
+                                            </span>
+                                          )}
+                                          {undertime > 0 && !ot && (
+                                            <span className="text-orange-500">
+                                              -{formatMinutes(undertime)}{" "}
+                                              undertime
                                             </span>
                                           )}
                                         </>

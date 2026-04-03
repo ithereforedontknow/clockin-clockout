@@ -1,6 +1,15 @@
 import { useState } from "react"
 import { format } from "date-fns"
-import { Megaphone, Plus, Trash2, Loader2, Globe, Users } from "lucide-react"
+import {
+  Megaphone,
+  Plus,
+  Trash2,
+  Loader2,
+  Globe,
+  Users,
+  Pin,
+  PinOff,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -28,6 +37,7 @@ import {
   useAnnouncements,
   useCreateAnnouncement,
   useDeleteAnnouncement,
+  usePinAnnouncement,
 } from "@/lib/queries"
 import type { Employee, Announcement } from "@/lib/supabase"
 
@@ -46,6 +56,7 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
   )
   const createAnnouncement = useCreateAnnouncement()
   const deleteAnnouncement = useDeleteAnnouncement()
+  const pinAnnouncement = usePinAnnouncement()
 
   const [postOpen, setPostOpen] = useState(false)
 
@@ -93,6 +104,15 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
                       onSuccess: () => toast.success("Announcement deleted"),
                     })
                   }}
+                  onTogglePin={() => {
+                    pinAnnouncement.mutate(
+                      { id: a.id, pinned: !a.pinned },
+                      {
+                        onSuccess: () =>
+                          toast.success(a.pinned ? "Unpinned" : "Pinned"),
+                      }
+                    )
+                  }}
                 />
               ))}
             </div>
@@ -116,10 +136,12 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
 }
 
 // ─── Single announcement row ──────────────────────────────────────────────────
+
 function AnnouncementItem({
   announcement: a,
   currentEmployee,
   onDelete,
+  onTogglePin,
 }: {
   announcement: Announcement & {
     author?: {
@@ -130,13 +152,22 @@ function AnnouncementItem({
   }
   currentEmployee: Employee
   onDelete: () => void
+  onTogglePin: () => void
 }) {
   const author = a.author
   const canDelete =
     a.posted_by === currentEmployee.id || currentEmployee.role === "admin"
+  const canPin =
+    a.posted_by === currentEmployee.id || currentEmployee.role === "admin"
 
   return (
-    <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 p-3">
+    <div
+      className={`flex items-start gap-3 rounded-lg border p-3 ${
+        a.pinned
+          ? "border-primary/20 bg-primary/5"
+          : "border-border bg-muted/20"
+      }`}
+    >
       <Avatar className="h-7 w-7 shrink-0">
         <AvatarImage src={author?.avatar_url ?? undefined} />
         <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
@@ -146,6 +177,7 @@ function AnnouncementItem({
       </Avatar>
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
+          {a.pinned && <Pin className="h-3 w-3 shrink-0 text-primary" />}
           <p className="text-sm font-medium">{a.title}</p>
           <Badge
             variant="outline"
@@ -175,17 +207,33 @@ function AnnouncementItem({
           {format(new Date(a.created_at), "MMM d 'at' h:mm a")}
         </p>
       </div>
-      {canDelete && (
-        <button
-          onClick={onDelete}
-          className="shrink-0 text-muted-foreground transition-colors hover:text-destructive"
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      )}
+      <div className="flex shrink-0 items-center gap-1">
+        {canPin && (
+          <button
+            onClick={onTogglePin}
+            className="text-muted-foreground transition-colors hover:text-primary"
+            title={a.pinned ? "Unpin" : "Pin to top"}
+          >
+            {a.pinned ? (
+              <PinOff className="h-3.5 w-3.5" />
+            ) : (
+              <Pin className="h-3.5 w-3.5" />
+            )}
+          </button>
+        )}
+        {canDelete && (
+          <button
+            onClick={onDelete}
+            className="text-muted-foreground transition-colors hover:text-destructive"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
     </div>
   )
 }
+
 // ─── Post dialog ──────────────────────────────────────────────────────────────
 
 function PostAnnouncementDialog({

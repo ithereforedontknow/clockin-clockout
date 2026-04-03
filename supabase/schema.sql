@@ -692,3 +692,66 @@ INSERT INTO company_holidays (name, month, day) VALUES
   ('Rizal Day',                         12, 30),
   ('New Year''s Eve',                   12, 31);
 -- Note: Maundy Thursday & Good Friday change yearly — add those manually via the UI each year
+
+-- Company name
+
+ALTER TABLE company_settings
+  ADD COLUMN IF NOT EXISTS industry       text,
+  ADD COLUMN IF NOT EXISTS phone          text,
+  ADD COLUMN IF NOT EXISTS email          text,
+  ADD COLUMN IF NOT EXISTS website        text,
+  ADD COLUMN IF NOT EXISTS address_line1  text,
+  ADD COLUMN IF NOT EXISTS address_line2  text,
+  ADD COLUMN IF NOT EXISTS city           text,
+  ADD COLUMN IF NOT EXISTS country        text default 'Philippines';
+
+--
+-- Drop the conflicting/duplicate policies
+DROP POLICY IF EXISTS "own corrections select" ON clock_corrections;
+DROP POLICY IF EXISTS "manager admin corrections update" ON clock_corrections;
+DROP POLICY IF EXISTS "employer admin read corrections" ON clock_corrections;
+DROP POLICY IF EXISTS "employer admin update corrections" ON clock_corrections;
+
+-- Employee sees only their own
+CREATE POLICY "employee own corrections"
+ON clock_corrections FOR SELECT
+TO authenticated
+USING (
+  employee_id = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+);
+
+-- Employer sees only their team's corrections
+CREATE POLICY "employer team corrections"
+ON clock_corrections FOR SELECT
+TO authenticated
+USING (
+  employee_id IN (
+    SELECT id FROM employees
+    WHERE manager_id = (
+      SELECT id FROM employees WHERE user_id = auth.uid() AND role = 'employer' LIMIT 1
+    )
+  )
+);
+
+-- Admin sees all
+CREATE POLICY "admin all corrections"
+ON clock_corrections FOR SELECT
+TO authenticated
+USING (get_my_role() = 'admin');
+
+-- Employer + admin can update (approve/deny)
+CREATE POLICY "employer admin update corrections"
+ON clock_corrections FOR UPDATE
+TO authenticated
+USING (get_my_role() IN ('employer', 'admin'));
+
+-- announcements
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS pinned boolean NOT NULL DEFAULT false;
+
+-- Allow authors and admins to update (for pinning)
+CREATE POLICY "author admin update announcements"
+ON announcements FOR UPDATE
+USING (
+  posted_by = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+  OR get_my_role() = 'admin'
+);
