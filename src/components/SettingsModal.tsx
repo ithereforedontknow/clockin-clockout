@@ -87,7 +87,10 @@ export function SettingsModal({ open, onClose, role }: Props) {
           </TabsList>
 
           {isAdmin && (
-            <TabsContent value="company" className="mt-4">
+            <TabsContent
+              value="company"
+              className="mt-4 max-h-[60vh] overflow-y-auto pr-1"
+            >
               <CompanySettingsForm />
             </TabsContent>
           )}
@@ -109,7 +112,6 @@ function CompanySettingsForm() {
   const { data: settings, isLoading } = useCompanySettings()
   const update = useUpdateCompanySettings()
   const [errors, setErrors] = useState<Record<string, string>>({})
-
   const [form, setForm] = useState({
     company_name: "",
     standard_hours_per_day: 8,
@@ -118,6 +120,15 @@ function CompanySettingsForm() {
     working_days: [1, 2, 3, 4, 5] as number[],
     overtime_threshold_daily: 8,
     overtime_threshold_weekly: 40,
+    // company profile
+    industry: "",
+    phone: "",
+    email: "",
+    website: "",
+    address_line1: "",
+    address_line2: "",
+    city: "",
+    country: "Philippines",
   })
 
   useEffect(() => {
@@ -130,6 +141,14 @@ function CompanySettingsForm() {
       working_days: settings.working_days,
       overtime_threshold_daily: settings.overtime_threshold_daily,
       overtime_threshold_weekly: settings.overtime_threshold_weekly,
+      industry: settings.industry ?? "",
+      phone: settings.phone ?? "",
+      email: settings.email ?? "",
+      website: settings.website ?? "",
+      address_line1: settings.address_line1 ?? "",
+      address_line2: settings.address_line2 ?? "",
+      city: settings.city ?? "",
+      country: settings.country ?? "Philippines",
     })
   }, [settings])
 
@@ -174,6 +193,7 @@ function CompanySettingsForm() {
 
   return (
     <div className="space-y-4">
+      {/* ── Company profile ── */}
       <div className="space-y-1.5">
         <Label className="text-sm">Company name</Label>
         <Input
@@ -186,7 +206,84 @@ function CompanySettingsForm() {
         )}
       </div>
 
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm">Industry</Label>
+          <Input
+            value={form.industry}
+            onChange={(e) => set("industry", e.target.value)}
+            placeholder="e.g. Technology"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm">Company email</Label>
+          <Input
+            type="email"
+            value={form.email}
+            onChange={(e) => set("email", e.target.value)}
+            placeholder="hr@company.com"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm">Phone</Label>
+          <Input
+            value={form.phone}
+            onChange={(e) => set("phone", e.target.value)}
+            placeholder="+63 2 1234 5678"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm">Website</Label>
+          <Input
+            value={form.website}
+            onChange={(e) => set("website", e.target.value)}
+            placeholder="https://company.com"
+          />
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label className="text-sm">Address</Label>
+        <Input
+          value={form.address_line1}
+          onChange={(e) => set("address_line1", e.target.value)}
+          placeholder="Street address"
+        />
+        <Input
+          className="mt-1.5"
+          value={form.address_line2}
+          onChange={(e) => set("address_line2", e.target.value)}
+          placeholder="Floor, unit, building (optional)"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm">City</Label>
+          <Input
+            value={form.city}
+            onChange={(e) => set("city", e.target.value)}
+            placeholder="Manila"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm">Country</Label>
+          <Input
+            value={form.country}
+            onChange={(e) => set("country", e.target.value)}
+            placeholder="Philippines"
+          />
+        </div>
+      </div>
+
+      {/* ── Work schedule ── */}
       <Separator />
+      <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+        Work schedule
+      </p>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
@@ -257,7 +354,11 @@ function CompanySettingsForm() {
         )}
       </div>
 
+      {/* ── Overtime ── */}
       <Separator />
+      <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
+        Overtime thresholds
+      </p>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
@@ -266,7 +367,6 @@ function CompanySettingsForm() {
             type="number"
             min={0}
             max={24}
-            step={0.5}
             value={form.overtime_threshold_daily}
             onChange={(e) =>
               set("overtime_threshold_daily", Number(e.target.value))
@@ -279,7 +379,6 @@ function CompanySettingsForm() {
             type="number"
             min={0}
             max={168}
-            step={0.5}
             value={form.overtime_threshold_weekly}
             onChange={(e) =>
               set("overtime_threshold_weekly", Number(e.target.value))
@@ -301,7 +400,7 @@ function CompanySettingsForm() {
         ) : (
           <>
             <Save className="mr-2 h-4 w-4" />
-            Save Changes
+            Save changes
           </>
         )}
       </Button>

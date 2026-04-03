@@ -1,4 +1,10 @@
-import { type ReactNode, createContext, useContext, useState } from "react"
+import {
+  type ReactNode,
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+} from "react"
 import {
   Home,
   User,
@@ -30,6 +36,7 @@ import {
   useNotifications,
   useMarkNotificationRead,
   useMarkAllRead,
+  useCompanySettings,
 } from "@/lib/queries"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -153,6 +160,12 @@ export function AppSidebar({
     }
   })
 
+  const { data: settings } = useCompanySettings()
+  const companyName = settings?.company_name ?? "Company"
+  useEffect(() => {
+    if (settings?.company_name) document.title = settings.company_name
+  }, [settings?.company_name])
+
   function toggle() {
     setCollapsed((v) => {
       const next = !v
@@ -211,7 +224,7 @@ export function AppSidebar({
                 </div>
                 {!collapsed && (
                   <span className="text-base font-bold tracking-tight text-sidebar-foreground">
-                    ClockIn/Out
+                    {companyName}
                   </span>
                 )}
               </div>

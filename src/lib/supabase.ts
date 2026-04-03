@@ -206,20 +206,27 @@ export function liveMinutes(clockIn: string, breakMinutes = 0): number {
 }
 
 // ─── Company Settings ──────────────────────────────────────────────────────
-
 export interface CompanySettings {
   id: string
   company_name: string
   standard_hours_per_day: number
   standard_hours_per_week: number
-  standard_start_time: string // "HH:MM"
-  working_days: number[] // 0=Sun,1=Mon,...,6=Sat
-  overtime_threshold_daily: number // hours before daily OT kicks in
-  overtime_threshold_weekly: number // hours before weekly OT kicks in
+  standard_start_time: string
+  working_days: number[]
+  overtime_threshold_daily: number
+  overtime_threshold_weekly: number
   logo_url: string | null
   updated_at: string
+  // company profile
+  industry: string | null
+  phone: string | null
+  email: string | null
+  website: string | null
+  address_line1: string | null
+  address_line2: string | null
+  city: string | null
+  country: string | null
 }
-
 // ─── Live clock status (for monitoring) ───────────────────────────────────
 
 export interface LiveClockStatus {
@@ -253,3 +260,5 @@ export interface Announcement {
   created_at: string
   author?: Employee
 }
+
+//
