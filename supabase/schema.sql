@@ -755,3 +755,73 @@ USING (
   posted_by = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
   OR get_my_role() = 'admin'
 );
+
+
+-- 1. Remove every old policy (clean slate)
+DROP POLICY IF EXISTS "own corrections insert" ON clock_corrections;
+DROP POLICY IF EXISTS "own corrections select" ON clock_corrections;
+DROP POLICY IF EXISTS "employee own corrections" ON clock_corrections;
+DROP POLICY IF EXISTS "employee_own_corrections_select" ON clock_corrections;
+DROP POLICY IF EXISTS "employee_own_corrections_insert" ON clock_corrections;
+DROP POLICY IF EXISTS "employer team corrections" ON clock_corrections;
+DROP POLICY IF EXISTS "admin all corrections" ON clock_corrections;
+DROP POLICY IF EXISTS "force_admin_all_corrections" ON clock_corrections;
+DROP POLICY IF EXISTS "approvers_review_corrections" ON clock_corrections;
+DROP POLICY IF EXISTS "employer admin update corrections" ON clock_corrections;
+DROP POLICY IF EXISTS "employer_team_corrections" ON clock_corrections;
+
+-- 2. Enable RLS (just in case)
+ALTER TABLE clock_corrections ENABLE ROW LEVEL SECURITY;
+
+-- 3. Employees: only see & create their own
+CREATE POLICY "employee_own_corrections_select"
+ON clock_corrections FOR SELECT
+USING (
+  employee_id = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+);
+
+CREATE POLICY "employee_own_corrections_insert"
+ON clock_corrections FOR INSERT
+WITH CHECK (
+  employee_id = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+);
+
+-- 4. Employers: only see their team's corrections
+CREATE POLICY "employer_team_corrections"
+ON clock_corrections FOR SELECT
+USING (
+  employee_id IN (
+    SELECT id FROM employees
+    WHERE manager_id = (
+      SELECT id FROM employees
+      WHERE user_id = auth.uid() AND role = 'employer'
+      LIMIT 1
+    )
+  )
+);
+
+-- 5. Admins: see EVERYTHING (this is the bulletproof one)
+CREATE POLICY "admin_see_all_corrections"
+ON clock_corrections FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM employees
+    WHERE user_id = auth.uid()
+      AND role = 'admin'
+  )
+);
+
+-- 6. Employers + Admins: can approve/deny
+CREATE POLICY "approvers_review_corrections"
+ON clock_corrections FOR UPDATE
+USING (
+  EXISTS (
+    SELECT 1 FROM employees
+    WHERE user_id = auth.uid()
+      AND role IN ('employer', 'admin')
+  )
+);
+CREATE POLICY "admin_employer_read_clock_entries"
+ON clock_entries FOR SELECT
+TO authenticated
+USING (get_my_role() IN ('employer', 'admin'));

@@ -13,6 +13,7 @@ import {
   CalendarDays,
   Loader2,
   AlarmClock,
+  ArrowRight,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -358,6 +359,24 @@ export function HomeTab() {
               </Card>
             ))}
       </div>
+
+      <a
+        href="https://calendly.com/may-staffolio/check-in?month=2026-04"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50"
+      >
+        <div className="flex items-center gap-3">
+          <div className="shrink-0 rounded-lg bg-primary/10 p-2">
+            <CalendarDays className="h-4 w-4 text-primary" />
+          </div>
+          <div>
+            <p className="text-sm font-medium">Ms. Jennie</p>
+            <p className="text-xs text-muted-foreground">Book a check-in</p>
+          </div>
+        </div>
+        <ArrowRight className="h-4 w-4 text-muted-foreground" />
+      </a>
 
       {/* ── Announcements ── */}
       {employee && <AnnouncementsCard currentEmployee={employee} />}

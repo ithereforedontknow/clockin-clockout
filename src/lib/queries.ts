@@ -688,9 +688,20 @@ export function useAllCorrections() {
     queryFn: async (): Promise<ClockCorrection[]> => {
       const { data, error } = await supabase
         .from("clock_corrections")
-        .select("*, clock_entry:clock_entries(*), employee:employees(*)")
+        .select(
+          `
+          *,
+          clock_entry:clock_entries(*),
+          employee:employees!clock_corrections_employee_id_fkey(*)
+        `
+        )
+        .eq("status", "pending")
         .order("created_at", { ascending: false })
-      if (error) throw error
+
+      if (error) {
+        console.error("Corrections error:", error)
+        throw error
+      }
       return data ?? []
     },
   })

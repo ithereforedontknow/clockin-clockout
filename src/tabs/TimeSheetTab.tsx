@@ -228,7 +228,8 @@ export function TimeSheetTab({ onNavigate }: Props) {
                   !!entry.clock_out &&
                   !isToday &&
                   !isFuture &&
-                  !hasPending
+                  !hasPending &&
+                  !wasApproved
 
                 // add these computed values inside the weekDays.map, alongside existing `ot`
                 const late = entry?.clock_in
