@@ -73,6 +73,8 @@ import {
   useHolidays,
   useCreateHoliday,
   useDeleteHoliday,
+  useTimeOffBalances,
+  useSetTimeOffBalance,
 } from "@/lib/queries"
 import type { Employee, UserRole, CompanyHoliday } from "@/lib/supabase"
 
@@ -909,6 +911,10 @@ function EditEmployeeDialog({
   const update = useAdminUpdateEmployee()
   const { data: departments = [] } = useDepartments()
   const { data: allEmployees = [] } = useAllEmployees()
+  const { data: balances = [] } = useTimeOffBalances(emp.id)
+  const setBalance = useSetTimeOffBalance()
+  const [balanceEdits, setBalanceEdits] = useState<Record<string, string>>({})
+
   const employers = allEmployees.filter(
     (e) => e.role === "employer" && e.id !== emp.id
   )
@@ -940,8 +946,23 @@ function EditEmployeeDialog({
       id: emp.id,
       updates: { ...form, manager_id: form.manager_id || null },
     })
+    await handleSaveBalances()
     toast.success("Employee updated")
     onClose()
+  }
+  async function handleSaveBalances() {
+    const edits = Object.entries(balanceEdits)
+    if (edits.length === 0) return
+    await Promise.all(
+      edits.map(([categoryId, val]) =>
+        setBalance.mutateAsync({
+          employeeId: emp.id,
+          categoryId,
+          balance: parseFloat(val) || 0,
+        })
+      )
+    )
+    setBalanceEdits({})
   }
 
   return (
@@ -1065,7 +1086,44 @@ function EditEmployeeDialog({
           </div>
 
           <Separator />
-
+          <div className="space-y-2">
+            <Label className="text-sm">Leave balances (days)</Label>
+            <div className="grid grid-cols-3 gap-3">
+              {balances.map((b) => (
+                <div key={b.category_id} className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">
+                    {b.category?.name ?? b.category_id}
+                  </Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={
+                      balanceEdits[b.category_id] !== undefined
+                        ? balanceEdits[b.category_id]
+                        : String(b.balance)
+                    }
+                    onChange={(e) =>
+                      setBalanceEdits((prev) => ({
+                        ...prev,
+                        [b.category_id]: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            {balances.some((b) => b.scheduled > 0) && (
+              <p className="text-xs text-muted-foreground">
+                Scheduled:{" "}
+                {balances
+                  .filter((b) => b.scheduled > 0)
+                  .map((b) => `${b.category?.name} −${b.scheduled}d`)
+                  .join(", ")}
+              </p>
+            )}
+          </div>
+          <Separator />
           <div className="grid grid-cols-3 gap-3">
             <div className="space-y-1.5">
               <Label className="text-sm">Hrs / day</Label>
@@ -1106,8 +1164,11 @@ function EditEmployeeDialog({
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={update.isPending} onClick={handleSave}>
-            {update.isPending ? (
+          <Button
+            disabled={update.isPending || setBalance.isPending}
+            onClick={handleSave}
+          >
+            {update.isPending || setBalance.isPending ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Saving…
@@ -1300,7 +1361,7 @@ function HolidaysTab() {
   const [name, setName] = useState("")
   const [date, setDate] = useState("")
 
-  const { data: holidays = [], isLoading } = useHolidays()
+  const { data: holidays = [], isLoading } = useHolidays(year)
   const createHoliday = useCreateHoliday()
   const deleteHoliday = useDeleteHoliday()
 
@@ -1322,7 +1383,7 @@ function HolidaysTab() {
     }
     try {
       // after
-      const [m, d] = date.split("-").map(Number)
+      const [, m, d] = date.split("-").map(Number)
       await createHoliday.mutateAsync({ name: name.trim(), month: m, day: d })
       toast.success(`"${name.trim()}" added.`)
       resetForm()
