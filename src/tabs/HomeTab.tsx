@@ -371,7 +371,7 @@ export function HomeTab() {
             <CalendarDays className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <p className="text-sm font-medium">Ms. Jennie</p>
+            <p className="text-sm font-medium">Jennie Damoslog</p>
             <p className="text-xs text-muted-foreground">Book a check-in</p>
           </div>
         </div>
