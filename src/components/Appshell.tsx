@@ -12,7 +12,7 @@ import { TimeSheetTab } from "@/tabs/TimeSheetTab"
 import { ReportsTab } from "@/tabs/ReportsTab"
 import { ApprovalsTab } from "@/tabs/ApprovalsTab"
 import { AdminTab } from "@/tabs/AdminTab"
-
+import { TrainingTab } from "@/tabs/TrainingTab"
 import { useCurrentEmployee } from "@/lib/queries"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
@@ -26,6 +26,7 @@ export type TabId =
   | "reports"
   | "approvals"
   | "admin"
+  | "training"
 
 export function Appshell() {
   const [activeTab, setActiveTab] = useState<TabId>("home")
@@ -169,6 +170,8 @@ export function Appshell() {
             Access restricted.
           </div>
         )
+      case "training":
+        return <TrainingTab />
     }
   }
 

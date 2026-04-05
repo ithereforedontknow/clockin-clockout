@@ -27,6 +27,7 @@ import {
   Search,
   Settings,
   HelpCircle,
+  GraduationCap,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -96,6 +97,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "timeoff", label: "Time Off", icon: Clock },
   { id: "people", label: "People", icon: Users },
   { id: "myinfo", label: "My Info", icon: User },
+  { id: "training", label: "Training", icon: GraduationCap },
   {
     id: "approvals",
     label: "Approvals",

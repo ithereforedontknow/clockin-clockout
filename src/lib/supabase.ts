@@ -262,4 +262,91 @@ export interface Announcement {
   author?: Employee
 }
 
-//
+// ─── LMS ─────────────────────────────────────────────────────────────────────
+
+export type LmsRole = "student" | "instructor" | "admin"
+export type CfStreamStatus = "pending" | "ready" | "error"
+export type TrainingStatus = "overdue" | "due_soon" | "pending" | "completed"
+
+export interface LmsProfile {
+  id: string
+  full_name: string | null
+  avatar_url: string | null
+  role: LmsRole
+  total_hours: number
+  badges: { id: string; label: string; icon: string }[]
+  created_at: string
+  updated_at: string
+}
+
+export interface Curriculum {
+  id: string
+  title: string
+  description: string | null
+  thumbnail_url: string | null
+  is_published: boolean
+  created_by: string
+  created_at: string
+  updated_at: string
+}
+
+export interface LmsModule {
+  id: string
+  curriculum_id: string
+  title: string
+  description: string | null
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
+export interface Lesson {
+  id: string
+  module_id: string
+  title: string
+  description: string | null
+  cf_stream_id: string | null
+  cf_stream_status: CfStreamStatus
+  duration_seconds: number | null
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ProgressRecord {
+  id: string
+  user_id: string
+  lesson_id: string
+  percent_watched: number
+  is_completed: boolean
+  last_watched_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface Certification {
+  id: string
+  user_id: string
+  curriculum_id: string
+  issued_at: string
+}
+
+export interface TrainingRecord {
+  user_id: string
+  curriculum_id: string
+  curriculum_title: string
+  thumbnail_url: string | null
+  due_date: string
+  completed_at: string | null
+  status: TrainingStatus
+  days_remaining: number
+}
+
+export interface TrainingAssignment {
+  id: string
+  user_id: string
+  curriculum_id: string
+  due_date: string
+  assigned_by: string | null
+  assigned_at: string
+}

@@ -14,6 +14,10 @@ import type {
   CompanySettings,
   Department,
   Announcement,
+  LmsProfile,
+  Curriculum,
+  TrainingRecord,
+  Certification,
 } from "./supabase"
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
@@ -69,6 +73,19 @@ export function useCurrentEmployee() {
           .select()
           .single()
         if (linkErr) throw linkErr
+
+        // Seed LMS profile on first sign-in
+        await seedLmsProfile(
+          user.id,
+          `${linked.first_name} ${linked.last_name}`,
+          linked.avatar_url,
+          linked.role === "admin"
+            ? "admin"
+            : linked.role === "employer"
+              ? "instructor"
+              : "student"
+        )
+
         return linked
       }
 
@@ -1524,6 +1541,224 @@ export function useReportEntries(
         .in("employee_id", ids)
         .gte("clock_in", `${week}T00:00:00`)
         .lt("clock_in", addDays(week, 7))
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+// ─── LMS ─────────────────────────────────────────────────────────────────────
+
+export async function seedLmsProfile(
+  userId: string,
+  fullName: string,
+  avatarUrl: string | null,
+  role: "student" | "instructor" | "admin"
+) {
+  await supabase
+    .from("profiles")
+    .upsert(
+      { id: userId, full_name: fullName, avatar_url: avatarUrl, role },
+      { onConflict: "id" }
+    )
+}
+
+export function useMyTrainingRecord() {
+  return useQuery({
+    queryKey: ["training-record"],
+    queryFn: async (): Promise<TrainingRecord[]> => {
+      const { data, error } = await supabase.rpc("get_my_training_record")
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function useCurriculums() {
+  return useQuery({
+    queryKey: ["curriculums"],
+    queryFn: async (): Promise<Curriculum[]> => {
+      const { data, error } = await supabase
+        .from("curriculums")
+        .select("*")
+        .order("created_at", { ascending: false })
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function useCurriculumDetail(id: string) {
+  return useQuery({
+    queryKey: ["curriculum", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("curriculums")
+        .select("*, modules:modules(*, lessons:lessons(*))")
+        .eq("id", id)
+        .single()
+      if (error) throw error
+      return data
+    },
+    enabled: !!id,
+  })
+}
+
+export function useAllTrainingRecords() {
+  return useQuery({
+    queryKey: ["training-records-all"],
+    queryFn: async (): Promise<
+      (TrainingRecord & { profile: LmsProfile })[]
+    > => {
+      const { data, error } = await supabase
+        .from("training_assignments")
+        .select(
+          `
+          *,
+          profile:profiles(*),
+          curriculum:curriculums(title, thumbnail_url)
+        `
+        )
+        .order("due_date")
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function useCreateCurriculum() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      title: string
+      description: string | null
+      is_published: boolean
+      created_by: string
+    }) => {
+      const { data, error } = await supabase
+        .from("curriculums")
+        .insert(payload)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+  })
+}
+
+export function useUpdateCurriculum() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string
+      updates: Partial<Curriculum>
+    }) => {
+      const { data, error } = await supabase
+        .from("curriculums")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: ["curriculums"] })
+      qc.invalidateQueries({ queryKey: ["curriculum", id] })
+    },
+  })
+}
+
+export function useDeleteCurriculum() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("curriculums").delete().eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+  })
+}
+
+export function useCreateModule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      curriculum_id: string
+      title: string
+      description: string | null
+      order_index: number
+    }) => {
+      const { data, error } = await supabase
+        .from("modules")
+        .insert(payload)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: (_, { curriculum_id }) =>
+      qc.invalidateQueries({ queryKey: ["curriculum", curriculum_id] }),
+  })
+}
+
+export function useCreateLesson() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      module_id: string
+      curriculum_id: string
+      title: string
+      description: string | null
+      order_index: number
+    }) => {
+      const { data, error } = await supabase
+        .from("lessons")
+        .insert(payload)
+        .select()
+        .single()
+      if (error) throw error
+      return data
+    },
+    onSuccess: (_, { curriculum_id }) =>
+      qc.invalidateQueries({ queryKey: ["curriculum", curriculum_id] }),
+  })
+}
+
+export function useAssignTraining() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      user_id: string
+      curriculum_id: string
+      due_date: string
+      assigned_by: string
+    }) => {
+      const { error } = await supabase
+        .from("training_assignments")
+        .upsert(payload, { onConflict: "user_id,curriculum_id" })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["training-records-all"] })
+      qc.invalidateQueries({ queryKey: ["training-record"] })
+    },
+  })
+}
+
+export function useMyCertifications() {
+  return useQuery({
+    queryKey: ["certifications"],
+    queryFn: async (): Promise<
+      (Certification & { curriculum: Curriculum })[]
+    > => {
+      const { data, error } = await supabase
+        .from("certifications")
+        .select("*, curriculum:curriculums(*)")
+        .order("issued_at", { ascending: false })
       if (error) throw error
       return data ?? []
     },
