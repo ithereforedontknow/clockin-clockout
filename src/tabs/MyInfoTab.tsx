@@ -177,7 +177,6 @@ export function MyInfoTab() {
 
       toast.success("Profile picture updated successfully")
     } catch (err: any) {
-      console.error(err)
       toast.error("Failed to upload avatar", { description: err.message })
     } finally {
       setUploadingAvatar(false)

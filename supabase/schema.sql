@@ -825,3 +825,106 @@ CREATE POLICY "admin_employer_read_clock_entries"
 ON clock_entries FOR SELECT
 TO authenticated
 USING (get_my_role() IN ('employer', 'admin'));
+
+
+-- Time off: can't approve your own
+CREATE POLICY "no self approval time off"
+ON time_off_requests FOR UPDATE
+USING (
+  get_my_role() IN ('employer', 'admin')
+  AND employee_id != (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+);
+
+
+
+-- Drop the permissive update policies
+DROP POLICY IF EXISTS "manager admin update time off" ON time_off_requests;
+DROP POLICY IF EXISTS "employer admin update time off requests" ON time_off_requests;
+DROP POLICY IF EXISTS "manager admin update info changes" ON info_change_requests;
+DROP POLICY IF EXISTS "approvers_review_corrections" ON clock_corrections;
+
+-- Time off: can't approve your own
+CREATE POLICY "approve time off"
+ON time_off_requests FOR UPDATE
+TO authenticated
+USING (
+  get_my_role() IN ('employer', 'admin')
+  AND employee_id != (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+);
+
+-- Profile changes: can't approve your own
+CREATE POLICY "approve info changes"
+ON info_change_requests FOR UPDATE
+TO authenticated
+USING (
+  get_my_role() IN ('employer', 'admin')
+  AND employee_id != (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+);
+
+-- Corrections: can't approve your own
+CREATE POLICY "approve corrections"
+ON clock_corrections FOR UPDATE
+TO authenticated
+USING (
+  get_my_role() IN ('employer', 'admin')
+  AND employee_id != (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+);
+
+--
+
+DROP POLICY IF EXISTS "all read departments" ON departments;
+
+CREATE POLICY "authenticated read departments"
+ON departments FOR SELECT
+TO authenticated
+USING (auth.uid() IS NOT NULL);
+
+
+
+DROP POLICY IF EXISTS "public read categories" ON time_off_categories;
+CREATE POLICY "auth read categories"
+ON time_off_categories FOR SELECT
+TO authenticated
+USING (auth.uid() IS NOT NULL);
+
+DROP POLICY IF EXISTS "public read holidays" ON company_holidays;
+CREATE POLICY "auth read holidays"
+ON company_holidays FOR SELECT
+TO authenticated
+USING (auth.uid() IS NOT NULL);
+
+
+-- ─── Audit Log ───────────────────────────────────────────────────────────────
+
+CREATE TABLE audit_log (
+  id           text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  actor_id     text NOT NULL REFERENCES employees(id) ON DELETE SET NULL,
+  action       text NOT NULL,
+  target_table text NOT NULL,
+  target_id    text NOT NULL,
+  old_value    jsonb,
+  new_value    jsonb,
+  note         text,
+  created_at   timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX audit_log_actor    ON audit_log(actor_id, created_at DESC);
+CREATE INDEX audit_log_target   ON audit_log(target_table, target_id);
+CREATE INDEX audit_log_created  ON audit_log(created_at DESC);
+
+ALTER TABLE audit_log ENABLE ROW LEVEL SECURITY;
+
+-- Only admins can read the audit log
+CREATE POLICY "admin read audit log"
+ON audit_log FOR SELECT
+TO authenticated
+USING (get_my_role() = 'admin');
+
+-- Employer and admin can insert (system inserts on their behalf)
+CREATE POLICY "employer admin insert audit log"
+ON audit_log FOR INSERT
+TO authenticated
+WITH CHECK (
+  get_my_role() IN ('employer', 'admin')
+  AND actor_id = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+);

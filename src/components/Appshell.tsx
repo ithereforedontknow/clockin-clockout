@@ -137,7 +137,7 @@ export function Appshell() {
   const renderTab = () => {
     switch (activeTab) {
       case "home":
-        return <HomeTab />
+        return <HomeTab onNavigate={setActiveTab} />
       case "timesheet":
         return <TimeSheetTab onNavigate={setActiveTab} />
       case "timeoff":

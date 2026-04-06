@@ -191,6 +191,8 @@ export function ApprovalsTab() {
                 <div className="divide-y divide-border">
                   {timeOffReqs.map((req) => {
                     const emp = req.employee as Employee | undefined
+                    const isSelf = req.employee_id === reviewer?.id // time off + info changes
+
                     return (
                       <RequestRow
                         key={req.id}
@@ -216,6 +218,7 @@ export function ApprovalsTab() {
                             decision: "denied",
                           })
                         }
+                        selfBlock={isSelf}
                       />
                     )
                   })}
@@ -309,6 +312,7 @@ export function ApprovalsTab() {
                       changes.push(`Break → ${c.requested_break_minutes} min`)
                     if (c.requested_notes !== null)
                       changes.push(`Notes → "${c.requested_notes}"`)
+                    const isSelf = c.employee_id === reviewer?.id // corrections
 
                     return (
                       <RequestRow
@@ -339,6 +343,7 @@ export function ApprovalsTab() {
                             decision: "denied",
                           })
                         }
+                        selfBlock={isSelf}
                       />
                     )
                   })}
@@ -531,6 +536,7 @@ function RequestRow({
   lines,
   onApprove,
   onDeny,
+  selfBlock,
 }: {
   avatar: string
   title: string
@@ -538,6 +544,7 @@ function RequestRow({
   lines: string[]
   onApprove: () => void
   onDeny: () => void
+  selfBlock?: boolean
 }) {
   return (
     <div className="flex items-start justify-between gap-4 px-4 py-4">
@@ -576,11 +583,21 @@ function RequestRow({
           <X className="mr-1 h-3.5 w-3.5" />
           Deny
         </Button>
-        <Button size="sm" className="h-8" onClick={onApprove}>
+        <Button
+          size="sm"
+          className="h-8"
+          onClick={onApprove}
+          disabled={selfBlock}
+        >
           <Check className="mr-1 h-3.5 w-3.5" />
           Approve
         </Button>
       </div>
+      {selfBlock && (
+        <p className="text-[10px] text-muted-foreground">
+          Can't approve own request
+        </p>
+      )}
     </div>
   )
 }

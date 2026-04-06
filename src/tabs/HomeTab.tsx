@@ -4,16 +4,21 @@ import {
   Users,
   TrendingUp,
   Clock,
-  PartyPopper,
   Globe,
   Play,
   Square,
   Coffee,
   Timer,
-  CalendarDays,
   Loader2,
   AlarmClock,
+  GraduationCap,
+  AlertCircle,
   ArrowRight,
+  Calendar,
+  CheckCircle2,
+  X,
+  Check,
+  Megaphone,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -32,49 +37,56 @@ import {
   useStartBreak,
   useEndBreak,
   useLiveClockedIn,
+  usePendingTimeOffRequests,
+  useMyTrainingRecord,
+  useAnnouncements,
+  useReviewTimeOff,
 } from "@/lib/queries"
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
 import type { BreakEntry, Employee, ClockEntry } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
-import { AnnouncementsCard } from "@/components/AnnouncementsCard"
-import { toTimeManila } from "@/lib/timezone"
-
-export function HomeTab() {
+// import { toTimeManila } from "@/lib/timezone"
+import type { TabId } from "@/components/Appshell"
+interface Props {
+  onNavigate?: (tab: TabId) => void
+}
+export function HomeTab({ onNavigate }: Props) {
   const [requestOpen, setRequestOpen] = useState(false)
   const weekStart = format(
     startOfWeek(new Date(), { weekStartsOn: 1 }),
     "yyyy-MM-dd"
   )
-
   const { data: employee, isLoading: empLoading } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
-
-  const { data: whosOut = [], isLoading: whosOutLoading } =
-    useWhosOut(weekStart)
+  const isEmployerOrAdmin =
+    employee?.role === "employer" || employee?.role === "admin"
+  const { data: whosOut = [] } = useWhosOut(weekStart)
   const { data: balances = [], isLoading: balancesLoading } =
     useTimeOffBalances(employeeId)
   const { data: holidays = [] } = useHolidays()
   const { data: entry, isLoading: clockLoading } =
     useTodayClockEntry(employeeId)
-
+  const { data: liveEntries = [] } = useLiveClockedIn()
+  const { data: pendingTimeOff = [] } = usePendingTimeOffRequests()
+  const { data: trainingRecords = [] } = useMyTrainingRecord()
+  const { data: announcements = [] } = useAnnouncements(
+    employeeId,
+    employee?.role === "employer" ? employeeId : undefined
+  )
   const clockIn = useClockIn()
   const clockOut = useClockOut()
   const startBreak = useStartBreak()
   const endBreak = useEndBreak()
-
-  // Live tick for the timer
+  const reviewTimeOff = useReviewTimeOff()
   const [, setTick] = useState(0)
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000)
     return () => clearInterval(id)
   }, [])
-
-  // ── Clock derived state ───────────────────────────────────────────────────
   const isClockedIn = !!entry && !entry.clock_out
   const isClockedOut = !!entry?.clock_out
   const openBreak = entry?.breaks?.find((b: BreakEntry) => !b.break_end) ?? null
   const isOnBreak = !!openBreak
-
   const completedBreakMins = (entry?.breaks ?? []).reduce(
     (s: number, b: BreakEntry) => s + (b.duration_minutes ?? 0),
     0
@@ -88,7 +100,6 @@ export function HomeTab() {
   const workedMins = isClockedIn
     ? liveMinutes(entry!.clock_in, totalBreakMins)
     : (entry?.total_minutes ?? 0)
-
   const standardMins = (employee?.standard_hours_per_day ?? 8) * 60
   const overtimeMins = Math.max(0, workedMins - standardMins)
   const progressPct = Math.min(100, (workedMins / standardMins) * 100)
@@ -97,14 +108,16 @@ export function HomeTab() {
     clockOut.isPending ||
     startBreak.isPending ||
     endBreak.isPending
-
-  const { data: liveEntries = [], isLoading: liveLoading } = useLiveClockedIn()
-  const isEmployerOrAdmin =
-    employee?.role === "employer" || employee?.role === "admin"
-
-  const upcomingHoliday = holidays.find((h) => new Date(h.day) >= new Date())
-
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  const urgentTraining = trainingRecords.filter(
+    (r) => r.status === "overdue" || r.status === "due_soon"
+  )
+  const now = new Date()
+  const upcomingHoliday = holidays
+    .map((h) => ({
+      ...h,
+      thisYear: new Date(now.getFullYear(), h.month - 1, h.day),
+    }))
+    .find((h) => h.thisYear >= now)
   async function handleMainButton() {
     if (!employeeId) return
     if (!isClockedIn) {
@@ -123,7 +136,6 @@ export function HomeTab() {
       })
     }
   }
-
   async function handleBreakButton() {
     if (!entry || !employeeId) return
     if (isOnBreak) {
@@ -140,8 +152,6 @@ export function HomeTab() {
       toast.info("Break started")
     }
   }
-
-  // ── Status helpers ────────────────────────────────────────────────────────
   const statusLabel = isOnBreak
     ? "On Break"
     : isClockedIn
@@ -159,20 +169,18 @@ export function HomeTab() {
     : isClockedIn
       ? "bg-green-50 text-green-700 border-green-200"
       : "bg-muted text-muted-foreground border-border"
-
   return (
-    <div className="space-y-6">
-      {/* ── Welcome row ── */}
-      <div className="flex items-start justify-between">
+    <div className="space-y-5">
+      <div className="flex items-center justify-between">
         <div>
           {empLoading ? (
-            <Skeleton className="mb-2 h-8 w-48" />
+            <Skeleton className="mb-1 h-7 w-44" />
           ) : (
             <h1 className="text-2xl font-bold">
               Good {getGreeting()}, {employee?.first_name}! 👋
             </h1>
           )}
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {format(new Date(), "EEEE, MMMM d, yyyy")}
           </p>
         </div>
@@ -185,386 +193,501 @@ export function HomeTab() {
           Request Time Off
         </Button>
       </div>
-
-      {/* ── Inline Clock Widget ── */}
-      <Card className="overflow-hidden">
-        <CardContent className="p-0">
-          <div className="flex flex-col sm:flex-row">
-            {/* Left — big timer + button */}
-            <div className="flex flex-col items-center justify-center gap-4 border-b border-border p-6 sm:w-64 sm:shrink-0 sm:border-r sm:border-b-0">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+        {/* LEFT — Time Clock + PTO Approvals + Balances */}
+        <div className="space-y-5">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                <AlarmClock className="h-4 w-4" />
+                Time Clock
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               {clockLoading ? (
-                <Skeleton className="h-16 w-32" />
+                <Skeleton className="h-32 w-full" />
               ) : (
                 <>
-                  <Badge
-                    variant="outline"
-                    className={`px-3 py-1 text-sm font-medium ${statusBadge}`}
-                  >
-                    <span
-                      className={`mr-2 inline-block h-2 w-2 rounded-full ${statusDot}`}
-                    />
-                    {statusLabel}
-                  </Badge>
-
-                  <p className="font-mono text-5xl font-bold tracking-tight tabular-nums">
-                    {formatMinutes(workedMins)}
-                  </p>
-
-                  {entry && (
-                    <p className="text-xs text-muted-foreground">
-                      {isClockedIn
-                        ? `Since ${format(new Date(entry.clock_in), "h:mm a")}`
-                        : `${format(new Date(entry.clock_in), "h:mm a")} – ${format(new Date(entry.clock_out!), "h:mm a")}`}
-                    </p>
-                  )}
-
-                  <Button
-                    size="lg"
-                    className={`w-36 rounded-xl font-semibold ${
-                      isClockedIn
-                        ? "text-destructive-foreground bg-destructive hover:bg-destructive/90"
-                        : "bg-primary text-primary-foreground hover:bg-primary/90"
-                    }`}
-                    disabled={isMutating || isClockedOut}
-                    onClick={handleMainButton}
-                  >
-                    {isMutating ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : isClockedIn ? (
-                      <>
-                        <Square className="mr-2 h-4 w-4" />
-                        Clock Out
-                      </>
-                    ) : isClockedOut ? (
-                      <>
-                        <Timer className="mr-2 h-4 w-4" />
-                        Done
-                      </>
-                    ) : (
-                      <>
-                        <Play className="mr-2 h-4 w-4" />
-                        Clock In
-                      </>
-                    )}
-                  </Button>
-
-                  {isClockedIn && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`text-xs ${isOnBreak ? "text-amber-600" : "text-muted-foreground"}`}
-                      onClick={handleBreakButton}
-                      disabled={isMutating}
+                  <div className="flex items-center justify-between">
+                    <Badge
+                      variant="outline"
+                      className={`px-3 py-1 text-sm font-medium ${statusBadge}`}
                     >
-                      <Coffee className="mr-1.5 h-3.5 w-3.5" />
-                      {isOnBreak
-                        ? `End Break (${formatMinutes(liveBreakMins)})`
-                        : "Start Break"}
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
-
-            {/* Right — today's summary + progress */}
-            <div className="flex flex-1 flex-col justify-center gap-4 p-6">
-              <p className="text-sm font-medium text-muted-foreground">
-                Today's Progress
-              </p>
-
-              {/* Progress bar */}
-              <div className="space-y-1.5">
-                <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className={`h-full rounded-full transition-all duration-1000 ${
-                      overtimeMins > 0 ? "bg-amber-500" : "bg-primary"
-                    }`}
-                    style={{ width: `${progressPct}%` }}
-                  />
-                </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>0h</span>
-                  <span>{employee?.standard_hours_per_day ?? 8}h standard</span>
-                </div>
-              </div>
-
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-3">
-                <StatCell label="Worked" value={formatMinutes(workedMins)} />
-                <StatCell
-                  label="Break"
-                  value={
-                    totalBreakMins > 0 ? formatMinutes(totalBreakMins) : "—"
-                  }
-                />
-                <StatCell
-                  label="Overtime"
-                  value={overtimeMins > 0 ? formatMinutes(overtimeMins) : "—"}
-                  highlight={overtimeMins > 0}
-                />
-              </div>
-
-              {/* Overtime notice */}
-              {overtimeMins > 0 && (
-                <p className="text-xs text-amber-600">
-                  ⚠ You've exceeded your {employee?.standard_hours_per_day}h
-                  standard day by {formatMinutes(overtimeMins)}
-                </p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── Time-off balance cards ── */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {balancesLoading
-          ? Array(3)
-              .fill(0)
-              .map((_, i) => (
-                <Card key={i}>
-                  <CardContent className="pt-6">
-                    <Skeleton className="h-16 w-full" />
-                  </CardContent>
-                </Card>
-              ))
-          : balances.slice(0, 3).map((b) => (
-              <Card
-                key={b.id}
-                className="cursor-pointer transition-shadow hover:shadow-md"
-              >
-                <CardContent className="pt-6">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-muted-foreground">
-                        {b.category?.name}
-                      </p>
-                      <p className="mt-1 text-3xl font-bold">
-                        {b.balance}
-                        <span className="ml-1 text-base font-normal text-muted-foreground">
-                          {b.category?.unit}
-                        </span>
-                      </p>
-                      {b.scheduled > 0 && (
-                        <p className="mt-1 text-xs text-amber-600">
-                          {b.scheduled} {b.category?.unit} scheduled
-                        </p>
-                      )}
+                      <span
+                        className={`mr-2 inline-block h-2 w-2 rounded-full ${statusDot}`}
+                      />
+                      {statusLabel}
+                    </Badge>
+                    <p className="font-mono text-3xl font-bold tabular-nums">
+                      {formatMinutes(workedMins)}
+                    </p>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className={`h-full rounded-full transition-all duration-1000 ${overtimeMins > 0 ? "bg-amber-500" : "bg-primary"}`}
+                        style={{ width: `${progressPct}%` }}
+                      />
                     </div>
-                    <div className="rounded-lg bg-primary/10 p-2">
-                      <TrendingUp className="h-5 w-5 text-primary" />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>
+                        {entry
+                          ? format(new Date(entry.clock_in), "h:mm a")
+                          : "—"}
+                      </span>
+                      <span>
+                        {employee?.standard_hours_per_day ?? 8}h target
+                      </span>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-      </div>
-
-      <a
-        href="https://calendly.com/may-staffolio/check-in?month=2026-04"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3 transition-colors hover:bg-muted/50"
-      >
-        <div className="flex items-center gap-3">
-          <div className="shrink-0 rounded-lg bg-primary/10 p-2">
-            <CalendarDays className="h-4 w-4 text-primary" />
-          </div>
-          <div>
-            <p className="text-sm font-medium">Jennie Damoslog</p>
-            <p className="text-xs text-muted-foreground">Book a check-in</p>
-          </div>
-        </div>
-        <ArrowRight className="h-4 w-4 text-muted-foreground" />
-      </a>
-
-      {/* ── Announcements ── */}
-      {employee && <AnnouncementsCard currentEmployee={employee} />}
-
-      {/* ── Live Clock Monitoring (employer/admin only) ── */}
-      {isEmployerOrAdmin && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <AlarmClock className="h-4 w-4 text-green-600" />
-              Currently Clocked In
-              {!liveLoading && (
-                <Badge variant="secondary" className="ml-1 text-xs">
-                  {liveEntries.length} active
-                </Badge>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Worked</p>
+                      <p className="text-sm font-semibold">
+                        {formatMinutes(workedMins)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Break</p>
+                      <p className="text-sm font-semibold">
+                        {totalBreakMins > 0
+                          ? formatMinutes(totalBreakMins)
+                          : "—"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">OT</p>
+                      <p
+                        className={`text-sm font-semibold ${overtimeMins > 0 ? "text-amber-600" : ""}`}
+                      >
+                        {overtimeMins > 0 ? formatMinutes(overtimeMins) : "—"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      className={`flex-1 font-semibold ${
+                        isClockedIn
+                          ? "text-destructive-foreground bg-destructive hover:bg-destructive/90"
+                          : "bg-primary text-primary-foreground hover:bg-primary/90"
+                      }`}
+                      disabled={isMutating || isClockedOut}
+                      onClick={handleMainButton}
+                    >
+                      {isMutating ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : isClockedIn ? (
+                        <>
+                          <Square className="mr-2 h-4 w-4" />
+                          Clock Out
+                        </>
+                      ) : isClockedOut ? (
+                        <>
+                          <Timer className="mr-2 h-4 w-4" />
+                          Done
+                        </>
+                      ) : (
+                        <>
+                          <Play className="mr-2 h-4 w-4" />
+                          Clock In
+                        </>
+                      )}
+                    </Button>
+                    {isClockedIn && (
+                      <Button
+                        variant="outline"
+                        className={
+                          isOnBreak ? "border-amber-300 text-amber-700" : ""
+                        }
+                        onClick={handleBreakButton}
+                        disabled={isMutating}
+                      >
+                        <Coffee className="mr-1.5 h-4 w-4" />
+                        {isOnBreak ? formatMinutes(liveBreakMins) : "Break"}
+                      </Button>
+                    )}
+                  </div>
+                </>
               )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {liveLoading ? (
-              <div className="space-y-2">
-                {Array(3)
-                  .fill(0)
-                  .map((_, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <Skeleton className="h-7 w-7 rounded-full" />
-                      <Skeleton className="h-4 w-40" />
-                      <Skeleton className="ml-auto h-4 w-16" />
+            </CardContent>
+          </Card>
+          {isEmployerOrAdmin && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                  <Clock className="h-4 w-4" />
+                  PTO Approvals
+                </CardTitle>
+                {pendingTimeOff.length > 0 && (
+                  <button
+                    onClick={() => onNavigate?.("approvals")}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    View All <ArrowRight className="h-3 w-3" />
+                  </button>
+                )}
+              </CardHeader>
+              <CardContent className="p-0">
+                {pendingTimeOff.length === 0 ? (
+                  <p className="px-4 pb-4 text-sm text-muted-foreground">
+                    No pending requests
+                  </p>
+                ) : (
+                  <div className="divide-y divide-border">
+                    {pendingTimeOff.slice(0, 3).map((req) => {
+                      const emp = req.employee as Employee | undefined
+                      const isSelf = req.employee_id === employeeId
+                      return (
+                        <div
+                          key={req.id}
+                          className="flex items-center gap-3 px-4 py-2.5"
+                        >
+                          <Avatar className="h-7 w-7 shrink-0">
+                            <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                              {emp?.first_name?.[0]}
+                              {emp?.last_name?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium">
+                              {emp?.first_name} {emp?.last_name}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {format(new Date(req.start_date), "MMM d")} –{" "}
+                              {format(new Date(req.end_date), "MMM d")} ·{" "}
+                              {req.category?.name}
+                            </p>
+                          </div>
+                          {isSelf ? (
+                            <span className="text-[10px] text-muted-foreground">
+                              Own
+                            </span>
+                          ) : (
+                            <div className="flex gap-1">
+                              <Button
+                                size="icon"
+                                variant="outline"
+                                className="h-6 w-6 border-red-200 text-red-600 hover:bg-red-50"
+                                disabled={reviewTimeOff.isPending}
+                                onClick={() =>
+                                  reviewTimeOff.mutate(
+                                    {
+                                      request: req,
+                                      decision: "denied",
+                                      comment: "",
+                                    },
+                                    { onSuccess: () => toast.success("Denied") }
+                                  )
+                                }
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                className="h-6 w-6"
+                                disabled={reviewTimeOff.isPending}
+                                onClick={() =>
+                                  reviewTimeOff.mutate(
+                                    {
+                                      request: req,
+                                      decision: "approved",
+                                      comment: "",
+                                    },
+                                    {
+                                      onSuccess: () =>
+                                        toast.success("Approved"),
+                                    }
+                                  )
+                                }
+                              >
+                                <Check className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {pendingTimeOff.length > 3 && (
+                      <button
+                        onClick={() => onNavigate?.("approvals")}
+                        className="w-full px-4 py-2 text-left text-xs text-primary hover:bg-muted/50"
+                      >
+                        +{pendingTimeOff.length - 3} more
+                      </button>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                <TrendingUp className="h-4 w-4" />
+                Leave Balances
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              {balancesLoading
+                ? Array(3)
+                    .fill(0)
+                    .map((_, i) => <Skeleton key={i} className="h-6 w-full" />)
+                : balances.slice(0, 3).map((b) => (
+                    <div
+                      key={b.id}
+                      className="flex items-center justify-between"
+                    >
+                      <p className="text-sm text-muted-foreground">
+                        {b.category?.name}
+                      </p>
+                      <div className="text-right">
+                        <span className="text-sm font-semibold">
+                          {b.balance}
+                        </span>
+                        <span className="ml-1 text-xs text-muted-foreground">
+                          {b.category?.unit}
+                        </span>
+                        {b.scheduled > 0 && (
+                          <p className="text-[10px] text-amber-600">
+                            -{b.scheduled} scheduled
+                          </p>
+                        )}
+                      </div>
                     </div>
                   ))}
-              </div>
-            ) : liveEntries.length === 0 ? (
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                No one is clocked in right now
-              </p>
-            ) : (
-              <div className="divide-y divide-border">
-                {liveEntries.map(
-                  (
-                    entry: ClockEntry & {
-                      employee: Employee
-                      breaks: BreakEntry[]
-                    }
-                  ) => {
-                    const emp = entry.employee
-                    const openBreak = entry.breaks?.find(
-                      (b: BreakEntry) => !b.break_end
-                    )
-                    const isOnBreak = !!openBreak
-                    const breakMins = (entry.breaks ?? []).reduce(
-                      (s: number, b: BreakEntry) =>
-                        s + (b.duration_minutes ?? 0),
-                      0
-                    )
-                    const worked = liveMinutes(entry.clock_in, breakMins)
-                    return (
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* MIDDLE — Announcements + My Courses + Who's Out (now center-aligned) */}
+        <div className="space-y-5">
+          {/* Announcements */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                <Megaphone className="h-4 w-4" />
+                Announcements
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {announcements.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No announcements yet
+                </p>
+              ) : (
+                announcements.slice(0, 6).map((a) => {
+                  const author = a.author as
+                    | {
+                        first_name: string
+                        last_name: string
+                        avatar_url: string | null
+                      }
+                    | undefined
+                  return (
+                    <div
+                      key={a.id}
+                      className={`rounded-lg border p-3 ${a.pinned ? "border-primary/20 bg-primary/5" : "border-border bg-muted/20"}`}
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <Avatar className="h-7 w-7 shrink-0">
+                          <AvatarImage src={author?.avatar_url ?? undefined} />
+                          <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                            {author?.first_name?.[0]}
+                            {author?.last_name?.[0]}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline gap-1.5">
+                            <p className="text-xs font-medium">
+                              {author?.first_name} {author?.last_name}
+                            </p>
+                            <span className="text-[10px] text-muted-foreground">
+                              · {format(new Date(a.created_at), "MMM d")}
+                            </span>
+                          </div>
+                          <p className="mt-0.5 text-xs font-semibold">
+                            {a.title}
+                          </p>
+                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                            {a.body}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })
+              )}
+            </CardContent>
+          </Card>
+
+          {/* My Courses — now in center column */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                <GraduationCap className="h-4 w-4" />
+                My Courses
+              </CardTitle>
+              <button
+                onClick={() => onNavigate?.("training")}
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                View All <ArrowRight className="h-3 w-3" />
+              </button>
+            </CardHeader>
+            <CardContent>
+              {trainingRecords.length === 0 ? (
+                <p className="py-3 text-center text-sm text-muted-foreground">
+                  No courses assigned
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {trainingRecords.slice(0, 3).map((r) => (
+                    <div
+                      key={r.curriculum_id}
+                      className="flex cursor-pointer items-center gap-3 rounded-lg p-2 transition-colors hover:bg-muted/50"
+                      onClick={() => onNavigate?.("training")}
+                    >
                       <div
-                        key={entry.id}
-                        className="flex items-center gap-3 py-2.5"
+                        className={`shrink-0 rounded-lg p-2 ${r.status === "completed" ? "bg-green-100" : "bg-primary/10"}`}
                       >
+                        {r.status === "completed" ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <GraduationCap className="h-4 w-4 text-primary" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-medium">
+                          {r.curriculum_title}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          Due {format(new Date(r.due_date), "MMM d, yyyy")}
+                        </p>
+                      </div>
+                      <Badge
+                        variant="outline"
+                        className={`text-[10px] capitalize ${
+                          r.status === "completed"
+                            ? "border-green-200 bg-green-50 text-green-700"
+                            : r.status === "overdue"
+                              ? "border-red-200 bg-red-50 text-red-700"
+                              : r.status === "due_soon"
+                                ? "border-amber-200 bg-amber-50 text-amber-700"
+                                : "border-blue-200 bg-blue-50 text-blue-700"
+                        }`}
+                      >
+                        {r.status.replace("_", " ")}
+                      </Badge>
+                    </div>
+                  ))}
+                  {urgentTraining.length > 0 && (
+                    <div className="mt-1 flex items-center gap-1.5 rounded-md bg-red-50 px-2 py-1.5">
+                      <AlertCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                      <p className="text-xs text-red-600">
+                        {urgentTraining.length} course
+                        {urgentTraining.length > 1 ? "s" : ""} need attention
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Who's Out — now in center column */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                <Users className="h-4 w-4" />
+                Who's Out
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {whosOut.length === 0 ? (
+                <p className="py-2 text-center text-sm text-muted-foreground">
+                  No one out this week 🎉
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {whosOut.slice(0, 4).map((req) => {
+                    const emp = req.employee as Employee | undefined
+                    return (
+                      <div key={req.id} className="flex items-center gap-2.5">
                         <Avatar className="h-7 w-7 shrink-0">
                           <AvatarImage src={emp?.avatar_url ?? undefined} />
-                          <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+                          <AvatarFallback className="text-[10px]">
                             {emp?.first_name?.[0]}
                             {emp?.last_name?.[0]}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
+                          <p className="truncate text-xs font-medium">
                             {emp?.first_name} {emp?.last_name}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Since {toTimeManila(entry.clock_in)}
+                          <p className="text-[10px] text-muted-foreground">
+                            {format(new Date(req.start_date), "MMM d")} –{" "}
+                            {format(new Date(req.end_date), "MMM d")}
                           </p>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-sm font-medium">
-                            {formatMinutes(worked)}
-                          </p>
-                          <Badge
-                            variant="outline"
-                            className={`text-[10px] ${
-                              isOnBreak
-                                ? "border-amber-200 bg-amber-50 text-amber-700"
-                                : "border-green-200 bg-green-50 text-green-700"
-                            }`}
-                          >
-                            {isOnBreak ? "On Break" : "Working"}
-                          </Badge>
-                        </div>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {req.category?.name}
+                        </Badge>
                       </div>
                     )
-                  }
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* ── Bottom widgets ── */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Who's Out */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="flex items-center gap-2 text-base font-semibold">
-              <Users className="h-4 w-4" />
-              Who's Out
-            </CardTitle>
-            <Button variant="ghost" size="sm" className="text-xs">
-              Full Calendar
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {whosOutLoading ? (
-              <div className="space-y-3">
-                {Array(3)
-                  .fill(0)
-                  .map((_, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <Skeleton className="h-8 w-8 rounded-full" />
-                      <div className="flex-1">
-                        <Skeleton className="mb-1 h-4 w-32" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                    </div>
-                  ))}
+        {/* RIGHT — Schedule + Holiday + Live (My Courses & Who's Out moved to center) */}
+        <div className="space-y-5">
+          {/* Schedule a Check-in */}
+          <Card className="overflow-hidden bg-primary text-primary-foreground">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-white/20 p-2">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold tracking-wider uppercase opacity-75">
+                    Schedule a Check-in
+                  </p>
+                  <p className="mt-0.5 font-semibold">May Damoslog</p>
+                  <p className="text-xs opacity-70">
+                    Book a personal check-in session
+                  </p>
+                </div>
               </div>
-            ) : whosOut.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                No one is out this week 🎉
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {whosOut.map((req) => {
-                  const emp = req.employee
-                  const initials = emp
-                    ? `${emp.first_name[0]}${emp.last_name[0]}`
-                    : "?"
-                  return (
-                    <div
-                      key={req.id}
-                      className="flex items-center gap-3 border-b border-border py-2 last:border-0"
-                    >
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={emp?.avatar_url ?? undefined} />
-                        <AvatarFallback className="text-xs">
-                          {initials}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {emp?.first_name} {emp?.last_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(req.start_date), "MMM d")} –{" "}
-                          {format(new Date(req.end_date), "MMM d")}
-                        </p>
-                      </div>
-                      <Badge variant="secondary" className="text-xs">
-                        {req.category?.name}
-                      </Badge>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              <a
+                href="https://calendly.com/may-staffolio/check-in?month=2026-04"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 flex w-full items-center justify-center rounded-lg bg-white/20 py-2 text-sm font-medium transition-colors hover:bg-white/30"
+              >
+                Book a Session
+              </a>
+            </CardContent>
+          </Card>
 
-        {/* Right column */}
-        <div className="space-y-4">
+          {/* Upcoming Holiday */}
           {upcomingHoliday && (
             <Card>
-              <CardContent className="pt-5">
-                <div className="flex items-start gap-3">
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
                   <div className="rounded-lg bg-primary/10 p-2">
-                    <Globe className="h-5 w-5 text-primary" />
+                    <Globe className="h-4 w-4 text-primary" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium tracking-wide text-primary uppercase">
+                    <p className="text-[10px] font-medium tracking-wide text-primary uppercase">
                       Upcoming Holiday
                     </p>
-                    <p className="mt-0.5 font-semibold">
+                    <p className="text-sm font-semibold">
                       {upcomingHoliday.name}
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      {format(new Date(upcomingHoliday.day), "MMMM d")}
+                    <p className="text-xs text-muted-foreground">
+                      {format(upcomingHoliday.thisYear, "MMMM d, yyyy")}
                     </p>
                   </div>
                 </div>
@@ -572,79 +695,75 @@ export function HomeTab() {
             </Card>
           )}
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                <PartyPopper className="h-4 w-4" />
-                Celebrations
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="py-4 text-center text-sm text-muted-foreground">
-                No celebrations this week
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base font-semibold">
-                <CalendarDays className="h-4 w-4" />
-                What's Happening
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {empLoading ? (
-                <Skeleton className="h-16 w-full" />
-              ) : (
-                <div className="space-y-2">
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Department: </span>
-                    <span className="font-medium">{employee?.department}</span>
+          {/* Live Monitoring */}
+          {isEmployerOrAdmin && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+                  <AlarmClock className="h-4 w-4 text-green-600" />
+                  Clocked In Now
+                  <Badge variant="secondary" className="ml-auto text-xs">
+                    {liveEntries.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {liveEntries.length === 0 ? (
+                  <p className="py-2 text-center text-sm text-muted-foreground">
+                    No one clocked in
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {liveEntries.slice(0, 5).map(
+                      (
+                        e: ClockEntry & {
+                          employee: Employee
+                          breaks: BreakEntry[]
+                        }
+                      ) => {
+                        const emp = e.employee
+                        const ob = e.breaks?.find(
+                          (b: BreakEntry) => !b.break_end
+                        )
+                        const bMins = (e.breaks ?? []).reduce(
+                          (s: number, b: BreakEntry) =>
+                            s + (b.duration_minutes ?? 0),
+                          0
+                        )
+                        return (
+                          <div key={e.id} className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6 shrink-0">
+                              <AvatarImage src={emp?.avatar_url ?? undefined} />
+                              <AvatarFallback className="bg-primary/10 text-[10px] text-primary">
+                                {emp?.first_name?.[0]}
+                                {emp?.last_name?.[0]}
+                              </AvatarFallback>
+                            </Avatar>
+                            <p className="flex-1 truncate text-xs">
+                              {emp?.first_name} {emp?.last_name}
+                            </p>
+                            <span
+                              className={`text-[10px] font-medium ${ob ? "text-amber-600" : "text-green-600"}`}
+                            >
+                              {ob
+                                ? "Break"
+                                : formatMinutes(liveMinutes(e.clock_in, bMins))}
+                            </span>
+                          </div>
+                        )
+                      }
+                    )}
                   </div>
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Location: </span>
-                    <span className="font-medium">{employee?.location}</span>
-                  </div>
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">Status: </span>
-                    <Badge variant="secondary" className="text-xs capitalize">
-                      {employee?.employment_status}
-                    </Badge>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
-
       <RequestTimeOffDialog open={requestOpen} onOpenChange={setRequestOpen} />
     </div>
   )
 }
-
-function StatCell({
-  label,
-  value,
-  highlight = false,
-}: {
-  label: string
-  value: string
-  highlight?: boolean
-}) {
-  return (
-    <div className="text-center">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p
-        className={`mt-0.5 text-lg font-semibold ${highlight ? "text-amber-600" : ""}`}
-      >
-        {value}
-      </p>
-    </div>
-  )
-}
-
 function getGreeting() {
   const h = new Date().getHours()
   if (h < 12) return "morning"
