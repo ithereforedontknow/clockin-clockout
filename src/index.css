@@ -79,14 +79,14 @@
   --radius: 0.625rem;
 
   /* Sidebar — very subtle blue tint, not pure white */
-  --sidebar: oklch(0.975 0.01 240);
-  --sidebar-foreground: oklch(0.13 0.01 240);
-  --sidebar-primary: oklch(0.62 0.11 240);
-  --sidebar-primary-foreground: oklch(0.99 0.005 240);
-  --sidebar-accent: oklch(0.945 0.015 240);
-  --sidebar-accent-foreground: oklch(0.2 0.02 240);
-  --sidebar-border: oklch(0.89 0.015 240);
-  --sidebar-ring: oklch(0.62 0.11 240);
+  --sidebar: oklch(0.62 0.11 240); /* solid primary blue */
+  --sidebar-foreground: oklch(0.99 0.005 240);
+  --sidebar-primary: oklch(0.99 0.005 240);
+  --sidebar-primary-foreground: oklch(0.62 0.11 240);
+  --sidebar-accent: oklch(0.55 0.1 240); /* slightly darker for hover */
+  --sidebar-accent-foreground: oklch(0.99 0.005 240);
+  --sidebar-border: oklch(0.55 0.1 240);
+  --sidebar-ring: oklch(0.99 0.005 240);
 }
 
 .dark {
@@ -118,12 +118,11 @@
   --chart-4: oklch(0.45 0.11 240);
   --chart-5: oklch(0.38 0.09 240);
 
-  /* Sidebar dark — deeper blue-tinted dark */
-  --sidebar: oklch(0.18 0.015 240);
+  --sidebar: oklch(0.25 0.06 240); /* deep blue in dark mode */
   --sidebar-foreground: oklch(0.97 0.005 240);
   --sidebar-primary: oklch(0.68 0.12 240);
-  --sidebar-primary-foreground: oklch(0.1 0.01 240);
-  --sidebar-accent: oklch(0.26 0.025 240);
+  --sidebar-primary-foreground: oklch(0.99 0.005 240);
+  --sidebar-accent: oklch(0.3 0.07 240);
   --sidebar-accent-foreground: oklch(0.97 0.005 240);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.68 0.12 240);

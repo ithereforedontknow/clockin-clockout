@@ -198,10 +198,7 @@ export function AppSidebar({
             <button
               onClick={toggle}
               className={cn(
-                "absolute top-5 -right-3 z-10",
-                "flex h-6 w-6 items-center justify-center rounded-full",
-                "border border-sidebar-border bg-sidebar shadow-sm",
-                "text-sidebar-foreground/50 hover:text-sidebar-foreground",
+                "absolute top-6 -right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border bg-background text-foreground shadow-sm transition-colors hover:bg-muted",
                 "transition-colors"
               )}
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}

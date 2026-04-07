@@ -1764,3 +1764,58 @@ export function useMyCertifications() {
     },
   })
 }
+
+// ─── LMS Progress ─────────────────────────────────────────────────────────────
+export function useUpdateLessonProgress() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      user_id: string
+      lesson_id: string
+      percent_watched: number
+      is_completed?: boolean
+    }) => {
+      const { error } = await supabase.from("progress_records").upsert(
+        {
+          ...payload,
+          last_watched_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,lesson_id" }
+      )
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["curriculum"] })
+      qc.invalidateQueries({ queryKey: ["training-record"] })
+    },
+  })
+}
+
+export function useMarkLessonComplete() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      user_id,
+      lesson_id,
+    }: {
+      user_id: string
+      lesson_id: string
+    }) => {
+      const { error } = await supabase.from("progress_records").upsert({
+        user_id,
+        lesson_id,
+        percent_watched: 100,
+        is_completed: true,
+        last_watched_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["curriculum"] })
+      qc.invalidateQueries({ queryKey: ["training-record"] })
+      qc.invalidateQueries({ queryKey: ["my-training"] })
+    },
+  })
+}

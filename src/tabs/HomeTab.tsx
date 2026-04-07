@@ -45,11 +45,12 @@ import {
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
 import type { BreakEntry, Employee, ClockEntry } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
-// import { toTimeManila } from "@/lib/timezone"
 import type { TabId } from "@/components/Appshell"
+
 interface Props {
   onNavigate?: (tab: TabId) => void
 }
+
 export function HomeTab({ onNavigate }: Props) {
   const [requestOpen, setRequestOpen] = useState(false)
   const weekStart = format(
@@ -79,10 +80,12 @@ export function HomeTab({ onNavigate }: Props) {
   const endBreak = useEndBreak()
   const reviewTimeOff = useReviewTimeOff()
   const [, setTick] = useState(0)
+
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000)
     return () => clearInterval(id)
   }, [])
+
   const isClockedIn = !!entry && !entry.clock_out
   const isClockedOut = !!entry?.clock_out
   const openBreak = entry?.breaks?.find((b: BreakEntry) => !b.break_end) ?? null
@@ -118,6 +121,7 @@ export function HomeTab({ onNavigate }: Props) {
       thisYear: new Date(now.getFullYear(), h.month - 1, h.day),
     }))
     .find((h) => h.thisYear >= now)
+
   async function handleMainButton() {
     if (!employeeId) return
     if (!isClockedIn) {
@@ -136,6 +140,7 @@ export function HomeTab({ onNavigate }: Props) {
       })
     }
   }
+
   async function handleBreakButton() {
     if (!entry || !employeeId) return
     if (isOnBreak) {
@@ -152,6 +157,7 @@ export function HomeTab({ onNavigate }: Props) {
       toast.info("Break started")
     }
   }
+
   const statusLabel = isOnBreak
     ? "On Break"
     : isClockedIn
@@ -169,6 +175,7 @@ export function HomeTab({ onNavigate }: Props) {
     : isClockedIn
       ? "bg-green-50 text-green-700 border-green-200"
       : "bg-muted text-muted-foreground border-border"
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -193,9 +200,11 @@ export function HomeTab({ onNavigate }: Props) {
           Request Time Off
         </Button>
       </div>
+
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* LEFT — Time Clock + PTO Approvals + Balances */}
         <div className="space-y-5">
+          {/* ... Time Clock, PTO Approvals, Leave Balances (unchanged) ... */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
@@ -204,6 +213,7 @@ export function HomeTab({ onNavigate }: Props) {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Time clock content unchanged */}
               {clockLoading ? (
                 <Skeleton className="h-32 w-full" />
               ) : (
@@ -311,6 +321,7 @@ export function HomeTab({ onNavigate }: Props) {
               )}
             </CardContent>
           </Card>
+
           {isEmployerOrAdmin && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-3">
@@ -420,6 +431,7 @@ export function HomeTab({ onNavigate }: Props) {
               </CardContent>
             </Card>
           )}
+
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
@@ -459,9 +471,9 @@ export function HomeTab({ onNavigate }: Props) {
           </Card>
         </div>
 
-        {/* MIDDLE — Announcements + My Courses + Who's Out (now center-aligned) */}
+        {/* MIDDLE — Announcements + My Courses + Who's Out */}
         <div className="space-y-5">
-          {/* Announcements */}
+          {/* Announcements, My Courses, Who's Out (unchanged) */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
@@ -520,7 +532,7 @@ export function HomeTab({ onNavigate }: Props) {
             </CardContent>
           </Card>
 
-          {/* My Courses — now in center column */}
+          {/* My Courses */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-3">
               <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
@@ -594,7 +606,7 @@ export function HomeTab({ onNavigate }: Props) {
             </CardContent>
           </Card>
 
-          {/* Who's Out — now in center column */}
+          {/* Who's Out */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
@@ -639,62 +651,6 @@ export function HomeTab({ onNavigate }: Props) {
               )}
             </CardContent>
           </Card>
-        </div>
-
-        {/* RIGHT — Schedule + Holiday + Live (My Courses & Who's Out moved to center) */}
-        <div className="space-y-5">
-          {/* Schedule a Check-in */}
-          <Card className="overflow-hidden bg-primary text-primary-foreground">
-            <CardContent className="pt-5 pb-5">
-              <div className="flex items-start gap-3">
-                <div className="rounded-lg bg-white/20 p-2">
-                  <Calendar className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-semibold tracking-wider uppercase opacity-75">
-                    Schedule a Check-in
-                  </p>
-                  <p className="mt-0.5 font-semibold">May Damoslog</p>
-                  <p className="text-xs opacity-70">
-                    Book a personal check-in session
-                  </p>
-                </div>
-              </div>
-              <a
-                href="https://calendly.com/may-staffolio/check-in?month=2026-04"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-4 flex w-full items-center justify-center rounded-lg bg-white/20 py-2 text-sm font-medium transition-colors hover:bg-white/30"
-              >
-                Book a Session
-              </a>
-            </CardContent>
-          </Card>
-
-          {/* Upcoming Holiday */}
-          {upcomingHoliday && (
-            <Card>
-              <CardContent className="pt-4 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-lg bg-primary/10 p-2">
-                    <Globe className="h-4 w-4 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-medium tracking-wide text-primary uppercase">
-                      Upcoming Holiday
-                    </p>
-                    <p className="text-sm font-semibold">
-                      {upcomingHoliday.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(upcomingHoliday.thisYear, "MMMM d, yyyy")}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Live Monitoring */}
           {isEmployerOrAdmin && (
             <Card>
@@ -759,11 +715,99 @@ export function HomeTab({ onNavigate }: Props) {
             </Card>
           )}
         </div>
+
+        {/* RIGHT — Quick links & info (Schedule a Check-in + NEW Team Schedule + Holiday + Live) */}
+        <div className="space-y-5">
+          {/* Schedule a Check-in */}
+          <Card className="overflow-hidden bg-primary text-primary-foreground">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-white/20 p-2">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold tracking-wider uppercase opacity-75">
+                    Schedule a Check-in
+                  </p>
+                  <p className="mt-0.5 font-semibold">May Damoslog</p>
+                  <p className="text-xs opacity-70">
+                    Book a personal check-in session
+                  </p>
+                </div>
+              </div>
+
+              <a
+                href="https://calendly.com/may-staffolio/check-in?month=2026-04"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 flex w-full items-center justify-center rounded-lg bg-white/20 py-2 text-sm font-medium transition-colors hover:bg-white/30"
+              >
+                Book a Session
+              </a>
+            </CardContent>
+          </Card>
+
+          {/* Task Journal */}
+          <Card className="overflow-hidden bg-primary text-primary-foreground">
+            <CardContent className="pt-5 pb-5">
+              <div className="flex items-start gap-3">
+                <div className="rounded-lg bg-white/20 p-2">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold tracking-wider uppercase opacity-75">
+                    Task Journal
+                  </p>
+                  <p className="mt-0.5 font-semibold">Client Story</p>
+                  <p className="text-xs opacity-70">
+                    A living file that outlines client requirements,
+                    assumptions, and processes.
+                  </p>
+                </div>
+              </div>
+
+              <a
+                href="https://docs.google.com/spreadsheets/d/12sEDRREQH5nhCtGWZqMFlH1_vhXbUmY_/edit?pli=1&gid=1474562549#gid=1474562549"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 flex w-full items-center justify-center rounded-lg bg-white/20 py-2 text-sm font-medium transition-colors hover:bg-white/30"
+              >
+                Open Task Journal
+              </a>
+            </CardContent>
+          </Card>
+
+          {/* Upcoming Holiday */}
+          {upcomingHoliday && (
+            <Card>
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-primary/10 p-2">
+                    <Globe className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-medium tracking-wide text-primary uppercase">
+                      Upcoming Holiday
+                    </p>
+                    <p className="text-sm font-semibold">
+                      {upcomingHoliday.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {format(upcomingHoliday.thisYear, "MMMM d, yyyy")}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
+
       <RequestTimeOffDialog open={requestOpen} onOpenChange={setRequestOpen} />
     </div>
   )
 }
+
 function getGreeting() {
   const h = new Date().getHours()
   if (h < 12) return "morning"

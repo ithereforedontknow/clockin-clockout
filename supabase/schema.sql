@@ -928,3 +928,22 @@ WITH CHECK (
   get_my_role() IN ('employer', 'admin')
   AND actor_id = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
 );
+
+
+-- Fix insert policy to match auth.uid() correctly
+DROP POLICY IF EXISTS "curriculums: instructor insert" ON public.curriculums;
+
+CREATE POLICY "curriculums: instructor insert"
+ON public.curriculums FOR INSERT
+WITH CHECK (
+  created_by = auth.uid()
+  AND EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid()
+    AND role IN ('instructor', 'admin')
+  )
+);
+
+
+alter table lessons add column content_html text;
+alter table lessons add column quiz jsonb default null;
