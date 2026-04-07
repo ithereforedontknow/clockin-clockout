@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Calendar,
   CalendarDays,
+  ShieldCheck,
 } from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "sonner"
@@ -75,6 +76,7 @@ import {
   useDeleteHoliday,
   useTimeOffBalances,
   useSetTimeOffBalance,
+  useAuditLog,
 } from "@/lib/queries"
 import type { Employee, UserRole, CompanyHoliday } from "@/lib/supabase"
 
@@ -266,6 +268,10 @@ export function AdminTab() {
           <TabsTrigger value="holidays" className="gap-2">
             <Calendar className="h-4 w-4" />
             Holidays
+          </TabsTrigger>
+          <TabsTrigger value="audit" className="gap-2">
+            <ShieldCheck className="h-4 w-4" />
+            Audit Log
           </TabsTrigger>
         </TabsList>
         {/* ── Employees tab ── */}
@@ -592,6 +598,9 @@ export function AdminTab() {
         </TabsContent>
         <TabsContent value="holidays">
           <HolidaysTab />
+        </TabsContent>
+        <TabsContent value="audit" className="mt-4">
+          <AuditLogTab />
         </TabsContent>
       </Tabs>
     </div>
@@ -1182,7 +1191,93 @@ function EditEmployeeDialog({
     </Dialog>
   )
 }
+// ─── Audit log tab ────────────────────────────────────────────────────────────
 
+function AuditLogTab() {
+  const { data: entries = [], isLoading } = useAuditLog()
+
+  const ACTION_LABEL: Record<string, string> = {
+    approve_time_off: "Approved time off",
+    deny_time_off: "Denied time off",
+    approve_info_change: "Approved profile change",
+    deny_info_change: "Denied profile change",
+    approve_correction: "Approved correction",
+    deny_correction: "Denied correction",
+  }
+
+  const ACTION_COLOR: Record<string, string> = {
+    approve_time_off: "border-green-200 bg-green-50 text-green-700",
+    deny_time_off: "border-red-200 bg-red-50 text-red-700",
+    approve_info_change: "border-green-200 bg-green-50 text-green-700",
+    deny_info_change: "border-red-200 bg-red-50 text-red-700",
+    approve_correction: "border-green-200 bg-green-50 text-green-700",
+    deny_correction: "border-red-200 bg-red-50 text-red-700",
+  }
+
+  return (
+    <Card>
+      <CardContent className="p-0">
+        {isLoading ? (
+          <div className="space-y-3 p-4">
+            {Array(5)
+              .fill(0)
+              .map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+          </div>
+        ) : entries.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
+            <AlertCircle className="h-8 w-8 opacity-40" />
+            <p className="text-sm">No audit entries yet</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Actor</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Target</TableHead>
+                <TableHead>Note</TableHead>
+                <TableHead>When</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {entries.map((e: any) => (
+                <TableRow key={e.id}>
+                  <TableCell>
+                    <p className="text-sm font-medium">
+                      {e.actor?.first_name} {e.actor?.last_name}
+                    </p>
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {e.actor?.role}
+                    </p>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${ACTION_COLOR[e.action] ?? ""}`}
+                    >
+                      {ACTION_LABEL[e.action] ?? e.action}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="font-mono text-xs text-muted-foreground">
+                    {e.target_table}
+                  </TableCell>
+                  <TableCell className="max-w-[180px] truncate text-xs text-muted-foreground">
+                    {e.note ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-xs whitespace-nowrap text-muted-foreground">
+                    {format(new Date(e.created_at), "MMM d 'at' h:mm a")}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 
 function KPICard({

@@ -37,6 +37,18 @@ export const keys = {
   allClockEntries: (week: string) => ["all-clock-entries", week] as const,
 }
 
+async function getMyEmployeeId(): Promise<string> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) throw new Error("Not authenticated")
+  const { data } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("user_id", user.id)
+    .single()
+  return data!.id
+}
 // ─── Current Employee ─────────────────────────────────────────────────────────
 
 export function useCurrentEmployee() {
@@ -825,6 +837,16 @@ export function useReviewCorrection() {
             .eq("id", correction.clock_entry_id)
           if (entryErr) throw entryErr
         }
+        const actorId = await getMyEmployeeId()
+        await writeAuditLog({
+          actor_id: actorId,
+          action:
+            decision === "approved" ? "approve_correction" : "deny_correction",
+          target_table: "clock_corrections",
+          target_id: correction.id,
+          new_value: { status: decision },
+          note: reviewerComment || undefined,
+        })
       }
     },
     onSuccess: () => {
@@ -959,7 +981,15 @@ export function useReviewTimeOff() {
         })
         .eq("id", request.id)
       if (error) throw error
-
+      const actorId = await getMyEmployeeId()
+      await writeAuditLog({
+        actor_id: actorId,
+        action: decision === "approved" ? "approve_time_off" : "deny_time_off",
+        target_table: "time_off_requests",
+        target_id: request.id,
+        new_value: { status: decision },
+        note: comment || undefined,
+      })
       await createNotification({
         employee_id: request.employee_id,
         type: decision === "approved" ? "timeoff_approved" : "timeoff_denied",
@@ -1007,7 +1037,17 @@ export function useReviewInfoChange() {
           })
           .eq("id", request.employee_id)
       }
-
+      const actorId = await getMyEmployeeId()
+      await writeAuditLog({
+        actor_id: actorId,
+        action:
+          decision === "approved" ? "approve_info_change" : "deny_info_change",
+        target_table: "info_change_requests",
+        target_id: request.id,
+        old_value: { value: request.old_value },
+        new_value: { value: request.new_value, status: decision },
+        note: comment || undefined,
+      })
       await createNotification({
         employee_id: request.employee_id,
         type:
@@ -1816,6 +1856,84 @@ export function useMarkLessonComplete() {
       qc.invalidateQueries({ queryKey: ["curriculum"] })
       qc.invalidateQueries({ queryKey: ["training-record"] })
       qc.invalidateQueries({ queryKey: ["my-training"] })
+    },
+  })
+}
+// ─── Course Progress ─────────────────────────────────────────────────────────
+// Add this to src/lib/queries.ts
+export function useCourseProgress(curriculumId: string) {
+  return useQuery({
+    queryKey: ["course-progress", curriculumId],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+
+      // Get all lessons in this course (through modules)
+      const { data, error } = await supabase
+        .from("lessons")
+        .select(
+          `
+          id,
+          progress_records (
+            is_completed,
+            percent_watched
+          )
+        `
+        )
+        .eq("curriculum_id", curriculumId) // Make sure your lessons table has curriculum_id
+        .eq("progress_records.user_id", user.id)
+
+      if (error) {
+        console.error("Progress query error:", error)
+        throw error
+      }
+
+      const totalLessons = data?.length || 0
+      const completedLessons =
+        data?.filter((l) => l.progress_records?.[0]?.is_completed === true)
+          .length || 0
+
+      return {
+        totalLessons,
+        completedLessons,
+        percentage:
+          totalLessons > 0
+            ? Math.round((completedLessons / totalLessons) * 100)
+            : 0,
+      }
+    },
+    enabled: !!curriculumId,
+  })
+}
+// ─── Audit Log ────────────────────────────────────────────────────────────────
+
+export async function writeAuditLog(entry: {
+  actor_id: string
+  action: string
+  target_table: string
+  target_id: string
+  old_value?: Record<string, unknown> | null
+  new_value?: Record<string, unknown> | null
+  note?: string
+}) {
+  const { error } = await supabase.from("audit_log").insert(entry)
+  if (error) console.error("Audit log write failed:", error.message)
+  // Non-throwing — audit failure should never block the main action
+}
+
+export function useAuditLog() {
+  return useQuery({
+    queryKey: ["audit-log"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audit_log")
+        .select("*, actor:employees!actor_id(first_name,last_name,role)")
+        .order("created_at", { ascending: false })
+        .limit(200)
+      if (error) throw error
+      return data ?? []
     },
   })
 }

@@ -12,7 +12,7 @@ import {
   Clock,
   Timer,
   BarChart3,
-  AlarmClock,
+  // AlarmClock,
   ClipboardCheck,
   LogOut,
   ChevronsLeft,
@@ -218,11 +218,11 @@ export function AppSidebar({
               )}
             >
               <div className="flex items-center gap-2.5">
-                <div className="shrink-0 rounded-lg bg-primary/10 p-1.5">
+                {/*<div className="shrink-0 rounded-lg bg-primary/10 p-1.5">
                   <AlarmClock className="h-5 w-5 text-primary" />
-                </div>
+                </div>*/}
                 {!collapsed && (
-                  <span className="text-base font-bold tracking-tight text-sidebar-foreground">
+                  <span className="text-xl font-bold tracking-tight text-sidebar-foreground">
                     {companyName}
                   </span>
                 )}

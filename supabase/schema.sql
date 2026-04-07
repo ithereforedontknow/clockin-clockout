@@ -947,3 +947,38 @@ WITH CHECK (
 
 alter table lessons add column content_html text;
 alter table lessons add column quiz jsonb default null;
+
+
+ALTER TABLE lessons
+  ADD COLUMN IF NOT EXISTS curriculum_id uuid REFERENCES curriculums(id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS content_html text,
+  ADD COLUMN IF NOT EXISTS quiz jsonb DEFAULT null;
+
+CREATE TABLE IF NOT EXISTS progress_records (
+  id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  lesson_id text NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  percent_watched integer NOT NULL DEFAULT 0,
+  is_completed boolean NOT NULL DEFAULT false,
+  last_watched_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(user_id, lesson_id)
+);
+
+
+-- 3. Enable RLS + Policies for progress_records
+ALTER TABLE progress_records ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users can manage own progress"
+  ON progress_records
+  FOR ALL
+  USING (user_id = auth.uid());
+
+-- 4. Add curriculum_id index for better performance
+CREATE INDEX IF NOT EXISTS idx_lessons_curriculum_id ON lessons(curriculum_id);
+CREATE INDEX IF NOT EXISTS idx_progress_records_user_lesson ON progress_records(user_id, lesson_id);
+
+-- 5. Optional: Add foreign key from modules to curriculums if missing
+ALTER TABLE modules
+  ADD COLUMN IF NOT EXISTS curriculum_id text REFERENCES curriculums(id) ON DELETE CASCADE;

@@ -6,6 +6,7 @@ import {
   Trash2,
   Eye,
   EyeOff,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,6 +20,7 @@ import {
   useCurriculumDetail,
   useCreateModule,
   useCreateLesson,
+  useCourseProgress,
 } from "@/lib/queries"
 import type { Curriculum } from "@/lib/supabase"
 
@@ -33,6 +35,7 @@ export function CourseCard({
   isExpanded,
   onToggleExpand,
 }: CourseCardProps) {
+  const { data: progress } = useCourseProgress(course.id)
   const { data: detail } = useCurriculumDetail(isExpanded ? course.id : "")
 
   const createModule = useCreateModule()
@@ -86,6 +89,12 @@ export function CourseCard({
                 {course.description}
               </p>
             )}
+          </div>
+          <div className="mr-4 ml-auto text-right">
+            <div className="text-xs text-muted-foreground">Progress</div>
+            <div className="text-lg font-semibold">
+              {progress?.percentage || 0}%
+            </div>
           </div>
         </div>
 
@@ -155,10 +164,18 @@ export function CourseCard({
                   />
                 </div>
                 <Button
-                  className="mt-4"
+                  className="mt-4 w-full"
                   onClick={() => handleAddLesson(module.id)}
+                  disabled={createLesson.isPending}
                 >
-                  Create Lesson
+                  {createLesson.isPending ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Lesson"
+                  )}
                 </Button>
               </div>
             </div>
@@ -170,7 +187,12 @@ export function CourseCard({
               value={newModuleTitle}
               onChange={(e) => setNewModuleTitle(e.target.value)}
             />
-            <Button onClick={handleAddModule}>Add Module</Button>
+            <Button onClick={handleAddModule} disabled={createModule.isPending}>
+              {createModule.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Add Module
+            </Button>
           </div>
         </CardContent>
       )}
