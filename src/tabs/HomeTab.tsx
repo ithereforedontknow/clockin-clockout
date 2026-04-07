@@ -4,7 +4,6 @@ import {
   Users,
   TrendingUp,
   Clock,
-  Globe,
   Play,
   Square,
   Coffee,
