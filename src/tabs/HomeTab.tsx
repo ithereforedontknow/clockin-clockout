@@ -187,9 +187,23 @@ export function HomeTab({ onNavigate }: Props) {
               Good {getGreeting()}, {employee?.first_name}! 👋
             </h1>
           )}
-          <p className="text-sm text-muted-foreground">
-            {format(new Date(), "EEEE, MMMM d, yyyy")}
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            <span>{format(new Date(), "EEEE, MMMM d, yyyy")}</span>
+            {upcomingHoliday && (
+              <>
+                <span className="text-muted-foreground/50">•</span>
+                <span className="flex items-center gap-1.5">
+                  <span>
+                    <span className="font-medium text-muted-foreground">
+                      {upcomingHoliday.name}
+                    </span>
+                    <span className="mx-1">on</span>
+                    {format(upcomingHoliday.thisYear, "MMMM d")}
+                  </span>
+                </span>
+              </>
+            )}
+          </div>
         </div>
         <Button
           variant="outline"
@@ -778,7 +792,7 @@ export function HomeTab({ onNavigate }: Props) {
           </Card>
 
           {/* Upcoming Holiday */}
-          {upcomingHoliday && (
+          {/*{upcomingHoliday && (
             <Card>
               <CardContent className="pt-4 pb-4">
                 <div className="flex items-center gap-3">
@@ -799,7 +813,7 @@ export function HomeTab({ onNavigate }: Props) {
                 </div>
               </CardContent>
             </Card>
-          )}
+          )}*/}
         </div>
       </div>
 
