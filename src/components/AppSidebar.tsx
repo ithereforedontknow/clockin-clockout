@@ -12,7 +12,6 @@ import {
   Clock,
   Timer,
   BarChart3,
-  // AlarmClock,
   ClipboardCheck,
   LogOut,
   ChevronsLeft,
@@ -95,9 +94,8 @@ const NAV_ITEMS: NavItem[] = [
   { id: "home", label: "Home", icon: Home },
   { id: "timesheet", label: "Timesheet", icon: Timer },
   { id: "timeoff", label: "Time Off", icon: Clock },
-  { id: "people", label: "People", icon: Users },
-  { id: "myinfo", label: "My Info", icon: User },
   { id: "training", label: "Training", icon: GraduationCap },
+  { id: "people", label: "People", icon: Users, roles: ["employer", "admin"] },
   {
     id: "approvals",
     label: "Approvals",

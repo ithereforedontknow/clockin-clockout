@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import DOMPurify from "dompurify"
 import {
   CheckCircle2,
@@ -12,7 +12,11 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Progress } from "@/components/ui/progress"
-import { useMarkLessonComplete, useCourseProgress } from "@/lib/queries"
+import {
+  useMarkLessonComplete,
+  useCourseProgress,
+  useUpdateLessonProgress,
+} from "@/lib/queries"
 
 interface LessonPlayerProps {
   lesson: any
@@ -33,6 +37,13 @@ export function LessonPlayer({
   const { data: courseProgress } = useCourseProgress(courseId)
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({})
   const [quizSubmitted, setQuizSubmitted] = useState(false)
+  const [quizScore, setQuizScore] = useState<{
+    correct: number
+    total: number
+  } | null>(null)
+
+  const updateProgress = useUpdateLessonProgress()
+  const lastSavedPercent = useRef(0)
 
   const handleMarkComplete = async () => {
     if (!employee?.user_id || !lesson?.id) return
@@ -47,9 +58,48 @@ export function LessonPlayer({
   }
 
   const handleQuizSubmit = () => {
+    const questions = lesson.quiz?.questions ?? []
+    const correct = questions.filter(
+      (q: any, i: number) => quizAnswers[i] === q.correct_index
+    ).length
+
+    setQuizScore({ correct, total: questions.length })
     setQuizSubmitted(true)
-    toast.success("Quiz submitted!")
+
+    if (correct === questions.length) {
+      toast.success(`Perfect score! ${correct}/${questions.length}`)
+    } else {
+      toast.error(
+        `${correct}/${questions.length} correct — review and try again`
+      )
+    }
   }
+  useEffect(() => {
+    if (!lesson.cf_stream_id) return
+
+    const handleMessage = (e: MessageEvent) => {
+      if (e.origin !== "https://iframe.videodelivery.net") return
+      const { event, videoState } = e.data ?? {}
+      if (event === "timeupdate" && videoState?.duration > 0) {
+        const pct = Math.round(
+          (videoState.currentTime / videoState.duration) * 100
+        )
+        // Save every 10% to avoid excessive writes
+        if (pct >= lastSavedPercent.current + 10) {
+          lastSavedPercent.current = pct
+          updateProgress.mutate({
+            user_id: employee.user_id,
+            lesson_id: lesson.id,
+            percent_watched: pct,
+            is_completed: pct >= 90,
+          })
+        }
+      }
+    }
+
+    window.addEventListener("message", handleMessage)
+    return () => window.removeEventListener("message", handleMessage)
+  }, [lesson.cf_stream_id, lesson.id, employee?.user_id])
 
   return (
     <div className="flex h-full flex-col">
@@ -143,6 +193,23 @@ export function LessonPlayer({
               >
                 {quizSubmitted ? "Submitted ✓" : "Submit Quiz"}
               </Button>
+
+              {quizSubmitted && quizScore && (
+                <p className="mt-3 text-center text-sm font-medium">
+                  Score: {quizScore.correct}/{quizScore.total}
+                  {quizScore.correct < quizScore.total && (
+                    <button
+                      className="ml-3 underline"
+                      onClick={() => {
+                        setQuizSubmitted(false)
+                        setQuizAnswers({})
+                      }}
+                    >
+                      Retry
+                    </button>
+                  )}
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -165,7 +232,11 @@ export function LessonPlayer({
 
         <Button
           onClick={handleMarkComplete}
-          disabled={lesson.quiz && !quizSubmitted}
+          disabled={
+            lesson.quiz?.questions?.length > 0 &&
+            (!quizSubmitted ||
+              (quizScore?.correct ?? 0) < (quizScore?.total ?? 1))
+          }
           size="lg"
         >
           <CheckCircle2 className="mr-2 h-4 w-4" />

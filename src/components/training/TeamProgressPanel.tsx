@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "react-router-dom"
+import { AssignCourseDialog } from "@/components/AssignCourseDialog"
 
 export function TeamProgressPanel() {
   const { data: employees = [] } = useEmployees()
@@ -71,6 +72,10 @@ export function TeamProgressPanel() {
                     >
                       View Details
                     </Button>
+                    <AssignCourseDialog
+                      employeeId={emp.id}
+                      employeeName={`${emp.first_name} ${emp.last_name}`}
+                    />
                   </TableCell>
                 </TableRow>
               )

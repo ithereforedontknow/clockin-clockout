@@ -1,12 +1,48 @@
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { ArrowLeft, Trash2, Eye, EyeOff, Plus } from "lucide-react"
+import { useQueryClient } from "@tanstack/react-query"
+import {
+  ArrowLeft,
+  Trash2,
+  Eye,
+  EyeOff,
+  Plus,
+  GripVertical,
+  ImagePlus,
+} from "lucide-react"
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core"
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
 import { toast } from "sonner"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { RichTextEditor } from "@/components/ui/rich-text-editor"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   useCurriculumDetail,
   useUpdateCurriculum,
@@ -14,15 +50,16 @@ import {
   useCreateModule,
   useDeleteModule,
   useUpdateLesson,
-  useUpdateModule, // keep
-  useCreateLesson, // keep
-  useDeleteLesson, // keep
+  useUpdateModule,
+  useCreateLesson,
+  useDeleteLesson,
 } from "@/lib/queries"
-
+import { QuizBuilder } from "@/components/training/QuizBuilder"
+import { supabase } from "@/lib/supabase"
 export function CourseEditor() {
   const { courseId } = useParams()
   const navigate = useNavigate()
-  const { data: course, isLoading, refetch } = useCurriculumDetail(courseId!)
+  const { data: course, isLoading } = useCurriculumDetail(courseId!)
   const updateCurriculum = useUpdateCurriculum()
   const deleteCurriculum = useDeleteCurriculum()
   const createModule = useCreateModule()
@@ -31,11 +68,27 @@ export function CourseEditor() {
   const updateModule = useUpdateModule()
   const deleteLesson = useDeleteLesson()
 
+  const sensors = useSensors(useSensor(PointerSensor))
+
+  const queryClient = useQueryClient()
+
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null)
   const [newModuleTitle, setNewModuleTitle] = useState("")
-  const [newLessonTitle, setNewLessonTitle] = useState("")
   const [isAddingModule, setIsAddingModule] = useState(false)
-  const [isAddingLesson, setIsAddingLesson] = useState(false)
+  const [addingLessonForModule, setAddingLessonForModule] = useState<
+    string | null
+  >(null)
+  const [newLessonTitle, setNewLessonTitle] = useState("")
+
+  const thumbInputRef = useRef<HTMLInputElement>(null)
+
+  const [showDeleteCourseDialog, setShowDeleteCourseDialog] = useState(false)
+
+  const [confirmDelete, setConfirmDelete] = useState<{
+    type: "module" | "lesson"
+    id: string
+    label: string
+  } | null>(null)
 
   if (isLoading)
     return (
@@ -57,17 +110,7 @@ export function CourseEditor() {
         .find((l: any) => l.id === selectedLessonId)
     : null
 
-  const handleDeleteCourse = async () => {
-    if (
-      confirm(
-        `Delete "${course.title}" and all its content? This cannot be undone.`
-      )
-    ) {
-      await deleteCurriculum.mutateAsync(course.id)
-      toast.success("Course deleted")
-      navigate("/training")
-    }
-  }
+  const handleDeleteCourse = () => setShowDeleteCourseDialog(true)
 
   const handleAddModule = async () => {
     if (!newModuleTitle.trim()) return
@@ -79,7 +122,7 @@ export function CourseEditor() {
     })
     setNewModuleTitle("")
     setIsAddingModule(false)
-    refetch()
+    queryClient.invalidateQueries({ queryKey: ["curriculum", course.id] })
     toast.success("Module added")
   }
 
@@ -93,14 +136,69 @@ export function CourseEditor() {
       order_index: 0,
     })
     setNewLessonTitle("")
-    setIsAddingLesson(false)
-    refetch()
+    setAddingLessonForModule(null)
+    queryClient.invalidateQueries({ queryKey: ["curriculum", course.id] })
     toast.success("Lesson added")
+  }
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = modules.findIndex((m: any) => m.id === active.id)
+    const newIndex = modules.findIndex((m: any) => m.id === over.id)
+    const reordered = arrayMove(modules, oldIndex, newIndex)
+    // Optimistically update UI via refetch after saving
+    await Promise.all(
+      reordered.map((m: any, i: number) =>
+        updateModule.mutateAsync({ id: m.id, updates: { order_index: i } })
+      )
+    )
+    queryClient.invalidateQueries({ queryKey: ["curriculum", course.id] })
+  }
+
+  const handleThumbnailUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const ext = file.name.split(".").pop()
+    const path = `thumbnails/${course.id}.${ext}`
+    const { error: uploadError } = await supabase.storage
+      .from("course-assets")
+      .upload(path, file, { upsert: true })
+    if (uploadError) {
+      toast.error("Upload failed")
+      return
+    }
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("course-assets").getPublicUrl(path)
+    updateCurriculum.mutate({
+      id: course.id,
+      updates: { thumbnail_url: publicUrl },
+    })
+    toast.success("Thumbnail updated")
   }
 
   return (
     <div className="flex h-screen flex-col">
       {/* Top Bar */}
+      <>
+        <input
+          ref={thumbInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleThumbnailUpload}
+        />
+        <Button
+          variant="outline"
+          onClick={() => thumbInputRef.current?.click()}
+        >
+          <ImagePlus className="mr-2 h-4 w-4" />
+          {course.thumbnail_url ? "Change Thumbnail" : "Add Thumbnail"}
+        </Button>
+      </>
       <div className="border-b bg-background px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -151,7 +249,6 @@ export function CourseEditor() {
           </div>
         </div>
       </div>
-
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Modules & Lessons */}
@@ -188,100 +285,128 @@ export function CourseEditor() {
             )}
 
             <div className="space-y-4">
-              {modules.map((module: any) => (
-                <div
-                  key={module.id}
-                  className="rounded-lg border bg-background p-3"
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={modules.map((m: any) => m.id)}
+                  strategy={verticalListSortingStrategy}
                 >
-                  <div className="mb-2 flex items-center justify-between">
-                    <Input
-                      defaultValue={module.title}
-                      className="h-8 border-0 px-0 text-sm font-semibold"
-                      onBlur={(e) =>
-                        updateModule.mutate({
-                          id: module.id,
-                          updates: { title: e.target.value },
-                        })
-                      }
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => deleteModule.mutate(module.id)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-
-                  <div className="ml-2 space-y-1">
-                    {(module.lessons || []).map((lesson: any) => (
+                  {modules.map((module: any) => (
+                    <SortableModule key={module.id} module={module}>
                       <div
-                        key={lesson.id}
-                        className={`flex cursor-pointer items-center justify-between rounded px-2 py-1 hover:bg-muted ${
-                          selectedLessonId === lesson.id ? "bg-muted" : ""
-                        }`}
-                        onClick={() => setSelectedLessonId(lesson.id)}
+                        key={module.id}
+                        className="rounded-lg border bg-background p-3"
                       >
-                        <span className="flex-1 truncate text-sm">
-                          {lesson.title}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            deleteLesson.mutate(lesson.id)
-                          }}
-                        >
-                          <Trash2 className="h-2.5 w-2.5" />
-                        </Button>
-                      </div>
-                    ))}
-
-                    {isAddingLesson && (
-                      <div className="mt-2 space-y-2">
-                        <Input
-                          placeholder="Lesson title"
-                          className="h-8"
-                          value={newLessonTitle}
-                          onChange={(e) => setNewLessonTitle(e.target.value)}
-                          onKeyDown={(e) =>
-                            e.key === "Enter" && handleAddLesson(module.id)
-                          }
-                        />
-                        <div className="flex gap-2">
+                        <div className="mb-2 flex items-center justify-between">
+                          <Input
+                            defaultValue={module.title}
+                            className="h-8 border-0 px-0 text-sm font-semibold"
+                            onBlur={(e) =>
+                              updateModule.mutate({
+                                id: module.id,
+                                updates: { title: e.target.value },
+                              })
+                            }
+                          />
                           <Button
-                            size="sm"
-                            onClick={() => handleAddLesson(module.id)}
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() =>
+                              setConfirmDelete({
+                                type: "module",
+                                id: module.id,
+                                label: module.title,
+                              })
+                            }
                           >
-                            Add
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setIsAddingLesson(false)}
-                          >
-                            Cancel
+                            <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
-                      </div>
-                    )}
 
-                    {!isAddingLesson && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="w-full justify-start text-xs"
-                        onClick={() => setIsAddingLesson(true)}
-                      >
-                        <Plus className="mr-1 h-3 w-3" /> Add Lesson
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                        <div className="ml-2 space-y-1">
+                          {(module.lessons || []).map((lesson: any) => (
+                            <div
+                              key={lesson.id}
+                              className={`flex cursor-pointer items-center justify-between rounded px-2 py-1 hover:bg-muted ${
+                                selectedLessonId === lesson.id ? "bg-muted" : ""
+                              }`}
+                              onClick={() => setSelectedLessonId(lesson.id)}
+                            >
+                              <span className="flex-1 truncate text-sm">
+                                {lesson.title}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-5 w-5"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setConfirmDelete({
+                                    type: "lesson",
+                                    id: lesson.id,
+                                    label: lesson.title,
+                                  })
+                                }}
+                              >
+                                <Trash2 className="h-2.5 w-2.5" />
+                              </Button>
+                            </div>
+                          ))}
+
+                          {addingLessonForModule === module.id && (
+                            <div className="mt-2 space-y-2">
+                              <Input
+                                placeholder="Lesson title"
+                                className="h-8"
+                                value={newLessonTitle}
+                                onChange={(e) =>
+                                  setNewLessonTitle(e.target.value)
+                                }
+                                onKeyDown={(e) =>
+                                  e.key === "Enter" &&
+                                  handleAddLesson(module.id)
+                                }
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleAddLesson(module.id)}
+                                >
+                                  Add
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setAddingLessonForModule(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {addingLessonForModule !== module.id && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full justify-start text-xs"
+                              onClick={() =>
+                                setAddingLessonForModule(module.id)
+                              }
+                            >
+                              <Plus className="mr-1 h-3 w-3" /> Add Lesson
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </SortableModule>
+                  ))}
+                </SortableContext>
+              </DndContext>
             </div>
           </div>
         </div>
@@ -289,16 +414,80 @@ export function CourseEditor() {
         {/* Right Panel - Lesson Editor */}
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-4xl p-6">
-            {selectedLesson ? (
-              <LessonEditor lesson={selectedLesson} onUpdate={refetch} />
-            ) : (
-              <div className="flex h-96 items-center justify-center text-muted-foreground">
-                Select a lesson from the sidebar to edit
-              </div>
-            )}
+            <Tabs defaultValue={selectedLesson ? "lesson" : "details"}>
+              <TabsList className="mb-6">
+                <TabsTrigger value="details">Course Details</TabsTrigger>
+                <TabsTrigger value="lesson" disabled={!selectedLesson}>
+                  {selectedLesson ? "Edit Lesson" : "Select a Lesson"}
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="details">
+                <CourseDetailsEditor
+                  course={course}
+                  onUpdate={() =>
+                    queryClient.invalidateQueries({
+                      queryKey: ["curriculum", course.id],
+                    })
+                  }
+                />
+              </TabsContent>
+
+              <TabsContent value="lesson">
+                {selectedLesson ? (
+                  <LessonEditor
+                    lesson={selectedLesson}
+                    onUpdate={() =>
+                      queryClient.invalidateQueries({
+                        queryKey: ["curriculum", course.id],
+                      })
+                    }
+                  />
+                ) : (
+                  <div className="flex h-96 items-center justify-center text-muted-foreground">
+                    Select a lesson from the sidebar to edit
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </div>
+      <AlertDialog
+        open={!!confirmDelete}
+        onOpenChange={(open) => !open && setConfirmDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {confirmDelete?.type} "{confirmDelete?.label}"?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmDelete?.type === "module"
+                ? "All lessons inside this module will also be deleted."
+                : "This lesson will be permanently deleted."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="text-destructive-foreground bg-destructive hover:bg-destructive/90"
+              onClick={async () => {
+                if (confirmDelete?.type === "module") {
+                  await deleteModule.mutateAsync(confirmDelete.id)
+                  toast.success("Module deleted")
+                } else if (confirmDelete?.type === "lesson") {
+                  await deleteLesson.mutateAsync(confirmDelete.id)
+                  toast.success("Lesson deleted")
+                }
+                setConfirmDelete(null)
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -369,24 +558,145 @@ function LessonEditor({ lesson }: { lesson: any; onUpdate: () => void }) {
         </div>
       </div>
 
-      {lesson.quiz && (
-        <div>
-          <label className="text-sm font-medium">Quiz (JSON)</label>
-          <Textarea
-            defaultValue={JSON.stringify(lesson.quiz, null, 2)}
-            className="mt-1 font-mono text-sm"
-            rows={10}
-            onBlur={(e) => {
-              try {
-                const quiz = JSON.parse(e.target.value)
-                updateLesson.mutate({ id: lesson.id, updates: { quiz } })
-              } catch (err) {
-                toast.error("Invalid JSON")
-              }
-            }}
-          />
+      <QuizBuilder
+        quiz={lesson.quiz}
+        onSave={(quiz) =>
+          updateLesson.mutate({ id: lesson.id, updates: { quiz } })
+        }
+      />
+    </div>
+  )
+}
+function CourseDetailsEditor({
+  course,
+  onUpdate,
+}: {
+  course: any
+  onUpdate: () => void
+}) {
+  const updateCurriculum = useUpdateCurriculum()
+  const thumbInputRef = useRef<HTMLInputElement>(null)
+
+  const handleThumbnailUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const ext = file.name.split(".").pop()
+    const path = `thumbnails/${course.id}.${ext}`
+    const { error: uploadError } = await supabase.storage
+      .from("course-assets")
+      .upload(path, file, { upsert: true })
+    if (uploadError) {
+      toast.error("Upload failed")
+      return
+    }
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("course-assets").getPublicUrl(path)
+    updateCurriculum.mutate(
+      { id: course.id, updates: { thumbnail_url: publicUrl } },
+      { onSuccess: onUpdate }
+    )
+    toast.success("Thumbnail updated")
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Thumbnail */}
+      <div>
+        <label className="text-sm font-medium">Course Thumbnail</label>
+        <div className="mt-2 flex items-center gap-4">
+          {course.thumbnail_url ? (
+            <img
+              src={course.thumbnail_url}
+              alt="Thumbnail"
+              className="h-24 w-40 rounded-lg border object-cover"
+            />
+          ) : (
+            <div className="flex h-24 w-40 items-center justify-center rounded-lg border border-dashed bg-muted text-xs text-muted-foreground">
+              No thumbnail
+            </div>
+          )}
+          <div className="space-y-2">
+            <input
+              ref={thumbInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleThumbnailUpload}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => thumbInputRef.current?.click()}
+            >
+              <ImagePlus className="mr-2 h-4 w-4" />
+              {course.thumbnail_url ? "Change Thumbnail" : "Upload Thumbnail"}
+            </Button>
+            {course.thumbnail_url && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive"
+                onClick={() =>
+                  updateCurriculum.mutate(
+                    { id: course.id, updates: { thumbnail_url: null } },
+                    { onSuccess: onUpdate }
+                  )
+                }
+              >
+                Remove
+              </Button>
+            )}
+          </div>
         </div>
-      )}
+      </div>
+
+      {/* Description */}
+      <div>
+        <label className="text-sm font-medium">Description</label>
+        <Textarea
+          className="mt-1"
+          defaultValue={course.description ?? ""}
+          placeholder="What will students learn in this course?"
+          rows={4}
+          onBlur={(e) =>
+            updateCurriculum.mutate(
+              { id: course.id, updates: { description: e.target.value } },
+              { onSuccess: onUpdate }
+            )
+          }
+        />
+      </div>
+    </div>
+  )
+}
+function SortableModule({
+  module,
+  children,
+}: {
+  module: any
+  children: React.ReactNode
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: module.id })
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className="rounded-lg border bg-background p-3"
+    >
+      <div className="mb-2 flex items-center gap-1">
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab text-muted-foreground"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+        {children}
+      </div>
     </div>
   )
 }

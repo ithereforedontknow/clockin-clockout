@@ -2,8 +2,10 @@ import { createBrowserRouter, Navigate } from "react-router-dom"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LoginPage } from "@/pages/LoginPage"
 import { Appshell } from "@/components/Appshell"
-import { CourseManagement } from "@/components/training/CourseManagement"
+import { CourseEditor } from "@/components/training/CourseEditor"
 import { CourseDetailPage } from "@/pages/CourseDetailPage"
+import { EmployeeTrainingPage } from "@/pages/EmployeeTrainingPage"
+import { InstructorRoute } from "@/components/InstructorRoute"
 
 export const router = createBrowserRouter([
   // ── Public ────────────────────────────────────────────────────s────────────
@@ -34,7 +36,11 @@ export const router = createBrowserRouter([
 
       {
         path: "/admin/courses/:courseId/edit",
-        element: <CourseManagement />,
+        element: (
+          <InstructorRoute>
+            <CourseEditor />
+          </InstructorRoute>
+        ),
       },
     ],
   },
@@ -43,5 +49,9 @@ export const router = createBrowserRouter([
   {
     path: "*",
     element: <Navigate to="/" replace />,
+  },
+  {
+    path: "/admin/employee/:employeeId/training",
+    element: <EmployeeTrainingPage />,
   },
 ])

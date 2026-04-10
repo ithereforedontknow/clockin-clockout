@@ -5,6 +5,9 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
+export interface LmsModuleWithLessons extends LmsModule {
+  lessons: Lesson[]
+}
 // ─── Database Types ────────────────────────────────────────────────────────
 
 export type UserRole = "employee" | "employer" | "admin"

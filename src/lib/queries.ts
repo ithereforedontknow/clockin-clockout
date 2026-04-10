@@ -1897,23 +1897,21 @@ export function useMarkLessonComplete() {
 export function useUpdateLessonProgress() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: async (payload: {
+    mutationFn: async (input: {
       user_id: string
       lesson_id: string
       percent_watched: number
-      is_completed?: boolean
+      is_completed: boolean
     }) => {
-      const { error } = await supabase.from("progress_records").upsert(
-        {
-          ...payload,
-          last_watched_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,lesson_id" }
-      )
+      const { error } = await supabase
+        .from("progress_records")
+        .upsert(
+          { ...input, last_watched_at: new Date().toISOString() },
+          { onConflict: "user_id,lesson_id" }
+        )
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["course-progress"] })
     },
   })
@@ -2006,5 +2004,41 @@ export function useAuditLog() {
       if (error) throw error
       return data ?? []
     },
+  })
+}
+export function useAllCurriculums() {
+  return useQuery({
+    queryKey: ["curriculums"],
+    queryFn: async (): Promise<Curriculum[]> => {
+      const { data, error } = await supabase
+        .from("curriculums")
+        .select("*")
+        .order("created_at", { ascending: false })
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function useAssignCourse() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: {
+      user_id: string
+      curriculum_id: string
+      due_date: string
+    }) => {
+      const { error } = await supabase
+        .from("training_assignments")
+        .upsert(
+          { ...input, assigned_at: new Date().toISOString() },
+          { onConflict: "user_id,curriculum_id" }
+        )
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["training-records"] })
+    },
+    onError: (e: any) => toast.error(e.message),
   })
 }
