@@ -21,6 +21,8 @@ import {
   useCreateModule,
   useCreateLesson,
   useCourseProgress,
+  useUpdateCurriculum,
+  useDeleteCurriculum,
 } from "@/lib/queries"
 import type { Curriculum } from "@/lib/supabase"
 
@@ -40,6 +42,8 @@ export function CourseCard({
 
   const createModule = useCreateModule()
   const createLesson = useCreateLesson()
+  const updateCurriculum = useUpdateCurriculum()
+  const deleteCurriculum = useDeleteCurriculum()
 
   const [newModuleTitle, setNewModuleTitle] = useState("")
   const [newLessonTitle, setNewLessonTitle] = useState("")
@@ -105,11 +109,29 @@ export function CourseCard({
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => toast.info("Publish toggle coming soon")}
+            onClick={() => {
+              updateCurriculum.mutate({
+                id: course.id,
+                updates: { is_published: !course.is_published },
+              })
+            }}
           >
             {course.is_published ? <EyeOff /> : <Eye />}
           </Button>
-          <Button variant="ghost" size="icon" className="text-destructive">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-destructive"
+            onClick={() => {
+              if (
+                confirm(
+                  `Delete "${course.title}" and all its modules & lessons? This cannot be undone.`
+                )
+              ) {
+                deleteCurriculum.mutate(course.id)
+              }
+            }}
+          >
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>

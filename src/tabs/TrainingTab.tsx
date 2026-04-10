@@ -1,190 +1,204 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { format } from "date-fns"
-import { Play } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Search } from "lucide-react"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { TeamProgressPanel } from "@/components/training/TeamProgressPanel"
+
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
-import {
   useCurrentEmployee,
   useMyTrainingRecord,
-  useCurriculumDetail,
+  // useCurriculumDetail,
   // useMyCertifications,
   useCourseProgress,
 } from "@/lib/queries"
 import type { TrainingRecord } from "@/lib/supabase"
 import { CoursesPanel } from "@/components/training/CoursesPanel"
-import { LessonPlayer } from "@/components/training/LessonPlayer"
-
-// Course Detail
-function CourseDetail({
-  curriculumId,
-  onClose,
-}: {
-  curriculumId: string
-  onClose: () => void
-}) {
-  const { data: course, isLoading } = useCurriculumDetail(curriculumId)
-  const { data: employee } = useCurrentEmployee()
-  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null)
-
-  if (isLoading || !course)
-    return <div className="p-12 text-center">Loading course...</div>
-
-  const modules = course.modules || []
-  const allLessons = modules.flatMap((m: any) => m.lessons || [])
-
-  const currentIndex = allLessons.findIndex(
-    (l: any) => l.id === selectedLessonId
-  )
-  const currentLesson = allLessons[currentIndex]
-
+function TrainingCard({ record }: { record: TrainingRecord }) {
+  const { data: progress } = useCourseProgress(record.curriculum_id)
+  const navigate = useNavigate()
   return (
-    <Sheet open onOpenChange={onClose}>
-      <SheetContent side="right" className="flex w-full max-w-6xl flex-col p-0">
-        <SheetHeader className="border-b px-6 py-4">
-          <SheetTitle>{course.title}</SheetTitle>
-        </SheetHeader>
-
-        <div className="flex flex-1 overflow-hidden">
-          {/* Sidebar */}
-          <div className="w-72 overflow-y-auto border-r bg-muted/30 p-4">
-            <h4 className="mb-4 text-xs font-medium tracking-widest text-muted-foreground uppercase">
-              COURSE CONTENT
-            </h4>
-            {modules.map((module: any) => (
-              <div key={module.id} className="mb-6">
-                <p className="mb-2 text-sm font-semibold">{module.title}</p>
-                <div className="space-y-1">
-                  {(module.lessons || []).map((lesson: any) => (
-                    <button
-                      key={lesson.id}
-                      onClick={() => setSelectedLessonId(lesson.id)}
-                      className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-all ${
-                        selectedLessonId === lesson.id
-                          ? "bg-primary text-primary-foreground"
-                          : "hover:bg-background"
-                      }`}
-                    >
-                      <Play className="h-4 w-4" />
-                      <span className="flex-1 truncate text-sm">
-                        {lesson.title}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+    <Card
+      className="group cursor-pointer transition-all hover:shadow-xl"
+      onClick={() => navigate(`/training/courses/${record.curriculum_id}`)}
+    >
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h3 className="text-lg font-semibold transition-colors group-hover:text-primary">
+              {record.curriculum_title}
+            </h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Due {format(new Date(record.due_date), "MMM d, yyyy")}
+            </p>
           </div>
 
-          {/* Main Player Area */}
-          <div className="flex flex-1 flex-col">
-            {currentLesson ? (
-              <LessonPlayer
-                lesson={currentLesson}
-                courseId={curriculumId}
-                employee={employee}
-                onNext={
-                  currentIndex < allLessons.length - 1
-                    ? () => setSelectedLessonId(allLessons[currentIndex + 1].id)
-                    : undefined
-                }
-                onPrev={
-                  currentIndex > 0
-                    ? () => setSelectedLessonId(allLessons[currentIndex - 1].id)
-                    : undefined
-                }
+          {/* Progress Ring */}
+          <div className="relative size-14">
+            <svg className="size-14 -rotate-90" viewBox="0 0 42 42">
+              <circle
+                cx="21"
+                cy="21"
+                r="15"
+                fill="none"
+                stroke="#e5e5e5"
+                strokeWidth="5"
               />
-            ) : (
-              <div className="flex flex-1 items-center justify-center text-muted-foreground">
-                Select a lesson from the left sidebar to start
-              </div>
-            )}
+              <circle
+                cx="21"
+                cy="21"
+                r="15"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="5"
+                strokeDasharray={`${progress?.percentage || 0} 100`}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center text-sm font-bold">
+              {progress?.percentage || 0}%
+            </div>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+
+        <Badge className="mt-6" variant="outline">
+          {record.status.replace("_", " ")}
+        </Badge>
+      </CardContent>
+    </Card>
   )
 }
-
 // My Training Panel
 function MyTrainingPanel({
   onCourseClick,
 }: {
   onCourseClick: (id: string) => void
 }) {
+  const [search, setSearch] = useState("")
+  const [statusFilter, setStatusFilter] = useState<string>("all")
   const { data: records = [], isLoading } = useMyTrainingRecord()
-  // const { data: certs = [], isLoading: certsLoading } = useMyCertifications()
+
+  const filteredRecords = records.filter((record) => {
+    if (
+      search &&
+      !record.curriculum_title.toLowerCase().includes(search.toLowerCase())
+    ) {
+      return false
+    }
+    if (statusFilter !== "all" && record.status !== statusFilter) {
+      return false
+    }
+    return true
+  })
+
+  const stats = {
+    total: records.length,
+    completed: records.filter((r) => r.status === "completed").length,
+    inProgress: records.filter((r) => r.status === "pending").length,
+    overdue: records.filter((r) => r.status === "overdue").length,
+  }
+
+  if (isLoading) {
+    return (
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {Array(6)
+          .fill(0)
+          .map((_, i) => (
+            <Skeleton key={i} className="h-64 rounded-3xl" />
+          ))}
+      </div>
+    )
+  }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {isLoading
-        ? Array(6)
-            .fill(0)
-            .map((_, i) => <Skeleton key={i} className="h-64 rounded-3xl" />)
-        : records.map((record: TrainingRecord) => {
-            const { data: progress } = useCourseProgress(record.curriculum_id)
+    <div className="space-y-4">
+      {/* Stats Row */}
+      <div className="grid grid-cols-4 gap-3">
+        <StatBadge label="Total" value={stats.total} color="blue" />
+        <StatBadge label="Completed" value={stats.completed} color="green" />
+        <StatBadge label="In Progress" value={stats.inProgress} color="amber" />
+        <StatBadge label="Overdue" value={stats.overdue} color="red" />
+      </div>
 
-            return (
-              <Card
-                key={record.curriculum_id}
-                className="group cursor-pointer transition-all hover:shadow-xl"
-                onClick={() => onCourseClick(record.curriculum_id)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-semibold transition-colors group-hover:text-primary">
-                        {record.curriculum_title}
-                      </h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Due {format(new Date(record.due_date), "MMM d, yyyy")}
-                      </p>
-                    </div>
+      {/* Filters */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search courses..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Filter by status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Courses</SelectItem>
+            <SelectItem value="pending">In Progress</SelectItem>
+            <SelectItem value="due_soon">Due Soon</SelectItem>
+            <SelectItem value="overdue">Overdue</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
-                    {/* Progress Ring */}
-                    <div className="relative size-14">
-                      <svg className="size-14 -rotate-90" viewBox="0 0 42 42">
-                        <circle
-                          cx="21"
-                          cy="21"
-                          r="15"
-                          fill="none"
-                          stroke="#e5e5e5"
-                          strokeWidth="5"
-                        />
-                        <circle
-                          cx="21"
-                          cy="21"
-                          r="15"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="5"
-                          strokeDasharray={`${progress?.percentage || 0} 100`}
-                          strokeLinecap="round"
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center text-sm font-bold">
-                        {progress?.percentage || 0}%
-                      </div>
-                    </div>
-                  </div>
+      {/* Course Grid */}
+      {filteredRecords.length === 0 ? (
+        <div className="py-12 text-center text-muted-foreground">
+          {search || statusFilter !== "all"
+            ? "No matching courses found"
+            : "No courses assigned yet"}
+        </div>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {filteredRecords.map((record: TrainingRecord) => (
+            <TrainingCard
+              key={record.curriculum_id}
+              record={record}
+              // onCourseClick={onCourseClick}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
-                  <Badge className="mt-6" variant="outline">
-                    {record.status.replace("_", " ")}
-                  </Badge>
-                </CardContent>
-              </Card>
-            )
-          })}
-
-      {/* Certifications section remains the same */}
+function StatBadge({
+  label,
+  value,
+  color,
+}: {
+  label: string
+  value: number
+  color: string
+}) {
+  const colors = {
+    blue: "bg-blue-50 text-blue-600 border-blue-200",
+    green: "bg-green-50 text-green-600 border-green-200",
+    amber: "bg-amber-50 text-amber-600 border-amber-200",
+    red: "bg-red-50 text-red-600 border-red-200",
+  }
+  return (
+    <div
+      className={`rounded-lg border p-3 text-center ${colors[color as keyof typeof colors]}`}
+    >
+      <p className="text-2xl font-bold">{value}</p>
+      <p className="text-xs">{label}</p>
     </div>
   )
 }
@@ -192,7 +206,7 @@ export function TrainingTab() {
   const { data: employee } = useCurrentEmployee()
   const isInstructorOrAdmin =
     employee?.role === "employer" || employee?.role === "admin"
-  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null)
+  const [, setSelectedCourseId] = useState<string | null>(null)
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -215,7 +229,9 @@ export function TrainingTab() {
             <TabsTrigger value="courses">Manage Courses</TabsTrigger>
           )}
         </TabsList>
-
+        <TabsContent value="team" className="mt-6">
+          <TeamProgressPanel />
+        </TabsContent>
         <TabsContent value="my-training" className="mt-6">
           <MyTrainingPanel onCourseClick={setSelectedCourseId} />
         </TabsContent>
@@ -226,13 +242,6 @@ export function TrainingTab() {
           </TabsContent>
         )}
       </Tabs>
-
-      {selectedCourseId && (
-        <CourseDetail
-          curriculumId={selectedCourseId}
-          onClose={() => setSelectedCourseId(null)}
-        />
-      )}
     </div>
   )
 }

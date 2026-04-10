@@ -104,7 +104,7 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
                       onSuccess: () => toast.success("Announcement deleted"),
                     })
                   }}
-                  onTogglePin={() => {
+                  onPin={() => {
                     pinAnnouncement.mutate(
                       { id: a.id, pinned: !a.pinned },
                       {
@@ -141,7 +141,7 @@ function AnnouncementItem({
   announcement: a,
   currentEmployee,
   onDelete,
-  onTogglePin,
+  onPin,
 }: {
   announcement: Announcement & {
     author?: {
@@ -152,7 +152,7 @@ function AnnouncementItem({
   }
   currentEmployee: Employee
   onDelete: () => void
-  onTogglePin: () => void
+  onPin: () => void
 }) {
   const author = a.author
   const canDelete =
@@ -210,7 +210,7 @@ function AnnouncementItem({
       <div className="flex shrink-0 items-center gap-1">
         {canPin && (
           <button
-            onClick={onTogglePin}
+            onClick={onPin}
             className="text-muted-foreground transition-colors hover:text-primary"
             title={a.pinned ? "Unpin" : "Pin to top"}
           >

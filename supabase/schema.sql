@@ -982,3 +982,553 @@ CREATE INDEX IF NOT EXISTS idx_progress_records_user_lesson ON progress_records(
 -- 5. Optional: Add foreign key from modules to curriculums if missing
 ALTER TABLE modules
   ADD COLUMN IF NOT EXISTS curriculum_id text REFERENCES curriculums(id) ON DELETE CASCADE;
+
+---
+-- ============================================================
+-- CLEAN RLS UPGRADE — Run this after your previous schema
+-- ============================================================
+
+-- 1. Drop old policies on the tables we're replacing (prevents overlap)
+DROP POLICY IF EXISTS "own record" ON employees;
+DROP POLICY IF EXISTS "directory read" ON employees;
+DROP POLICY IF EXISTS "read own unlinked record" ON employees;
+DROP POLICY IF EXISTS "link unlinked employee" ON employees;
+DROP POLICY IF EXISTS "admin read all" ON employees;
+DROP POLICY IF EXISTS "admin update" ON employees;
+DROP POLICY IF EXISTS "admin insert" ON employees;
+DROP POLICY IF EXISTS "admin can update any employee" ON employees;
+
+DROP POLICY IF EXISTS "own clock entries" ON clock_entries;
+DROP POLICY IF EXISTS "manager admin read clock entries" ON clock_entries;
+DROP POLICY IF EXISTS "manager admin update clock entries" ON clock_entries;
+DROP POLICY IF EXISTS "employee_own_entries" ON clock_entries;
+DROP POLICY IF EXISTS "employer_team_entries" ON clock_entries;
+DROP POLICY IF EXISTS "admin_all_entries" ON clock_entries;
+DROP POLICY IF EXISTS "admin_employer_read_clock_entries" ON clock_entries;
+
+DROP POLICY IF EXISTS "own balances" ON time_off_balances;
+DROP POLICY IF EXISTS "admin employer update balances" ON time_off_balances;
+DROP POLICY IF EXISTS "admin employer insert balances" ON time_off_balances;
+
+DROP POLICY IF EXISTS "own time off requests" ON time_off_requests;
+DROP POLICY IF EXISTS "manager admin read time off" ON time_off_requests;
+DROP POLICY IF EXISTS "manager admin update time off" ON time_off_requests;
+DROP POLICY IF EXISTS "employer admin read time off requests" ON time_off_requests;
+DROP POLICY IF EXISTS "employer admin update time off requests" ON time_off_requests;
+DROP POLICY IF EXISTS "no self approval time off" ON time_off_requests;
+DROP POLICY IF EXISTS "approve time off" ON time_off_requests;
+
+DROP POLICY IF EXISTS "read own announcements" ON announcements;
+DROP POLICY IF EXISTS "employer admin insert announcements" ON announcements;
+DROP POLICY IF EXISTS "author admin delete announcements" ON announcements;
+DROP POLICY IF EXISTS "author admin update announcements" ON announcements;
+
+-- (info_change_requests policies left as-is because you didn't provide new ones)
+
+-- 2. Enable RLS (safe to run again)
+ALTER TABLE employees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE clock_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE time_off_balances ENABLE ROW LEVEL SECURITY;
+ALTER TABLE time_off_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE info_change_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE curriculums ENABLE ROW LEVEL SECURITY;
+ALTER TABLE modules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE lessons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE training_assignments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
+
+-- ============================================================
+-- 1. EMPLOYEES (fixed with get_my_role)
+-- ============================================================
+CREATE POLICY "Employees view self" ON employees
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Managers view their team" ON employees
+  FOR SELECT USING (
+    get_my_role() = 'employer'
+    AND EXISTS (
+      SELECT 1 FROM employees AS manager
+      WHERE manager.user_id = auth.uid()
+        AND employees.manager_id = manager.id
+    )
+  );
+
+CREATE POLICY "Admins view all" ON employees
+  FOR SELECT USING (get_my_role() = 'admin');
+
+CREATE POLICY "Employees update self" ON employees
+  FOR UPDATE USING (auth.uid() = user_id);
+
+-- ============================================================
+-- 2. CLOCK ENTRIES
+-- ============================================================
+CREATE POLICY "Users view own clock entries" ON clock_entries
+  FOR SELECT USING (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+CREATE POLICY "Managers view team clock entries" ON clock_entries
+  FOR SELECT USING (
+    get_my_role() = 'employer'
+    AND EXISTS (
+      SELECT 1 FROM employees AS manager
+      JOIN employees AS subordinate ON subordinate.manager_id = manager.id
+      WHERE manager.user_id = auth.uid()
+        AND subordinate.id = clock_entries.employee_id
+    )
+  );
+
+CREATE POLICY "Admins view all clock entries" ON clock_entries
+  FOR SELECT USING (get_my_role() = 'admin');
+
+CREATE POLICY "Users insert own clock entries" ON clock_entries
+  FOR INSERT WITH CHECK (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+-- ============================================================
+-- 3. TIME OFF BALANCES
+-- ============================================================
+CREATE POLICY "Users view own balances" ON time_off_balances
+  FOR SELECT USING (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+CREATE POLICY "Managers view team balances" ON time_off_balances
+  FOR SELECT USING (
+    get_my_role() = 'employer'
+    AND EXISTS (
+      SELECT 1 FROM employees AS manager
+      JOIN employees AS subordinate ON subordinate.manager_id = manager.id
+      WHERE manager.user_id = auth.uid()
+        AND subordinate.id = time_off_balances.employee_id
+    )
+  );
+
+CREATE POLICY "Admins view all balances" ON time_off_balances
+  FOR SELECT USING (get_my_role() = 'admin');
+
+-- ============================================================
+-- 4. TIME OFF REQUESTS
+-- ============================================================
+CREATE POLICY "Users view own requests" ON time_off_requests
+  FOR SELECT USING (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+CREATE POLICY "Managers view team requests" ON time_off_requests
+  FOR SELECT USING (
+    get_my_role() = 'employer'
+    AND EXISTS (
+      SELECT 1 FROM employees AS manager
+      JOIN employees AS subordinate ON subordinate.manager_id = manager.id
+      WHERE manager.user_id = auth.uid()
+        AND subordinate.id = time_off_requests.employee_id
+    )
+  );
+
+CREATE POLICY "Admins view all requests" ON time_off_requests
+  FOR SELECT USING (get_my_role() = 'admin');
+
+CREATE POLICY "Users insert own requests" ON time_off_requests
+  FOR INSERT WITH CHECK (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+-- ============================================================
+-- 5. CURRICULUMS
+-- ============================================================
+CREATE POLICY "Anyone view published courses" ON curriculums
+  FOR SELECT USING (is_published = true);
+
+CREATE POLICY "Instructors view all courses" ON curriculums
+  FOR SELECT USING (get_my_role() IN ('admin', 'employer'));
+
+CREATE POLICY "Admins manage courses" ON curriculums
+  FOR ALL USING (get_my_role() IN ('admin', 'employer'));
+
+-- ============================================================
+-- 6. LESSONS
+-- ============================================================
+CREATE POLICY "View lessons" ON lessons
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM curriculums
+      WHERE curriculums.id = lessons.curriculum_id
+        AND (curriculums.is_published = true
+          OR get_my_role() IN ('admin', 'employer'))
+    )
+  );
+
+-- ============================================================
+-- 7. TRAINING ASSIGNMENTS
+-- ============================================================
+CREATE POLICY "Users view own assignments" ON training_assignments
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Managers view team assignments" ON training_assignments
+  FOR SELECT USING (
+    get_my_role() = 'employer'
+    AND EXISTS (
+      SELECT 1 FROM employees AS manager
+      JOIN employees AS subordinate ON subordinate.manager_id = manager.id
+      WHERE manager.user_id = auth.uid()
+        AND subordinate.user_id = training_assignments.user_id
+    )
+  );
+
+CREATE POLICY "Admins view all assignments" ON training_assignments
+  FOR SELECT USING (get_my_role() = 'admin');
+
+-- ============================================================
+-- 8. ANNOUNCEMENTS (bug fixed)
+-- ============================================================
+CREATE POLICY "View announcements" ON announcements
+  FOR SELECT USING (
+    target = 'all'
+    OR (target = 'employer_team' AND target_employer_id = (
+      SELECT manager_id FROM employees WHERE user_id = auth.uid() LIMIT 1
+    ))
+  );
+
+CREATE POLICY "Manage announcements" ON announcements
+  FOR ALL USING (
+    get_my_role() = 'admin'
+    OR posted_by = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+  );
+
+----
+-- 1. Create helper function if missing
+CREATE OR REPLACE FUNCTION get_my_role()
+RETURNS TEXT
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+AS $$
+  SELECT role FROM employees WHERE user_id = auth.uid() LIMIT 1;
+$$;
+
+-- 2. Add the two linking policies
+CREATE POLICY "Select unlinked employee by email" ON employees
+  FOR SELECT USING (user_id IS NULL AND email = auth.email());
+
+CREATE POLICY "Link unlinked employee to auth user" ON employees
+  FOR UPDATE USING (user_id IS NULL AND email = auth.email())
+  WITH CHECK (user_id = auth.uid());
+
+
+---
+-- Create or replace the function
+CREATE OR REPLACE FUNCTION public.link_employee_on_auth_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE employees
+  SET user_id = NEW.id
+  WHERE LOWER(email) = LOWER(NEW.email)
+    AND user_id IS NULL;
+  RETURN NEW;
+END;
+$$;
+
+-- Create trigger on auth.users (only if not exists)
+DROP TRIGGER IF EXISTS link_employee_trigger ON auth.users;
+CREATE TRIGGER link_employee_trigger
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.link_employee_on_auth_user();
+
+--
+-- 1. Drop the existing linking policies (if any)
+DROP POLICY IF EXISTS "Select unlinked employee by email" ON employees;
+DROP POLICY IF EXISTS "Link unlinked employee to auth user" ON employees;
+
+-- 2. Create a robust, case‑insensitive SELECT policy for unlinked employees
+CREATE POLICY "select_unlinked_by_email" ON employees
+  FOR SELECT
+  USING (
+    user_id IS NULL
+    AND LOWER(email) = LOWER(auth.email())
+  );
+
+-- 3. Create a corresponding UPDATE policy for linking
+CREATE POLICY "update_unlinked_to_link" ON employees
+  FOR UPDATE
+  USING (
+    user_id IS NULL
+    AND LOWER(email) = LOWER(auth.email())
+  )
+  WITH CHECK (
+    user_id = auth.uid()
+    AND LOWER(email) = LOWER(auth.email())
+  );
+
+
+  --
+  -- ============================================================
+  -- FIX ALL POLICIES – NO get_my_role() DEPENDENCY
+  -- ============================================================
+
+  -- 1. CLOCK ENTRIES
+  DROP POLICY IF EXISTS "Users view own clock entries" ON clock_entries;
+  DROP POLICY IF EXISTS "Managers view team clock entries" ON clock_entries;
+  DROP POLICY IF EXISTS "Admins view all clock entries" ON clock_entries;
+  DROP POLICY IF EXISTS "Users insert own clock entries" ON clock_entries;
+
+  CREATE POLICY "clock_select_self" ON clock_entries
+    FOR SELECT USING (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+  CREATE POLICY "clock_select_team" ON clock_entries
+    FOR SELECT USING (
+      EXISTS (
+        SELECT 1 FROM employees AS manager
+        JOIN employees AS subordinate ON subordinate.manager_id = manager.id
+        WHERE manager.user_id = auth.uid()
+          AND manager.role = 'employer'
+          AND subordinate.id = clock_entries.employee_id
+      )
+    );
+
+  CREATE POLICY "clock_select_admin" ON clock_entries
+    FOR SELECT USING (
+      EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role = 'admin')
+    );
+
+  CREATE POLICY "clock_insert_self" ON clock_entries
+    FOR INSERT WITH CHECK (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+  -- 2. TIME OFF BALANCES
+  DROP POLICY IF EXISTS "Users view own balances" ON time_off_balances;
+  DROP POLICY IF EXISTS "Managers view team balances" ON time_off_balances;
+  DROP POLICY IF EXISTS "Admins view all balances" ON time_off_balances;
+
+  CREATE POLICY "balances_select_self" ON time_off_balances
+    FOR SELECT USING (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+  CREATE POLICY "balances_select_team" ON time_off_balances
+    FOR SELECT USING (
+      EXISTS (
+        SELECT 1 FROM employees AS manager
+        JOIN employees AS subordinate ON subordinate.manager_id = manager.id
+        WHERE manager.user_id = auth.uid()
+          AND manager.role = 'employer'
+          AND subordinate.id = time_off_balances.employee_id
+      )
+    );
+
+  CREATE POLICY "balances_select_admin" ON time_off_balances
+    FOR SELECT USING (
+      EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role = 'admin')
+    );
+
+  -- 3. TIME OFF REQUESTS
+  DROP POLICY IF EXISTS "Users view own requests" ON time_off_requests;
+  DROP POLICY IF EXISTS "Managers view team requests" ON time_off_requests;
+  DROP POLICY IF EXISTS "Admins view all requests" ON time_off_requests;
+  DROP POLICY IF EXISTS "Users insert own requests" ON time_off_requests;
+
+  CREATE POLICY "requests_select_self" ON time_off_requests
+    FOR SELECT USING (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+  CREATE POLICY "requests_select_team" ON time_off_requests
+    FOR SELECT USING (
+      EXISTS (
+        SELECT 1 FROM employees AS manager
+        JOIN employees AS subordinate ON subordinate.manager_id = manager.id
+        WHERE manager.user_id = auth.uid()
+          AND manager.role = 'employer'
+          AND subordinate.id = time_off_requests.employee_id
+      )
+    );
+
+  CREATE POLICY "requests_select_admin" ON time_off_requests
+    FOR SELECT USING (
+      EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role = 'admin')
+    );
+
+  CREATE POLICY "requests_insert_self" ON time_off_requests
+    FOR INSERT WITH CHECK (employee_id IN (SELECT id FROM employees WHERE user_id = auth.uid()));
+
+  -- 4. CURRICULUMS
+  DROP POLICY IF EXISTS "Anyone view published courses" ON curriculums;
+  DROP POLICY IF EXISTS "Instructors view all courses" ON curriculums;
+  DROP POLICY IF EXISTS "Admins manage courses" ON curriculums;
+
+  CREATE POLICY "curriculums_select_published" ON curriculums
+    FOR SELECT USING (is_published = true);
+
+  CREATE POLICY "curriculums_select_instructor" ON curriculums
+    FOR SELECT USING (
+      EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role IN ('admin', 'employer'))
+    );
+
+  CREATE POLICY "curriculums_manage_instructor" ON curriculums
+    FOR ALL USING (
+      EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role IN ('admin', 'employer'))
+    );
+
+  -- 5. LESSONS
+  DROP POLICY IF EXISTS "View lessons" ON lessons;
+
+  CREATE POLICY "lessons_select" ON lessons
+    FOR SELECT USING (
+      EXISTS (
+        SELECT 1 FROM curriculums
+        WHERE curriculums.id = lessons.curriculum_id
+          AND (
+            curriculums.is_published = true
+            OR EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role IN ('admin', 'employer'))
+          )
+      )
+    );
+
+  -- 6. TRAINING ASSIGNMENTS
+  DROP POLICY IF EXISTS "Users view own assignments" ON training_assignments;
+  DROP POLICY IF EXISTS "Managers view team assignments" ON training_assignments;
+  DROP POLICY IF EXISTS "Admins view all assignments" ON training_assignments;
+
+  CREATE POLICY "assignments_select_self" ON training_assignments
+    FOR SELECT USING (user_id = auth.uid());
+
+  CREATE POLICY "assignments_select_team" ON training_assignments
+    FOR SELECT USING (
+      EXISTS (
+        SELECT 1 FROM employees AS manager
+        JOIN employees AS subordinate ON subordinate.manager_id = manager.id
+        WHERE manager.user_id = auth.uid()
+          AND manager.role = 'employer'
+          AND subordinate.user_id = training_assignments.user_id
+      )
+    );
+
+  CREATE POLICY "assignments_select_admin" ON training_assignments
+    FOR SELECT USING (
+      EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role = 'admin')
+    );
+
+  -- 7. ANNOUNCEMENTS
+  DROP POLICY IF EXISTS "View announcements" ON announcements;
+  DROP POLICY IF EXISTS "Manage announcements" ON announcements;
+
+  CREATE POLICY "announcements_select" ON announcements
+    FOR SELECT USING (
+      target = 'all'
+      OR (
+        target = 'employer_team'
+        AND target_employer_id = (
+          SELECT manager_id FROM employees WHERE user_id = auth.uid() LIMIT 1
+        )
+      )
+    );
+
+  CREATE POLICY "announcements_manage" ON announcements
+    FOR ALL USING (
+      EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role = 'admin')
+      OR posted_by = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+    );
+    -- ============================================================
+    -- 1. Drop ALL existing policies on employees
+    -- ============================================================
+    DO $$
+    DECLARE
+      pol record;
+    BEGIN
+      FOR pol IN
+        SELECT policyname FROM pg_policies WHERE tablename = 'employees'
+      LOOP
+        EXECUTE format('DROP POLICY IF EXISTS %I ON employees', pol.policyname);
+      END LOOP;
+    END $$;
+
+    -- ============================================================
+    -- 2. Create a helper function that bypasses RLS
+    --    (SECURITY DEFINER runs as table owner – no recursion)
+    -- ============================================================
+    CREATE OR REPLACE FUNCTION current_user_role()
+    RETURNS TEXT
+    LANGUAGE plpgsql
+    STABLE
+    SECURITY DEFINER
+    SET search_path = public
+    AS $$
+    DECLARE
+      user_role TEXT;
+    BEGIN
+      SELECT role INTO user_role FROM employees WHERE user_id = auth.uid() LIMIT 1;
+      RETURN user_role;
+    END;
+    $$;
+
+    -- ============================================================
+    -- 3. New, safe policies on employees
+    -- ============================================================
+
+    -- 3a. Users can see their own record (once linked)
+    CREATE POLICY "employees_select_self" ON employees
+      FOR SELECT USING (user_id = auth.uid());
+
+    -- 3b. First‑time login: see unlinked record by email (no recursion)
+    CREATE POLICY "employees_select_unlinked" ON employees
+      FOR SELECT USING (
+        user_id IS NULL AND LOWER(email) = LOWER(auth.email())
+      );
+
+    -- 3c. Managers can see their direct reports
+    CREATE POLICY "employees_select_team" ON employees
+      FOR SELECT USING (
+        current_user_role() = 'employer'
+        AND manager_id = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+      );
+
+    -- 3d. Admins can see everything
+    CREATE POLICY "employees_select_admin" ON employees
+      FOR SELECT USING (current_user_role() = 'admin');
+
+    -- 3e. Users can update their own record
+    CREATE POLICY "employees_update_self" ON employees
+      FOR UPDATE USING (user_id = auth.uid());
+
+    -- 3f. First‑time login: link the employee record (set user_id)
+    CREATE POLICY "employees_update_unlinked" ON employees
+      FOR UPDATE USING (
+        user_id IS NULL AND LOWER(email) = LOWER(auth.email())
+      )
+      WITH CHECK (user_id = auth.uid());
+      -- 1. Drop the two problematic policies
+      DROP POLICY IF EXISTS employees_select_team ON employees;
+      DROP POLICY IF EXISTS employees_select_admin ON employees;
+
+      -- 2. (Optional) Drop the helper function if not used elsewhere
+      DROP FUNCTION IF EXISTS current_user_role();
+
+      -- Progress records: users manage their own
+      ALTER TABLE progress_records ENABLE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS "users can manage own progress" ON progress_records;
+      CREATE POLICY "users can manage own progress"
+      ON progress_records FOR ALL
+      USING (user_id = auth.uid())
+      WITH CHECK (user_id = auth.uid());
+
+      -- Instructors/admins can read all progress (for team reporting)
+      DROP POLICY IF EXISTS "instructor read all progress" ON progress_records;
+      CREATE POLICY "instructor read all progress"
+      ON progress_records FOR SELECT
+      USING (
+        EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role IN ('employer', 'admin'))
+      );
+
+      -- Modules: read follows curriculum visibility
+      ALTER TABLE modules ENABLE ROW LEVEL SECURITY;
+
+      DROP POLICY IF EXISTS "modules_select" ON modules;
+      CREATE POLICY "modules_select" ON modules
+      FOR SELECT USING (
+        EXISTS (
+          SELECT 1 FROM curriculums
+          WHERE curriculums.id = modules.curriculum_id
+            AND (
+              curriculums.is_published = true
+              OR EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role IN ('admin', 'employer'))
+            )
+        )
+      );
+
+      DROP POLICY IF EXISTS "modules_manage_instructor" ON modules;
+      CREATE POLICY "modules_manage_instructor" ON modules
+      FOR ALL USING (
+        EXISTS (SELECT 1 FROM employees WHERE user_id = auth.uid() AND role IN ('admin', 'employer'))
+      );

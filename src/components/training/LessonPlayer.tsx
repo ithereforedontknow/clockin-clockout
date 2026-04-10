@@ -1,4 +1,5 @@
 import { useState } from "react"
+import DOMPurify from "dompurify"
 import {
   CheckCircle2,
   ChevronLeft,
@@ -30,7 +31,6 @@ export function LessonPlayer({
 }: LessonPlayerProps) {
   const markComplete = useMarkLessonComplete()
   const { data: courseProgress } = useCourseProgress(courseId)
-
   const [quizAnswers, setQuizAnswers] = useState<Record<number, number>>({})
   const [quizSubmitted, setQuizSubmitted] = useState(false)
 
@@ -95,7 +95,9 @@ export function LessonPlayer({
           {lesson.content_html && (
             <div
               className="prose prose-neutral dark:prose-invert max-w-none"
-              dangerouslySetInnerHTML={{ __html: lesson.content_html }}
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(lesson.content_html),
+              }}
             />
           )}
 

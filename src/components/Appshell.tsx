@@ -4,6 +4,7 @@ import { SettingsModal } from "@/components/SettingsModal"
 import { WelcomeTutorialDialog } from "@/components/WelcomeTutorialDialog"
 import { HelpCenterDialog } from "@/components/HelpCenterDialog"
 import { CommandPalette } from "@/components/CommandPallete"
+
 import { HomeTab } from "@/tabs/HomeTab"
 import { MyInfoTab } from "@/tabs/MyInfoTab"
 import { PeopleTab } from "@/tabs/PeopleTab"

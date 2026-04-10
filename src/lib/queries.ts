@@ -18,6 +18,7 @@ import type {
   Curriculum,
   TrainingRecord,
   Certification,
+  Lesson,
 } from "./supabase"
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
@@ -1586,7 +1587,7 @@ export function useReportEntries(
     },
   })
 }
-// ─── LMS ─────────────────────────────────────────────────────────────────────
+// ─── LMS Queries (add this entire block) ─────────────────────────────────────────
 
 export async function seedLmsProfile(
   userId: string,
@@ -1637,31 +1638,58 @@ export function useCurriculumDetail(id: string) {
         .eq("id", id)
         .single()
       if (error) throw error
+      if (data?.modules) {
+        data.modules.sort((a: any, b: any) => a.order_index - b.order_index)
+        data.modules.forEach((m: any) => {
+          m.lessons?.sort((a: any, b: any) => a.order_index - b.order_index)
+        })
+      }
       return data
     },
     enabled: !!id,
   })
 }
 
-export function useAllTrainingRecords() {
+export function useCourseProgress(curriculumId: string) {
   return useQuery({
-    queryKey: ["training-records-all"],
-    queryFn: async (): Promise<
-      (TrainingRecord & { profile: LmsProfile })[]
-    > => {
+    queryKey: ["course-progress", curriculumId],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+
       const { data, error } = await supabase
-        .from("training_assignments")
+        .from("lessons")
         .select(
           `
-          *,
-          profile:profiles(*),
-          curriculum:curriculums(title, thumbnail_url)
+          id,
+          progress_records (
+            is_completed,
+            percent_watched
+          )
         `
         )
-        .order("due_date")
+        .eq("curriculum_id", curriculumId)
+        .eq("progress_records.user_id", user.id)
+
       if (error) throw error
-      return data ?? []
+
+      const totalLessons = data?.length || 0
+      const completedLessons =
+        data?.filter((l) => l.progress_records?.[0]?.is_completed === true)
+          .length || 0
+
+      return {
+        totalLessons,
+        completedLessons,
+        percentage:
+          totalLessons > 0
+            ? Math.round((completedLessons / totalLessons) * 100)
+            : 0,
+      }
     },
+    enabled: !!curriculumId,
   })
 }
 
@@ -1745,6 +1773,41 @@ export function useCreateModule() {
   })
 }
 
+export function useUpdateModule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string
+      updates: {
+        title?: string
+        description?: string | null
+        order_index?: number
+      }
+    }) => {
+      const { error } = await supabase
+        .from("modules")
+        .update(updates)
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+  })
+}
+
+export function useDeleteModule() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("modules").delete().eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+  })
+}
+
 export function useCreateLesson() {
   const qc = useQueryClient()
   return useMutation({
@@ -1754,6 +1817,8 @@ export function useCreateLesson() {
       title: string
       description: string | null
       order_index: number
+      content_html?: string
+      cf_stream_id?: string
     }) => {
       const { data, error } = await supabase
         .from("lessons")
@@ -1765,6 +1830,114 @@ export function useCreateLesson() {
     },
     onSuccess: (_, { curriculum_id }) =>
       qc.invalidateQueries({ queryKey: ["curriculum", curriculum_id] }),
+  })
+}
+
+export function useUpdateLesson() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string
+      updates: Partial<Lesson>
+    }) => {
+      const { error } = await supabase
+        .from("lessons")
+        .update(updates)
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+  })
+}
+
+export function useDeleteLesson() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("lessons").delete().eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+  })
+}
+
+export function useMarkLessonComplete() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      user_id,
+      lesson_id,
+    }: {
+      user_id: string
+      lesson_id: string
+    }) => {
+      const { error } = await supabase.from("progress_records").upsert(
+        {
+          user_id,
+          lesson_id,
+          percent_watched: 100,
+          is_completed: true,
+          last_watched_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,lesson_id" }
+      )
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["course-progress"] })
+      qc.invalidateQueries({ queryKey: ["training-record"] })
+    },
+  })
+}
+
+export function useUpdateLessonProgress() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: {
+      user_id: string
+      lesson_id: string
+      percent_watched: number
+      is_completed?: boolean
+    }) => {
+      const { error } = await supabase.from("progress_records").upsert(
+        {
+          ...payload,
+          last_watched_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,lesson_id" }
+      )
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["course-progress"] })
+    },
+  })
+}
+
+export function useAllTrainingRecords() {
+  return useQuery({
+    queryKey: ["training-records-all"],
+    queryFn: async (): Promise<
+      (TrainingRecord & { profile: LmsProfile })[]
+    > => {
+      const { data, error } = await supabase
+        .from("training_assignments")
+        .select(
+          `
+          *,
+          profile:profiles(*),
+          curriculum:curriculums(title, thumbnail_url)
+        `
+        )
+        .order("due_date")
+      if (error) throw error
+      return data ?? []
+    },
   })
 }
 
@@ -1805,108 +1978,6 @@ export function useMyCertifications() {
   })
 }
 
-// ─── LMS Progress ─────────────────────────────────────────────────────────────
-export function useUpdateLessonProgress() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async (payload: {
-      user_id: string
-      lesson_id: string
-      percent_watched: number
-      is_completed?: boolean
-    }) => {
-      const { error } = await supabase.from("progress_records").upsert(
-        {
-          ...payload,
-          last_watched_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,lesson_id" }
-      )
-      if (error) throw error
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["curriculum"] })
-      qc.invalidateQueries({ queryKey: ["training-record"] })
-    },
-  })
-}
-
-export function useMarkLessonComplete() {
-  const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({
-      user_id,
-      lesson_id,
-    }: {
-      user_id: string
-      lesson_id: string
-    }) => {
-      const { error } = await supabase.from("progress_records").upsert({
-        user_id,
-        lesson_id,
-        percent_watched: 100,
-        is_completed: true,
-        last_watched_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      if (error) throw error
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["curriculum"] })
-      qc.invalidateQueries({ queryKey: ["training-record"] })
-      qc.invalidateQueries({ queryKey: ["my-training"] })
-    },
-  })
-}
-// ─── Course Progress ─────────────────────────────────────────────────────────
-// Add this to src/lib/queries.ts
-export function useCourseProgress(curriculumId: string) {
-  return useQuery({
-    queryKey: ["course-progress", curriculumId],
-    queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) throw new Error("Not authenticated")
-
-      // Get all lessons in this course (through modules)
-      const { data, error } = await supabase
-        .from("lessons")
-        .select(
-          `
-          id,
-          progress_records (
-            is_completed,
-            percent_watched
-          )
-        `
-        )
-        .eq("curriculum_id", curriculumId) // Make sure your lessons table has curriculum_id
-        .eq("progress_records.user_id", user.id)
-
-      if (error) {
-        console.error("Progress query error:", error)
-        throw error
-      }
-
-      const totalLessons = data?.length || 0
-      const completedLessons =
-        data?.filter((l) => l.progress_records?.[0]?.is_completed === true)
-          .length || 0
-
-      return {
-        totalLessons,
-        completedLessons,
-        percentage:
-          totalLessons > 0
-            ? Math.round((completedLessons / totalLessons) * 100)
-            : 0,
-      }
-    },
-    enabled: !!curriculumId,
-  })
-}
 // ─── Audit Log ────────────────────────────────────────────────────────────────
 
 export async function writeAuditLog(entry: {

@@ -28,11 +28,13 @@ function EditableField({
   value,
   onSave,
   type = "text",
+  required = false,
 }: {
   label: string
   value: string
   onSave: (v: string) => Promise<void>
   type?: string
+  required?: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -57,7 +59,10 @@ function EditableField({
 
   return (
     <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label className="text-xs text-muted-foreground">
+        {label}
+        {required && <span className="ml-1 text-destructive">*</span>}
+      </Label>
       {editing ? (
         <div className="flex items-center gap-2">
           <Input
@@ -253,11 +258,13 @@ export function MyInfoTab() {
               label="First Name"
               value={user.first_name ?? ""}
               onSave={(v) => savePersonal("first_name", v)}
+              required
             />
             <EditableField
               label="Last Name"
               value={user.last_name ?? ""}
               onSave={(v) => savePersonal("last_name", v)}
+              required
             />
           </div>
 
@@ -266,13 +273,49 @@ export function MyInfoTab() {
             value={user.phone ?? ""}
             onSave={(v) => savePersonal("phone", v)}
             type="tel"
+            required
           />
-
           <EditableField
             label="Emergency Phone"
             value={user.emergency_phone ?? ""}
             onSave={(v) => savePersonal("emergency_phone", v)}
             type="tel"
+            required
+          />
+          <EditableField
+            label="Birthday"
+            value={
+              user.birthday
+                ? new Date(user.birthday).toISOString().split("T")[0]
+                : ""
+            }
+            onSave={async (v) => savePersonal("birthday", v)}
+            type="date"
+          />
+
+          <EditableField
+            label="Preferred Name"
+            value={user.preferred_name || ""}
+            onSave={(v) => savePersonal("preferred_name", v)}
+          />
+
+          <EditableField
+            label="Emergency Contact Name"
+            value={user.emergency_name || ""}
+            onSave={(v) => savePersonal("emergency_name", v)}
+          />
+
+          <EditableField
+            label="Emergency Contact Phone"
+            value={user.emergency_phone || ""}
+            onSave={(v) => savePersonal("emergency_phone", v)}
+            type="tel"
+          />
+
+          <EditableField
+            label="Emergency Relationship"
+            value={user.emergency_relation || ""}
+            onSave={(v) => savePersonal("emergency_relation", v)}
           />
         </CardContent>
       </Card>

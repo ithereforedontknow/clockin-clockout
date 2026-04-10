@@ -246,6 +246,7 @@ export function ApprovalsTab() {
                 <div className="divide-y divide-border">
                   {infoChanges.map((req) => {
                     const emp = req.employee as Employee | undefined
+                    const isSelf = req.employee_id === reviewer?.id
                     return (
                       <RequestRow
                         key={req.id}
@@ -271,6 +272,7 @@ export function ApprovalsTab() {
                             decision: "denied",
                           })
                         }
+                        selfBlock={isSelf}
                       />
                     )
                   })}
@@ -299,6 +301,7 @@ export function ApprovalsTab() {
                   {pendingCorrections.map((c) => {
                     const emp = c.employee as Employee | undefined
                     const entry = c.clock_entry as ClockEntry | undefined
+                    const isSelf = c.employee_id === reviewer?.id
                     const changes: string[] = []
                     if (c.requested_clock_in)
                       changes.push(
@@ -312,7 +315,6 @@ export function ApprovalsTab() {
                       changes.push(`Break → ${c.requested_break_minutes} min`)
                     if (c.requested_notes !== null)
                       changes.push(`Notes → "${c.requested_notes}"`)
-                    const isSelf = c.employee_id === reviewer?.id // corrections
 
                     return (
                       <RequestRow
@@ -573,25 +575,26 @@ function RequestRow({
           ))}
         </div>
       </div>
-      <div className="flex shrink-0 gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-8 border-red-200 text-red-600 hover:bg-red-50"
-          onClick={onDeny}
-        >
-          <X className="mr-1 h-3.5 w-3.5" />
-          Deny
-        </Button>
-        <Button
-          size="sm"
-          className="h-8"
-          onClick={onApprove}
-          disabled={selfBlock}
-        >
-          <Check className="mr-1 h-3.5 w-3.5" />
-          Approve
-        </Button>
+      <div className="flex shrink-0 flex-col items-end gap-1">
+        {selfBlock ? (
+          <span className="text-[10px] text-muted-foreground italic">
+            Can't approve own request
+          </span>
+        ) : (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 border-red-200 text-red-600 hover:bg-red-50"
+              onClick={onDeny}
+            >
+              <X className="mr-1 h-3.5 w-3.5" /> Deny
+            </Button>
+            <Button size="sm" className="h-8" onClick={onApprove}>
+              <Check className="mr-1 h-3.5 w-3.5" /> Approve
+            </Button>
+          </div>
+        )}
       </div>
       {selfBlock && (
         <p className="text-[10px] text-muted-foreground">

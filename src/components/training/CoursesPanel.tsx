@@ -1,22 +1,28 @@
 import { useState } from "react"
-import { Plus } from "lucide-react"
+import { Plus, ExternalLink } from "lucide-react"
+import { useNavigate } from "react-router-dom" // Add this
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import { useCurriculums, useCreateCurriculum } from "@/lib/queries"
 import type { Curriculum } from "@/lib/supabase"
-import { CourseCard } from "./CourseCard"
 
 export function CoursesPanel({ employee }: { employee: any }) {
+  const navigate = useNavigate() // Add this
   const { data: curriculums = [], isLoading } = useCurriculums()
   const createCurriculum = useCreateCurriculum()
-
   const [createCourseOpen, setCreateCourseOpen] = useState(false)
   const [newCourseTitle, setNewCourseTitle] = useState("")
   const [newCourseDesc, setNewCourseDesc] = useState("")
-  const [expandedCourse, setExpandedCourse] = useState<string | null>(null)
 
   const handleCreateCourse = async () => {
     if (!newCourseTitle.trim()) return toast.error("Title is required")
@@ -50,47 +56,61 @@ export function CoursesPanel({ employee }: { employee: any }) {
             ))}
         </div>
       ) : (
-        curriculums.map((course: Curriculum) => (
-          <CourseCard
-            key={course.id}
-            course={course}
-            isExpanded={expandedCourse === course.id}
-            onToggleExpand={() =>
-              setExpandedCourse(expandedCourse === course.id ? null : course.id)
-            }
-          />
-        ))
+        <div className="grid gap-4">
+          {curriculums.map((course: Curriculum) => (
+            <div
+              key={course.id}
+              className="flex items-center justify-between rounded-lg border p-4"
+            >
+              <div className="flex-1">
+                <h3 className="font-semibold">{course.title}</h3>
+                {course.description && (
+                  <p className="text-sm text-muted-foreground">
+                    {course.description}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="outline"
+                onClick={() => navigate(`/admin/courses/${course.id}/edit`)}
+              >
+                Edit Course
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
       )}
 
-      {/* Create Course Dialog */}
-      {createCourseOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-2xl bg-background p-6">
-            <h2 className="mb-4 text-xl font-semibold">New Course</h2>
+      {/* Create Course Dialog - Keep this as dialog, it's fine */}
+      <Dialog open={createCourseOpen} onOpenChange={setCreateCourseOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New Course</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
             <Input
               placeholder="Course title"
               value={newCourseTitle}
               onChange={(e) => setNewCourseTitle(e.target.value)}
-              className="mb-4"
             />
             <Textarea
               placeholder="Description (optional)"
               value={newCourseDesc}
               onChange={(e) => setNewCourseDesc(e.target.value)}
-              className="mb-6"
             />
-            <div className="flex justify-end gap-3">
-              <Button
-                variant="outline"
-                onClick={() => setCreateCourseOpen(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleCreateCourse}>Create Course</Button>
-            </div>
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCreateCourseOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateCourse}>Create Course</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
