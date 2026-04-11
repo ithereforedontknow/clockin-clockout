@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { addDays } from "date-fns"
+import { toast } from "sonner"
 import { supabase } from "./supabase"
 import type {
   Employee,
@@ -14,7 +15,6 @@ import type {
   CompanySettings,
   Department,
   Announcement,
-  LmsProfile,
   Curriculum,
   TrainingRecord,
   Certification,
@@ -86,18 +86,6 @@ export function useCurrentEmployee() {
           .select()
           .single()
         if (linkErr) throw linkErr
-
-        // Seed LMS profile on first sign-in
-        await seedLmsProfile(
-          user.id,
-          `${linked.first_name} ${linked.last_name}`,
-          linked.avatar_url,
-          linked.role === "admin"
-            ? "admin"
-            : linked.role === "employer"
-              ? "instructor"
-              : "student"
-        )
 
         return linked
       }
@@ -520,7 +508,27 @@ export function useTodayClockEntry(employeeId: string) {
     refetchInterval: 30_000,
   })
 }
+export function useTodayClock(employeeId: string) {
+  return useQuery({
+    queryKey: keys.todayClock(employeeId),
+    queryFn: async () => {
+      // Auto-close any stale open entries from previous days
+      await supabase.rpc("close_stale_clock_entries")
 
+      const today = new Date().toISOString().split("T")[0]
+      const { data, error } = await supabase
+        .from("clock_entries")
+        .select("*, breaks:break_entries(*)")
+        .eq("employee_id", employeeId)
+        .eq("date", today)
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+    enabled: !!employeeId,
+    refetchInterval: 60_000,
+  })
+}
 export function useClockHistory(employeeId: string, weekStart: string) {
   return useQuery({
     queryKey: keys.clockHistory(employeeId, weekStart),
@@ -1243,58 +1251,78 @@ export function useSetEmployeeStatus() {
     },
   })
 }
-
 export function useInviteEmployee() {
   const qc = useQueryClient()
+
   return useMutation({
     mutationFn: async (payload: {
       email: string
       first_name: string
       last_name: string
       role: string
-      department: string
-      job_title: string
-      location: string
-      standard_hours_per_day: number
-      standard_hours_per_week: number
+      department?: string
+      job_title?: string
+      location?: string
+      hire_date?: string // YYYY-MM-DD
+      standard_start_time?: string // "HH:MM"
+      standard_hours_per_day?: number
+      standard_hours_per_week?: number
       manager_id?: string | null
     }) => {
-      const normalisedPayload = {
-        ...payload,
-        email: payload.email.trim().toLowerCase(),
-      }
+      const email = payload.email.trim().toLowerCase()
 
+      // Duplicate check
       const { data: existing } = await supabase
         .from("employees")
         .select("id")
-        .eq("email", normalisedPayload.email)
+        .eq("email", email)
         .maybeSingle()
-      if (existing)
+
+      if (existing) {
         throw new Error("An employee with this email already exists.")
+      }
 
       const { data, error } = await supabase
         .from("employees")
         .insert({
-          ...normalisedPayload,
+          first_name: payload.first_name.trim(),
+          last_name: payload.last_name.trim(),
+          email,
+          role: payload.role,
+          department: (payload.department || "").trim(),
+          job_title: (payload.job_title || "").trim(),
+          location: (payload.location || "").trim(),
+          hire_date: payload.hire_date || new Date().toISOString().slice(0, 10),
+          standard_start_time: payload.standard_start_time || "09:00:00",
+          standard_hours_per_day: payload.standard_hours_per_day ?? 8,
+          standard_hours_per_week: payload.standard_hours_per_week ?? 40,
+          manager_id: payload.manager_id || null,
           user_id: null,
           employment_status: "active",
           onboarding_completed: false,
-          hire_date: new Date().toISOString().slice(0, 10),
         })
         .select()
         .single()
+
       if (error) throw error
 
-      await seedTimeOffBalances(data.id)
+      if (data?.id) {
+        await seedTimeOffBalances(data.id)
+      }
+
       return data
     },
+
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin-employees"] })
       qc.invalidateQueries({ queryKey: keys.employees() })
     },
+
+    onError: (err: any) => {
+      toast.error(err.message || "Failed to create employee")
+    },
   })
 }
-
 // ─── Time Off Balance Seeding ─────────────────────────────────────────────────
 
 export async function seedTimeOffBalances(employeeId: string) {
@@ -1394,19 +1422,19 @@ export function useDepartments() {
     staleTime: 1000 * 60 * 5,
   })
 }
-export function useGetDepartments() {
-  return useQuery({
-    queryKey: ["departments"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("departments")
-        .select("*")
-        .order("name")
-      if (error) throw error
-      return data ?? []
-    },
-  })
-}
+// export function useGetDepartments() {
+//   return useQuery({
+//     queryKey: ["departments"],
+//     queryFn: async () => {
+//       const { data, error } = await supabase
+//         .from("departments")
+//         .select("*")
+//         .order("name")
+//       if (error) throw error
+//       return data ?? []
+//     },
+//   })
+// }
 
 export function useCreateDepartment() {
   const qc = useQueryClient()
@@ -1589,20 +1617,6 @@ export function useReportEntries(
 }
 // ─── LMS Queries (add this entire block) ─────────────────────────────────────────
 
-export async function seedLmsProfile(
-  userId: string,
-  fullName: string,
-  avatarUrl: string | null,
-  role: "student" | "instructor" | "admin"
-) {
-  await supabase
-    .from("profiles")
-    .upsert(
-      { id: userId, full_name: fullName, avatar_url: avatarUrl, role },
-      { onConflict: "id" }
-    )
-}
-
 export function useMyTrainingRecord() {
   return useQuery({
     queryKey: ["training-record"],
@@ -1654,24 +1668,18 @@ export function useCourseProgress(curriculumId: string) {
   return useQuery({
     queryKey: ["course-progress", curriculumId],
     queryFn: async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) throw new Error("Not authenticated")
+      const { data: emp } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user!.id)
+        .single()
+      if (!emp) return { totalLessons: 0, completedLessons: 0, percentage: 0 }
 
       const { data, error } = await supabase
         .from("lessons")
-        .select(
-          `
-          id,
-          progress_records (
-            is_completed,
-            percent_watched
-          )
-        `
-        )
+        .select(`id, progress_records(is_completed, percent_watched)`)
         .eq("curriculum_id", curriculumId)
-        .eq("progress_records.user_id", user.id)
+        .eq("progress_records.employee_id", emp.id) // CORRECT
 
       if (error) throw error
 
@@ -1700,13 +1708,16 @@ export function useCreateCurriculum() {
       title: string
       description: string | null
       is_published: boolean
-      created_by: string
     }) => {
+      const { data: empData } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", (await supabase.auth.getUser()).data.user!.id)
+        .single()
+      if (!empData) throw new Error("No employee record found")
       const { data, error } = await supabase
         .from("curriculums")
-        .insert(payload)
-        .select()
-        .single()
+        .insert({ ...payload, created_by: empData.id })
       if (error) throw error
       return data
     },
@@ -1868,22 +1879,21 @@ export function useMarkLessonComplete() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async ({
-      user_id,
+      employee_id,
       lesson_id,
     }: {
-      user_id: string
+      employee_id: string
       lesson_id: string
     }) => {
       const { error } = await supabase.from("progress_records").upsert(
         {
-          user_id,
+          employee_id,
           lesson_id,
           percent_watched: 100,
           is_completed: true,
           last_watched_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
         },
-        { onConflict: "user_id,lesson_id" }
+        { onConflict: "employee_id,lesson_id" }
       )
       if (error) throw error
     },
@@ -1898,7 +1908,7 @@ export function useUpdateLessonProgress() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: {
-      user_id: string
+      employee_id: string
       lesson_id: string
       percent_watched: number
       is_completed: boolean
@@ -1907,28 +1917,24 @@ export function useUpdateLessonProgress() {
         .from("progress_records")
         .upsert(
           { ...input, last_watched_at: new Date().toISOString() },
-          { onConflict: "user_id,lesson_id" }
+          { onConflict: "employee_id,lesson_id" }
         )
       if (error) throw error
     },
-    onSuccess: (_, vars) => {
-      qc.invalidateQueries({ queryKey: ["course-progress"] })
-    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["course-progress"] }),
   })
 }
 
 export function useAllTrainingRecords() {
   return useQuery({
     queryKey: ["training-records-all"],
-    queryFn: async (): Promise<
-      (TrainingRecord & { profile: LmsProfile })[]
-    > => {
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("training_assignments")
         .select(
           `
           *,
-          profile:profiles(*),
+          employee:employees(id, first_name, last_name, avatar_url, department),
           curriculum:curriculums(title, thumbnail_url)
         `
         )
@@ -2024,7 +2030,7 @@ export function useAssignCourse() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (input: {
-      user_id: string
+      employee_id: string
       curriculum_id: string
       due_date: string
     }) => {
@@ -2032,13 +2038,12 @@ export function useAssignCourse() {
         .from("training_assignments")
         .upsert(
           { ...input, assigned_at: new Date().toISOString() },
-          { onConflict: "user_id,curriculum_id" }
+          { onConflict: "employee_id,curriculum_id" }
         )
       if (error) throw error
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["training-records"] })
-    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["training-records-all"] }),
     onError: (e: any) => toast.error(e.message),
   })
 }

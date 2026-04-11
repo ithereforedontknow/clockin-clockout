@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { addDays } from "date-fns"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
 import { keys } from "./keys"
@@ -7,7 +6,6 @@ import type {
   TimeOffBalance,
   TimeOffRequest,
   CompanyHoliday,
-  InfoChangeRequest,
 } from "@/lib/supabase"
 
 export function useTimeOffBalances(employeeId: string) {

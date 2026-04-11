@@ -17,7 +17,6 @@ import {
   CheckCircle2,
   X,
   Check,
-  Megaphone,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,14 +37,13 @@ import {
   useLiveClockedIn,
   usePendingTimeOffRequests,
   useMyTrainingRecord,
-  useAnnouncements,
   useReviewTimeOff,
 } from "@/lib/queries"
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
 import type { BreakEntry, Employee, ClockEntry } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
 import type { TabId } from "@/components/Appshell"
-
+import { AnnouncementsCard } from "@/components/AnnouncementsCard"
 interface Props {
   onNavigate?: (tab: TabId) => void
 }
@@ -69,10 +67,6 @@ export function HomeTab({ onNavigate }: Props) {
   const { data: liveEntries = [] } = useLiveClockedIn()
   const { data: pendingTimeOff = [] } = usePendingTimeOffRequests()
   const { data: trainingRecords = [] } = useMyTrainingRecord()
-  const { data: announcements = [] } = useAnnouncements(
-    employeeId,
-    employee?.role === "employer" ? employeeId : undefined
-  )
   const clockIn = useClockIn()
   const clockOut = useClockOut()
   const startBreak = useStartBreak()
@@ -487,63 +481,7 @@ export function HomeTab({ onNavigate }: Props) {
         {/* MIDDLE — Announcements + My Courses + Who's Out */}
         <div className="space-y-5">
           {/* Announcements, My Courses, Who's Out (unchanged) */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
-                <Megaphone className="h-4 w-4" />
-                Announcements
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {announcements.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  No announcements yet
-                </p>
-              ) : (
-                announcements.slice(0, 6).map((a) => {
-                  const author = a.author as
-                    | {
-                        first_name: string
-                        last_name: string
-                        avatar_url: string | null
-                      }
-                    | undefined
-                  return (
-                    <div
-                      key={a.id}
-                      className={`rounded-lg border p-3 ${a.pinned ? "border-primary/20 bg-primary/5" : "border-border bg-muted/20"}`}
-                    >
-                      <div className="flex items-start gap-2.5">
-                        <Avatar className="h-7 w-7 shrink-0">
-                          <AvatarImage src={author?.avatar_url ?? undefined} />
-                          <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
-                            {author?.first_name?.[0]}
-                            {author?.last_name?.[0]}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline gap-1.5">
-                            <p className="text-xs font-medium">
-                              {author?.first_name} {author?.last_name}
-                            </p>
-                            <span className="text-[10px] text-muted-foreground">
-                              · {format(new Date(a.created_at), "MMM d")}
-                            </span>
-                          </div>
-                          <p className="mt-0.5 text-xs font-semibold">
-                            {a.title}
-                          </p>
-                          <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                            {a.body}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </CardContent>
-          </Card>
+          {employee && <AnnouncementsCard currentEmployee={employee} />}
 
           {/* My Courses */}
           <Card>

@@ -306,19 +306,22 @@ export interface LmsModule {
 export interface Lesson {
   id: string
   module_id: string
+  curriculum_id: string | null
   title: string
   description: string | null
   cf_stream_id: string | null
   cf_stream_status: CfStreamStatus
   duration_seconds: number | null
   order_index: number
+  content_html: string | null // ADD
+  quiz: any | null // ADD
   created_at: string
   updated_at: string
 }
 
 export interface ProgressRecord {
   id: string
-  user_id: string
+  employee_id: string // was user_id
   lesson_id: string
   percent_watched: number
   is_completed: boolean

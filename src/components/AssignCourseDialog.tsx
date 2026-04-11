@@ -37,7 +37,7 @@ export function AssignCourseDialog({ employeeId, employeeName }: Props) {
       return
     }
     await assignCourse.mutateAsync({
-      user_id: employeeId,
+      employee_id: employeeId,
       curriculum_id: curriculumId,
       due_date: dueDate,
     })

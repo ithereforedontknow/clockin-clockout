@@ -16,7 +16,7 @@ import {
 import { useCurriculums, useCreateCurriculum } from "@/lib/queries"
 import type { Curriculum } from "@/lib/supabase"
 
-export function CoursesPanel({ employee }: { employee: any }) {
+export function CoursesPanel() {
   const navigate = useNavigate() // Add this
   const { data: curriculums = [], isLoading } = useCurriculums()
   const createCurriculum = useCreateCurriculum()
@@ -30,7 +30,6 @@ export function CoursesPanel({ employee }: { employee: any }) {
       title: newCourseTitle.trim(),
       description: newCourseDesc.trim() || null,
       is_published: false,
-      created_by: employee.user_id!,
     })
     setCreateCourseOpen(false)
     setNewCourseTitle("")

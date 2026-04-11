@@ -88,7 +88,7 @@ export function useAllEmployeesForReports() {
         data: { user },
       } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
-      const { data: currentEmployee, error: empError } = await supabase
+      const { error: empError } = await supabase
         .from("employees")
         .select("id, role")
         .eq("user_id", user.id)

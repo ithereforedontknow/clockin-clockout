@@ -46,10 +46,9 @@ export function LessonPlayer({
   const lastSavedPercent = useRef(0)
 
   const handleMarkComplete = async () => {
-    if (!employee?.user_id || !lesson?.id) return
-
+    if (!employee?.id || !lesson?.id) return
     await markComplete.mutateAsync({
-      user_id: employee.user_id,
+      employee_id: employee.id,
       lesson_id: lesson.id,
     })
 
@@ -88,7 +87,7 @@ export function LessonPlayer({
         if (pct >= lastSavedPercent.current + 10) {
           lastSavedPercent.current = pct
           updateProgress.mutate({
-            user_id: employee.user_id,
+            employee_id: employee.id,
             lesson_id: lesson.id,
             percent_watched: pct,
             is_completed: pct >= 90,

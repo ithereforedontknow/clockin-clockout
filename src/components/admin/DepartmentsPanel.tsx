@@ -6,14 +6,14 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
-  useGetDepartments,
+  useDepartments,
   useCreateDepartment,
   useDeleteDepartment,
   useEmployees,
 } from "@/lib/queries"
 
 export function DepartmentsPanel() {
-  const { data: departments = [] } = useGetDepartments()
+  const { data: departments = [] } = useDepartments()
   const { data: employees = [] } = useEmployees()
   const createDept = useCreateDepartment()
   const deleteDept = useDeleteDepartment()

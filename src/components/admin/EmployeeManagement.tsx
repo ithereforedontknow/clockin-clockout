@@ -8,13 +8,9 @@ import {
   UserCheck,
   Download,
   MoreHorizontal,
-  Shield,
   Loader2,
   AlertCircle,
   X,
-  Building2,
-  Calendar,
-  ShieldCheck,
 } from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "sonner"
@@ -42,7 +38,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -193,47 +189,12 @@ export function EmployeeManagement() {
     )
     setConfirmTarget(null)
   }
-
-  // KPI counts
-  const activeCount = employees.filter(
-    (e) => e.employment_status === "active"
-  ).length
-  const inactiveCount = employees.filter(
-    (e) => e.employment_status === "inactive"
-  ).length
   // const adminCount = employees.filter((e) => e.role === "admin").length
 
   return (
     <div className="max-w-6xl space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Admin</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Manage employees, departments, and access
-          </p>
-        </div>
-      </div>
-
       <Tabs defaultValue="employees">
-        <TabsList>
-          <TabsTrigger value="employees" className="gap-2">
-            <Shield className="h-4 w-4" />
-            Employees
-          </TabsTrigger>
-          <TabsTrigger value="departments" className="gap-2">
-            <Building2 className="h-4 w-4" />
-            Departments
-          </TabsTrigger>
-          <TabsTrigger value="holidays" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            Holidays
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="gap-2">
-            <ShieldCheck className="h-4 w-4" />
-            Audit Log
-          </TabsTrigger>
-        </TabsList>
         {/* ── Employees tab ── */}
         <TabsContent value="employees" className="mt-4 space-y-4">
           <div className="flex items-center justify-end">
@@ -570,6 +531,7 @@ function InviteDialog({
   const { data: allEmployees = [] } = useAllEmployees()
   const employers = allEmployees.filter((e) => e.role === "employer")
 
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState({
     email: "",
     first_name: "",
@@ -579,10 +541,11 @@ function InviteDialog({
     department: "",
     job_title: "",
     location: "",
+    hire_date: new Date().toISOString().slice(0, 10), // default today
+    standard_start_time: "09:00",
     standard_hours_per_day: 8,
     standard_hours_per_week: 40,
   })
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   function set<K extends keyof typeof form>(key: K, val: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: val }))
@@ -598,6 +561,8 @@ function InviteDialog({
       department: "",
       job_title: "",
       location: "",
+      hire_date: new Date().toISOString().slice(0, 10),
+      standard_start_time: "09:00",
       standard_hours_per_day: 8,
       standard_hours_per_week: 40,
     })
@@ -620,11 +585,9 @@ function InviteDialog({
       toast.error("Please fix the errors below")
       return
     }
+
     setFormErrors({})
-    await invite.mutateAsync({
-      ...result.data,
-      manager_id: form.manager_id || null,
-    })
+    await invite.mutateAsync(result.data)
     toast.success(`Employee record created for ${result.data.email}`, {
       description: `${result.data.first_name} can now sign in using their work email.`,
     })
@@ -798,6 +761,32 @@ function InviteDialog({
               value={form.location}
               onChange={(e) => set("location", e.target.value)}
             />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-sm">
+                Hire date <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                type="date"
+                value={form.hire_date}
+                onChange={(e) => set("hire_date", e.target.value)}
+              />
+              {formErrors.hire_date && (
+                <p className="text-xs text-destructive">
+                  {formErrors.hire_date}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-sm">Standard start time</Label>
+              <Input
+                type="time"
+                value={form.standard_start_time}
+                onChange={(e) => set("standard_start_time", e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

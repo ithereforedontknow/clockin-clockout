@@ -4,7 +4,6 @@ import { supabase } from "@/lib/supabase"
 import { keys } from "./keys"
 import type {
   Curriculum,
-  LmsProfile,
   TrainingRecord,
   Certification,
   LmsRole,
@@ -160,18 +159,16 @@ export function useMarkLessonComplete() {
       user_id: string
       lesson_id: string
     }) => {
-      const { error } = await supabase
-        .from("progress_records")
-        .upsert(
-          {
-            user_id,
-            lesson_id,
-            is_completed: true,
-            percent_watched: 100,
-            last_watched_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,lesson_id" }
-        )
+      const { error } = await supabase.from("progress_records").upsert(
+        {
+          user_id,
+          lesson_id,
+          is_completed: true,
+          percent_watched: 100,
+          last_watched_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,lesson_id" }
+      )
       if (error) throw error
     },
     onSuccess: () => {

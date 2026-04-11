@@ -46,7 +46,7 @@ import {
 import {
   useCurriculumDetail,
   useUpdateCurriculum,
-  useDeleteCurriculum,
+  // useDeleteCurriculum,
   useCreateModule,
   useDeleteModule,
   useUpdateLesson,
@@ -61,7 +61,7 @@ export function CourseEditor() {
   const navigate = useNavigate()
   const { data: course, isLoading } = useCurriculumDetail(courseId!)
   const updateCurriculum = useUpdateCurriculum()
-  const deleteCurriculum = useDeleteCurriculum()
+  // const deleteCurriculum = useDeleteCurriculum()
   const createModule = useCreateModule()
   const deleteModule = useDeleteModule()
   const createLesson = useCreateLesson()
@@ -82,7 +82,7 @@ export function CourseEditor() {
 
   const thumbInputRef = useRef<HTMLInputElement>(null)
 
-  const [showDeleteCourseDialog, setShowDeleteCourseDialog] = useState(false)
+  const [_showDeleteCourseDialog, setShowDeleteCourseDialog] = useState(false)
 
   const [confirmDelete, setConfirmDelete] = useState<{
     type: "module" | "lesson"

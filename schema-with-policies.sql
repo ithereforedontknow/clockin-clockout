@@ -32,6 +32,70 @@ CREATE TYPE "public"."heartbeat_event" AS (
 ALTER TYPE "public"."heartbeat_event" OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text" DEFAULT NULL::"text") RETURNS json
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+DECLARE
+  v_caller_role text;
+  v_existing_id text;
+  v_new_employee employees;
+BEGIN
+  -- Verify caller is admin
+  SELECT role INTO v_caller_role
+  FROM employees
+  WHERE user_id = auth.uid()
+  LIMIT 1;
+
+  IF v_caller_role != 'admin' THEN
+    RAISE EXCEPTION 'Only admins can create employees';
+  END IF;
+
+  -- Check duplicate email
+  SELECT id INTO v_existing_id
+  FROM employees
+  WHERE lower(email) = lower(p_email)
+  LIMIT 1;
+
+  IF v_existing_id IS NOT NULL THEN
+    RAISE EXCEPTION 'An employee with email % already exists', p_email;
+  END IF;
+
+  -- Insert employee
+  INSERT INTO employees (
+    first_name, last_name, email, role,
+    job_title, department, location,
+    hire_date, standard_start_time,
+    standard_hours_per_day, standard_hours_per_week,
+    manager_id, user_id, employment_status, onboarding_completed
+  )
+  VALUES (
+    p_first_name,
+    p_last_name,
+    lower(trim(p_email)),
+    p_role,
+    coalesce(p_job_title, ''),
+    coalesce(p_department, ''),
+    coalesce(p_location, ''),
+    coalesce(p_hire_date, CURRENT_DATE),
+    coalesce(p_standard_start_time, '09:00:00'::time),
+    coalesce(p_standard_hours_per_day, 8),
+    coalesce(p_standard_hours_per_week, 40),
+    p_manager_id,
+    NULL,
+    'active',
+    false
+  )
+  RETURNING * INTO v_new_employee;
+
+  RETURN row_to_json(v_new_employee);
+END;
+$$;
+
+
+ALTER FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text") OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."deduct_time_off_balance"("p_employee_id" "uuid", "p_category_id" "uuid", "p_days" numeric) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -49,8 +113,9 @@ ALTER FUNCTION "public"."deduct_time_off_balance"("p_employee_id" "uuid", "p_cat
 
 CREATE OR REPLACE FUNCTION "public"."get_my_role"() RETURNS "text"
     LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
-  SELECT role FROM employees WHERE user_id = auth.uid() LIMIT 1;
+  SELECT role FROM public.employees WHERE user_id = auth.uid() LIMIT 1;
 $$;
 
 
@@ -950,9 +1015,23 @@ CREATE POLICY "admin_all_corrections" ON "public"."clock_corrections" FOR SELECT
 
 
 
+CREATE POLICY "admin_insert_employee" ON "public"."employees" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."employees" "employees_1"
+  WHERE (("employees_1"."user_id" = "auth"."uid"()) AND ("employees_1"."role" = 'admin'::"text")))));
+
+
+
 CREATE POLICY "admin_see_all_corrections" ON "public"."clock_corrections" FOR SELECT USING ((EXISTS ( SELECT 1
    FROM "public"."employees"
   WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = 'admin'::"text")))));
+
+
+
+CREATE POLICY "admin_update_any_employee" ON "public"."employees" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."employees" "employees_1"
+  WHERE (("employees_1"."user_id" = "auth"."uid"()) AND ("employees_1"."role" = 'admin'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."employees" "employees_1"
+  WHERE (("employees_1"."user_id" = "auth"."uid"()) AND ("employees_1"."role" = 'admin'::"text")))));
 
 
 
@@ -1063,6 +1142,14 @@ CREATE POLICY "balances_select_team" ON "public"."time_off_balances" FOR SELECT 
 ALTER TABLE "public"."break_entries" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "break_update_self" ON "public"."break_entries" FOR UPDATE USING (("clock_entry_id" IN ( SELECT "clock_entries"."id"
+   FROM "public"."clock_entries"
+  WHERE ("clock_entries"."employee_id" IN ( SELECT "employees"."id"
+           FROM "public"."employees"
+          WHERE ("employees"."user_id" = "auth"."uid"()))))));
+
+
+
 ALTER TABLE "public"."certifications" ENABLE ROW LEVEL SECURITY;
 
 
@@ -1104,6 +1191,25 @@ CREATE POLICY "clock_select_team" ON "public"."clock_entries" FOR SELECT USING (
    FROM ("public"."employees" "manager"
      JOIN "public"."employees" "subordinate" ON (("subordinate"."manager_id" = "manager"."id")))
   WHERE (("manager"."user_id" = "auth"."uid"()) AND ("manager"."role" = 'employer'::"text") AND ("subordinate"."id" = "clock_entries"."employee_id")))));
+
+
+
+CREATE POLICY "clock_update_admin" ON "public"."clock_entries" FOR UPDATE USING (("public"."get_my_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "clock_update_employer_team" ON "public"."clock_entries" FOR UPDATE USING (("employee_id" IN ( SELECT "employees"."id"
+   FROM "public"."employees"
+  WHERE ("employees"."manager_id" = ( SELECT "employees_1"."id"
+           FROM "public"."employees" "employees_1"
+          WHERE ("employees_1"."user_id" = "auth"."uid"())
+         LIMIT 1)))));
+
+
+
+CREATE POLICY "clock_update_self" ON "public"."clock_entries" FOR UPDATE USING (("employee_id" IN ( SELECT "employees"."id"
+   FROM "public"."employees"
+  WHERE ("employees"."user_id" = "auth"."uid"()))));
 
 
 
@@ -1401,6 +1507,12 @@ GRANT USAGE ON SCHEMA "public" TO "postgres";
 GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text") TO "service_role";
 
 
 

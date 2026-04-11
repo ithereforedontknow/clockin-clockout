@@ -80,11 +80,7 @@ function TrainingCard({ record }: { record: TrainingRecord }) {
   )
 }
 // My Training Panel
-function MyTrainingPanel({
-  onCourseClick,
-}: {
-  onCourseClick: (id: string) => void
-}) {
+function MyTrainingPanel() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const { data: records = [], isLoading } = useMyTrainingRecord()
@@ -206,7 +202,6 @@ export function TrainingTab() {
   const { data: employee } = useCurrentEmployee()
   const isInstructorOrAdmin =
     employee?.role === "employer" || employee?.role === "admin"
-  const [, setSelectedCourseId] = useState<string | null>(null)
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -233,12 +228,12 @@ export function TrainingTab() {
           <TeamProgressPanel />
         </TabsContent>
         <TabsContent value="my-training" className="mt-6">
-          <MyTrainingPanel onCourseClick={setSelectedCourseId} />
+          <MyTrainingPanel />
         </TabsContent>
 
         {isInstructorOrAdmin && (
           <TabsContent value="courses" className="mt-6">
-            <CoursesPanel employee={employee!} />
+            <CoursesPanel />
           </TabsContent>
         )}
       </Tabs>
