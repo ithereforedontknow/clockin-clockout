@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react"
+import { useLocation } from "react-router-dom"
+
 import { AppSidebar } from "@/components/AppSidebar"
 import { SettingsModal } from "@/components/SettingsModal"
 import { WelcomeTutorialDialog } from "@/components/WelcomeTutorialDialog"
@@ -30,7 +32,10 @@ export type TabId =
   | "training"
 
 export function Appshell() {
-  const [activeTab, setActiveTab] = useState<TabId>("home")
+  const location = useLocation()
+  const [activeTab, setActiveTab] = useState<TabId>(
+    (location.state as any)?.tab ?? "home"
+  )
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [showWelcomeTutorial, setShowWelcomeTutorial] = useState(false)

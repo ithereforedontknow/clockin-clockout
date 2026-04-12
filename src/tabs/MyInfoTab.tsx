@@ -247,12 +247,14 @@ export function MyInfoTab() {
       </Card>
 
       {/* Personal Information */}
+      {/* Personal Information */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Personal Information</CardTitle>
           <CardDescription>Changes save immediately</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          {/* Name */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <EditableField
               label="First Name"
@@ -269,19 +271,24 @@ export function MyInfoTab() {
           </div>
 
           <EditableField
+            label="Preferred Name"
+            value={user.preferred_name || ""}
+            onSave={(v) => savePersonal("preferred_name", v)}
+          />
+
+          {/* Contact */}
+          <Separator />
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Contact
+          </p>
+
+          <EditableField
             label="Phone"
             value={user.phone ?? ""}
             onSave={(v) => savePersonal("phone", v)}
             type="tel"
-            required
           />
-          <EditableField
-            label="Emergency Phone"
-            value={user.emergency_phone ?? ""}
-            onSave={(v) => savePersonal("emergency_phone", v)}
-            type="tel"
-            required
-          />
+
           <EditableField
             label="Birthday"
             value={
@@ -289,31 +296,58 @@ export function MyInfoTab() {
                 ? new Date(user.birthday).toISOString().split("T")[0]
                 : ""
             }
-            onSave={async (v) => savePersonal("birthday", v)}
+            onSave={(v) => savePersonal("birthday", v)}
             type="date"
           />
 
-          <EditableField
-            label="Preferred Name"
-            value={user.preferred_name || ""}
-            onSave={(v) => savePersonal("preferred_name", v)}
-          />
+          {/* Address */}
+          <Separator />
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Address
+          </p>
 
           <EditableField
-            label="Emergency Contact Name"
+            label="Address Line 1"
+            value={user.address_line1 || ""}
+            onSave={(v) => savePersonal("address_line1", v)}
+          />
+          <EditableField
+            label="Address Line 2"
+            value={user.address_line2 || ""}
+            onSave={(v) => savePersonal("address_line2", v)}
+          />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <EditableField
+              label="City"
+              value={user.city || ""}
+              onSave={(v) => savePersonal("city", v)}
+            />
+            <EditableField
+              label="Country"
+              value={user.country || "Philippines"}
+              onSave={(v) => savePersonal("country", v)}
+            />
+          </div>
+
+          {/* Emergency Contact */}
+          <Separator />
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            Emergency Contact
+          </p>
+
+          <EditableField
+            label="Name"
             value={user.emergency_name || ""}
             onSave={(v) => savePersonal("emergency_name", v)}
           />
-
           <EditableField
-            label="Emergency Contact Phone"
+            label="Phone"
             value={user.emergency_phone || ""}
             onSave={(v) => savePersonal("emergency_phone", v)}
             type="tel"
           />
-
           <EditableField
-            label="Emergency Relationship"
+            label="Relationship"
             value={user.emergency_relation || ""}
             onSave={(v) => savePersonal("emergency_relation", v)}
           />

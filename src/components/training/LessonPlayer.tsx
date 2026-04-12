@@ -98,7 +98,7 @@ export function LessonPlayer({
 
     window.addEventListener("message", handleMessage)
     return () => window.removeEventListener("message", handleMessage)
-  }, [lesson.cf_stream_id, lesson.id, employee?.user_id])
+  }, [lesson.cf_stream_id, lesson.id, employee?.id])
 
   return (
     <div className="flex h-full flex-col">

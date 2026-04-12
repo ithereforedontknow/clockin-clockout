@@ -596,11 +596,11 @@ function RequestRow({
           </div>
         )}
       </div>
-      {selfBlock && (
+      {/*{selfBlock && (
         <p className="text-[10px] text-muted-foreground">
           Can't approve own request
         </p>
-      )}
+      )}*/}
     </div>
   )
 }

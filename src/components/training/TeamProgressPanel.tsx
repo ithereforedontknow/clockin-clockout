@@ -21,7 +21,7 @@ export function TeamProgressPanel() {
   // Group assignments by employee
   const employeeProgress = employees.map((emp) => {
     const empAssignments = assignments.filter(
-      (a: any) => a.user_id === emp.user_id
+      (a: any) => a.employee_id === emp.id
     )
     const completed = empAssignments.filter((a) => a.completed_at).length
     const total = empAssignments.length
