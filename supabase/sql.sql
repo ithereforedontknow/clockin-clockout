@@ -56,3 +56,30 @@ CREATE POLICY "avatars: owner update"
       bucket_id = 'avatars'
       AND (storage.foldername(name))[1] = auth.uid()::text
     );
+
+--
+
+-- Create the function
+CREATE OR REPLACE FUNCTION public.link_employee_on_auth_user()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public AS $$
+BEGIN
+  UPDATE employees
+  SET user_id = NEW.id
+  WHERE lower(email) = lower(NEW.email)
+    AND user_id IS NULL;
+  RETURN NEW;
+END;
+$$;
+
+-- Create the trigger on auth.users
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.link_employee_on_auth_user();
+
+-- Link any existing unlinked accounts immediately
+UPDATE employees e
+SET user_id = u.id
+FROM auth.users u
+WHERE lower(e.email) = lower(u.email)
+  AND e.user_id IS NULL;

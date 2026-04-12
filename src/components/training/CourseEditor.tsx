@@ -46,7 +46,7 @@ import {
 import {
   useCurriculumDetail,
   useUpdateCurriculum,
-  // useDeleteCurriculum,
+  useDeleteCurriculum,
   useCreateModule,
   useDeleteModule,
   useUpdateLesson,
@@ -61,7 +61,7 @@ export function CourseEditor() {
   const navigate = useNavigate()
   const { data: course, isLoading } = useCurriculumDetail(courseId!)
   const updateCurriculum = useUpdateCurriculum()
-  // const deleteCurriculum = useDeleteCurriculum()
+  const deleteCurriculum = useDeleteCurriculum()
   const createModule = useCreateModule()
   const deleteModule = useDeleteModule()
   const createLesson = useCreateLesson()
@@ -82,7 +82,7 @@ export function CourseEditor() {
 
   const thumbInputRef = useRef<HTMLInputElement>(null)
 
-  const [_showDeleteCourseDialog, setShowDeleteCourseDialog] = useState(false)
+  const [showDeleteCourseDialog, setShowDeleteCourseDialog] = useState(false)
 
   const [confirmDelete, setConfirmDelete] = useState<{
     type: "module" | "lesson"
@@ -205,7 +205,7 @@ export function CourseEditor() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate("/training")}
+              onClick={() => navigate("/", { state: { tab: "training" } })}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -484,6 +484,33 @@ export function CourseEditor() {
               }}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog
+        open={showDeleteCourseDialog}
+        onOpenChange={setShowDeleteCourseDialog}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete "{course.title}"?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All modules and lessons will be permanently deleted. This cannot
+              be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="text-destructive-foreground bg-destructive hover:bg-destructive/90"
+              onClick={async () => {
+                await deleteCurriculum.mutateAsync(course.id)
+                toast.success("Course deleted")
+                navigate("/", { state: { tab: "training" } })
+              }}
+            >
+              Delete course
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

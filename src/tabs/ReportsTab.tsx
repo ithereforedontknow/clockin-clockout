@@ -16,7 +16,6 @@ import {
   TrendingUp,
   AlertCircle,
   ClipboardEdit,
-  Check,
   X,
   Loader2,
   DollarSign,
@@ -27,8 +26,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Select,
@@ -46,27 +43,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog"
-import {
   useAllClockEntries,
   useAllEmployeesForReports,
   useAllCorrections,
-  useReviewCorrection,
-  useCurrentEmployee,
 } from "@/lib/queries"
 import { formatMinutes } from "@/lib/supabase"
-import type {
-  ClockEntry,
-  BreakEntry,
-  Employee,
-  ClockCorrection,
-} from "@/lib/supabase"
+import type { ClockEntry, BreakEntry, Employee } from "@/lib/supabase"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -172,10 +154,6 @@ export function ReportsTab() {
   const [payPeriod, setPayPeriod] = useState<PayPeriod>("weekly")
   const [payOffset, setPayOffset] = useState(0)
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [reviewing, setReviewing] = useState<ClockCorrection | null>(null)
-  const [reviewComment, setReviewComment] = useState("")
-
-  const { data: reviewer } = useCurrentEmployee()
 
   // ── Timesheet week ──────────────────────────────────────────────────────────
   const baseDate = addWeeks(new Date(), weekOffset)
@@ -189,7 +167,6 @@ export function ReportsTab() {
   const { data: employees = [], isLoading: empLoading } =
     useAllEmployeesForReports()
   const { data: corrections = [] } = useAllCorrections()
-  const reviewCorrection = useReviewCorrection()
   const isLoading = entriesLoading || empLoading
   const [deptFilter, setDeptFilter] = useState<string>("")
   const pendingCorrections = corrections.filter((c) => c.status === "pending")
@@ -303,24 +280,6 @@ export function ReportsTab() {
       }
     }
     downloadCSV(rows, `timesheet-${weekStartStr}.csv`)
-  }
-
-  // ── Review ───────────────────────────────────────────────────────────────────
-  async function handleReview(decision: "approved" | "denied") {
-    if (!reviewing || !reviewer) return
-    await reviewCorrection.mutateAsync({
-      correction: reviewing,
-      decision,
-      reviewerComment: reviewComment,
-      reviewerId: reviewer.id,
-    })
-    toast.success(
-      decision === "approved"
-        ? "Correction approved — entry updated"
-        : "Correction denied"
-    )
-    setReviewing(null)
-    setReviewComment("")
   }
 
   return (
@@ -468,116 +427,7 @@ export function ReportsTab() {
             setPayOffset={setPayOffset}
           />
         </TabsContent>
-
-        {/* ── Corrections ── */}
-        <TabsContent value="corrections" className="mt-4">
-          <CorrectionsQueue
-            corrections={pendingCorrections}
-            onReview={setReviewing}
-          />
-        </TabsContent>
       </Tabs>
-
-      {/* Review dialog */}
-      {reviewing && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open) {
-              setReviewing(null)
-              setReviewComment("")
-            }
-          }}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <ClipboardEdit className="h-5 w-5 text-primary" />
-                Review Correction
-              </DialogTitle>
-              <DialogDescription>
-                {(reviewing.employee as Employee | undefined)?.first_name}{" "}
-                {(reviewing.employee as Employee | undefined)?.last_name} ·{" "}
-                {reviewing.clock_entry
-                  ? format(
-                      new Date((reviewing.clock_entry as ClockEntry).date),
-                      "EEE, MMM d, yyyy"
-                    )
-                  : ""}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5 rounded-lg bg-muted/50 p-4 text-sm">
-                <p className="mb-2 font-medium">Requested changes</p>
-                {reviewing.requested_clock_in && (
-                  <p>
-                    <span className="text-muted-foreground">Clock in → </span>
-                    {format(new Date(reviewing.requested_clock_in), "h:mm a")}
-                  </p>
-                )}
-                {reviewing.requested_clock_out && (
-                  <p>
-                    <span className="text-muted-foreground">Clock out → </span>
-                    {format(new Date(reviewing.requested_clock_out), "h:mm a")}
-                  </p>
-                )}
-                {reviewing.requested_break_minutes !== null && (
-                  <p>
-                    <span className="text-muted-foreground">Break → </span>
-                    {reviewing.requested_break_minutes} min
-                  </p>
-                )}
-                <p className="pt-1 text-muted-foreground italic">
-                  "{reviewing.reason}"
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Comment (optional)</Label>
-                <Textarea
-                  placeholder="Add a note for the employee…"
-                  value={reviewComment}
-                  onChange={(e) => setReviewComment(e.target.value)}
-                  className="h-20 resize-none"
-                />
-              </div>
-            </div>
-            <DialogFooter className="gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setReviewing(null)
-                  setReviewComment("")
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="destructive"
-                disabled={reviewCorrection.isPending}
-                onClick={() => handleReview("denied")}
-              >
-                {reviewCorrection.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <X className="mr-2 h-4 w-4" />
-                )}
-                Deny
-              </Button>
-              <Button
-                disabled={reviewCorrection.isPending}
-                onClick={() => handleReview("approved")}
-              >
-                {reviewCorrection.isPending ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Check className="mr-2 h-4 w-4" />
-                )}
-                Approve
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   )
 }
@@ -1076,64 +926,6 @@ function TimesheetTable({
 }
 
 // ─── Corrections Queue ────────────────────────────────────────────────────────
-
-function CorrectionsQueue({
-  corrections,
-  onReview,
-}: {
-  corrections: ClockCorrection[]
-  onReview: (c: ClockCorrection) => void
-}) {
-  if (corrections.length === 0) {
-    return (
-      <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
-        <ClipboardEdit className="h-8 w-8 opacity-40" />
-        <p className="text-sm">No pending corrections</p>
-      </div>
-    )
-  }
-  return (
-    <Card>
-      <CardContent className="divide-y divide-border p-0">
-        {corrections.map((c) => {
-          const emp = c.employee as Employee | undefined
-          const entry = c.clock_entry as ClockEntry | undefined
-          return (
-            <div
-              key={c.id}
-              className="flex items-start justify-between gap-4 px-4 py-4"
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <Avatar className="h-8 w-8 shrink-0">
-                  <AvatarFallback className="bg-primary/10 text-xs text-primary">
-                    {emp?.first_name?.[0]}
-                    {emp?.last_name?.[0]}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0 space-y-0.5">
-                  <p className="text-sm font-medium">
-                    {emp?.first_name} {emp?.last_name}
-                  </p>
-                  {entry && (
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(entry.date), "EEE, MMM d, yyyy")}
-                    </p>
-                  )}
-                  <p className="text-xs text-muted-foreground italic">
-                    "{c.reason}"
-                  </p>
-                </div>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => onReview(c)}>
-                Review
-              </Button>
-            </div>
-          )
-        })}
-      </CardContent>
-    </Card>
-  )
-}
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 

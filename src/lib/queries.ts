@@ -1779,8 +1779,10 @@ export function useCreateModule() {
       if (error) throw error
       return data
     },
-    onSuccess: (_, { curriculum_id }) =>
-      qc.invalidateQueries({ queryKey: ["curriculum", curriculum_id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["curriculum"] })
+      qc.invalidateQueries({ queryKey: ["curriculums"] })
+    },
   })
 }
 
@@ -1804,7 +1806,10 @@ export function useUpdateModule() {
         .eq("id", id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["curriculums"] })
+      qc.invalidateQueries({ queryKey: ["curriculum"] })
+    },
   })
 }
 
@@ -1815,7 +1820,10 @@ export function useDeleteModule() {
       const { error } = await supabase.from("modules").delete().eq("id", id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["curriculums"] })
+      qc.invalidateQueries({ queryKey: ["curriculum"] })
+    },
   })
 }
 
@@ -1860,7 +1868,10 @@ export function useUpdateLesson() {
         .eq("id", id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["curriculums"] })
+      qc.invalidateQueries({ queryKey: ["curriculum"] })
+    },
   })
 }
 
@@ -1871,7 +1882,10 @@ export function useDeleteLesson() {
       const { error } = await supabase.from("lessons").delete().eq("id", id)
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["curriculums"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["curriculums"] })
+      qc.invalidateQueries({ queryKey: ["curriculum"] })
+    },
   })
 }
 
