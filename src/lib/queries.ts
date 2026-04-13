@@ -508,27 +508,7 @@ export function useTodayClockEntry(employeeId: string) {
     refetchInterval: 30_000,
   })
 }
-export function useTodayClock(employeeId: string) {
-  return useQuery({
-    queryKey: keys.todayClock(employeeId),
-    queryFn: async () => {
-      // Auto-close any stale open entries from previous days
-      await supabase.rpc("close_stale_clock_entries")
 
-      const today = new Date().toISOString().split("T")[0]
-      const { data, error } = await supabase
-        .from("clock_entries")
-        .select("*, breaks:break_entries(*)")
-        .eq("employee_id", employeeId)
-        .eq("date", today)
-        .maybeSingle()
-      if (error) throw error
-      return data
-    },
-    enabled: !!employeeId,
-    refetchInterval: 60_000,
-  })
-}
 export function useClockHistory(employeeId: string, weekStart: string) {
   return useQuery({
     queryKey: keys.clockHistory(employeeId, weekStart),
@@ -990,6 +970,16 @@ export function useReviewTimeOff() {
         })
         .eq("id", request.id)
       if (error) throw error
+
+      // Deduct balance when approving
+      if (decision === "approved" && request.category_id) {
+        await supabase.rpc("deduct_time_off_balance", {
+          p_employee_id: request.employee_id,
+          p_category_id: request.category_id,
+          p_days: request.amount,
+        })
+      }
+
       const actorId = await getMyEmployeeId()
       await writeAuditLog({
         actor_id: actorId,
@@ -1011,9 +1001,10 @@ export function useReviewTimeOff() {
         link_tab: "timeoff",
       })
     },
-    onSuccess: () => {
+    onSuccess: (_, { request }) => {
       qc.invalidateQueries({ queryKey: approvalKeys.pendingTimeOff() })
       qc.invalidateQueries({ queryKey: ["timeoff-history"] })
+      qc.invalidateQueries({ queryKey: keys.balances(request.employee_id) })
       qc.invalidateQueries({ queryKey: ["balances"] })
     },
   })
@@ -1615,7 +1606,7 @@ export function useReportEntries(
     },
   })
 }
-// ─── LMS Queries (add this entire block) ─────────────────────────────────────────
+// ─── LMS Queries ──────────────────────────────────────────────────────────────
 
 export function useMyTrainingRecord() {
   return useQuery({
@@ -1668,18 +1659,32 @@ export function useCourseProgress(curriculumId: string) {
   return useQuery({
     queryKey: ["course-progress", curriculumId],
     queryFn: async () => {
-      const { data: emp } = await supabase
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+
+      const { data: empData } = await supabase
         .from("employees")
         .select("id")
-        .eq("user_id", (await supabase.auth.getUser()).data.user!.id)
+        .eq("user_id", user.id)
         .single()
-      if (!emp) return { totalLessons: 0, completedLessons: 0, percentage: 0 }
+      if (!empData)
+        return { totalLessons: 0, completedLessons: 0, percentage: 0 }
 
       const { data, error } = await supabase
         .from("lessons")
-        .select(`id, progress_records(is_completed, percent_watched)`)
+        .select(
+          `
+          id,
+          progress_records (
+            is_completed,
+            percent_watched
+          )
+        `
+        )
         .eq("curriculum_id", curriculumId)
-        .eq("progress_records.employee_id", emp.id) // CORRECT
+        .eq("progress_records.employee_id", empData.id)
 
       if (error) throw error
 
@@ -1701,6 +1706,44 @@ export function useCourseProgress(curriculumId: string) {
   })
 }
 
+// Returns a Set of completed lesson IDs for the current employee in a curriculum
+export function useLessonCompletionMap(curriculumId: string) {
+  return useQuery({
+    queryKey: ["lesson-completion-map", curriculumId],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return new Set<string>()
+
+      const { data: empData } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", user.id)
+        .single()
+      if (!empData) return new Set<string>()
+
+      const { data: lessons } = await supabase
+        .from("lessons")
+        .select("id")
+        .eq("curriculum_id", curriculumId)
+
+      const lessonIds = (lessons ?? []).map((l) => l.id)
+      if (!lessonIds.length) return new Set<string>()
+
+      const { data: progress } = await supabase
+        .from("progress_records")
+        .select("lesson_id")
+        .eq("employee_id", empData.id)
+        .eq("is_completed", true)
+        .in("lesson_id", lessonIds)
+
+      return new Set((progress ?? []).map((r) => r.lesson_id))
+    },
+    enabled: !!curriculumId,
+  })
+}
+
 export function useCreateCurriculum() {
   const qc = useQueryClient()
   return useMutation({
@@ -1709,15 +1752,16 @@ export function useCreateCurriculum() {
       description: string | null
       is_published: boolean
     }) => {
-      const { data: empData } = await supabase
-        .from("employees")
-        .select("id")
-        .eq("user_id", (await supabase.auth.getUser()).data.user!.id)
-        .single()
-      if (!empData) throw new Error("No employee record found")
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+
       const { data, error } = await supabase
         .from("curriculums")
-        .insert({ ...payload, created_by: empData.id })
+        .insert({ ...payload, created_by: user.id })
+        .select()
+        .single()
       if (error) throw error
       return data
     },
@@ -1779,10 +1823,8 @@ export function useCreateModule() {
       if (error) throw error
       return data
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["curriculum"] })
-      qc.invalidateQueries({ queryKey: ["curriculums"] })
-    },
+    onSuccess: (_, { curriculum_id }) =>
+      qc.invalidateQueries({ queryKey: ["curriculum", curriculum_id] }),
   })
 }
 
@@ -1899,6 +1941,7 @@ export function useMarkLessonComplete() {
       employee_id: string
       lesson_id: string
     }) => {
+      // 1. Upsert progress record
       const { error } = await supabase.from("progress_records").upsert(
         {
           employee_id,
@@ -1906,14 +1949,54 @@ export function useMarkLessonComplete() {
           percent_watched: 100,
           is_completed: true,
           last_watched_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         },
         { onConflict: "employee_id,lesson_id" }
       )
       if (error) throw error
+
+      // 2. Find which curriculum this lesson belongs to
+      const { data: lessonData } = await supabase
+        .from("lessons")
+        .select("curriculum_id")
+        .eq("id", lesson_id)
+        .single()
+      if (!lessonData?.curriculum_id) return
+
+      // 3. Count total lessons and completed lessons for this curriculum
+      const { data: allLessons } = await supabase
+        .from("lessons")
+        .select("id")
+        .eq("curriculum_id", lessonData.curriculum_id)
+
+      const { data: completedRecords } = await supabase
+        .from("progress_records")
+        .select("lesson_id")
+        .eq("employee_id", employee_id)
+        .eq("is_completed", true)
+        .in(
+          "lesson_id",
+          (allLessons ?? []).map((l) => l.id)
+        )
+
+      const totalCount = allLessons?.length ?? 0
+      const completedCount = completedRecords?.length ?? 0
+
+      // 4. If all lessons complete, issue certification (upsert = safe to re-run)
+      if (totalCount > 0 && completedCount >= totalCount) {
+        await supabase
+          .from("certifications")
+          .upsert(
+            { employee_id, curriculum_id: lessonData.curriculum_id },
+            { onConflict: "employee_id,curriculum_id" }
+          )
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["course-progress"] })
+      qc.invalidateQueries({ queryKey: ["lesson-completion-map"] })
       qc.invalidateQueries({ queryKey: ["training-record"] })
+      qc.invalidateQueries({ queryKey: ["certifications"] })
     },
   })
 }
@@ -1935,7 +2018,9 @@ export function useUpdateLessonProgress() {
         )
       if (error) throw error
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["course-progress"] }),
+    onSuccess: (_, vars) => {
+      qc.invalidateQueries({ queryKey: ["course-progress"] })
+    },
   })
 }
 
@@ -1963,14 +2048,14 @@ export function useAssignTraining() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: async (payload: {
-      user_id: string
+      employee_id: string
       curriculum_id: string
       due_date: string
       assigned_by: string
     }) => {
       const { error } = await supabase
         .from("training_assignments")
-        .upsert(payload, { onConflict: "user_id,curriculum_id" })
+        .upsert(payload, { onConflict: "employee_id,curriculum_id" })
       if (error) throw error
     },
     onSuccess: () => {
@@ -2056,8 +2141,10 @@ export function useAssignCourse() {
         )
       if (error) throw error
     },
-    onSuccess: () =>
-      qc.invalidateQueries({ queryKey: ["training-records-all"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["training-records-all"] })
+      qc.invalidateQueries({ queryKey: ["training-record"] })
+    },
     onError: (e: any) => toast.error(e.message),
   })
 }

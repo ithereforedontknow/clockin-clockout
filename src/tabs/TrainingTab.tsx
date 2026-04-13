@@ -294,7 +294,7 @@ function ManageCoursesPanel() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-4">
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: "Total", value: curriculums.length, color: "" },

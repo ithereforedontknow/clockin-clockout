@@ -488,6 +488,8 @@ export function CourseEditor() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete course confirmation */}
       <AlertDialog
         open={showDeleteCourseDialog}
         onOpenChange={setShowDeleteCourseDialog}

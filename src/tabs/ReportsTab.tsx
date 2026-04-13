@@ -42,13 +42,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  useAllClockEntries,
-  useAllEmployeesForReports,
-  useAllCorrections,
-} from "@/lib/queries"
+import { useAllClockEntries, useAllEmployeesForReports } from "@/lib/queries"
 import { formatMinutes } from "@/lib/supabase"
-import type { ClockEntry, BreakEntry, Employee } from "@/lib/supabase"
+import type {
+  ClockEntry,
+  BreakEntry,
+  Employee,
+  ClockCorrection,
+} from "@/lib/supabase"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -166,10 +167,8 @@ export function ReportsTab() {
     useAllClockEntries(weekStartStr)
   const { data: employees = [], isLoading: empLoading } =
     useAllEmployeesForReports()
-  const { data: corrections = [] } = useAllCorrections()
   const isLoading = entriesLoading || empLoading
   const [deptFilter, setDeptFilter] = useState<string>("")
-  const pendingCorrections = corrections.filter((c) => c.status === "pending")
 
   const weekdayDates = weekDays
     .filter((d) => ![0, 6].includes(d.getDay()))
@@ -286,12 +285,6 @@ export function ReportsTab() {
     <div className="max-w-5xl space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Reports</h1>
-        {pendingCorrections.length > 0 && (
-          <p className="mt-0.5 text-xs text-amber-600">
-            {pendingCorrections.length} correction
-            {pendingCorrections.length > 1 ? "s" : ""} awaiting review
-          </p>
-        )}
       </div>
 
       {/* KPI strip */}
@@ -311,12 +304,6 @@ export function ReportsTab() {
           label="With OT"
           value={isLoading ? null : String(totalOTEmployees)}
           highlight={totalOTEmployees > 0}
-        />
-        <KPICard
-          icon={ClipboardEdit}
-          label="Pending Corrections"
-          value={String(pendingCorrections.length)}
-          highlight={pendingCorrections.length > 0}
         />
         <KPICard
           icon={AlertCircle}
@@ -346,14 +333,6 @@ export function ReportsTab() {
             <DollarSign className="mr-1.5 h-3.5 w-3.5" />
             Payroll Export
           </TabsTrigger>
-          {pendingCorrections.length > 0 && (
-            <TabsTrigger value="corrections">
-              Corrections
-              <Badge className="ml-1.5 h-4 min-w-4 px-1 text-[10px]">
-                {pendingCorrections.length}
-              </Badge>
-            </TabsTrigger>
-          )}
         </TabsList>
 
         {/* ── Timesheets ── */}
@@ -924,8 +903,6 @@ function TimesheetTable({
     </Card>
   )
 }
-
-// ─── Corrections Queue ────────────────────────────────────────────────────────
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 

@@ -21,7 +21,7 @@ import {
 interface LessonPlayerProps {
   lesson: any
   courseId: string
-  employee: any // needed for user_id
+  employee: any // needed for employee.id
   onNext?: () => void
   onPrev?: () => void
 }
@@ -47,6 +47,7 @@ export function LessonPlayer({
 
   const handleMarkComplete = async () => {
     if (!employee?.id || !lesson?.id) return
+
     await markComplete.mutateAsync({
       employee_id: employee.id,
       lesson_id: lesson.id,

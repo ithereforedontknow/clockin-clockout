@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react"
 import { useLocation } from "react-router-dom"
-
 import { AppSidebar } from "@/components/AppSidebar"
 import { SettingsModal } from "@/components/SettingsModal"
 import { WelcomeTutorialDialog } from "@/components/WelcomeTutorialDialog"
