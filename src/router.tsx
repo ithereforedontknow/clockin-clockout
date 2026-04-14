@@ -8,7 +8,7 @@ import { EmployeeTrainingPage } from "@/pages/EmployeeTrainingPage"
 import { InstructorRoute } from "@/components/InstructorRoute"
 
 export const router = createBrowserRouter([
-  // ── Public ────────────────────────────────────────────────────s────────────
+  // ── Public ────────────────────────────────────────────────────────────────
   {
     path: "/login",
     element: <LoginPage />,

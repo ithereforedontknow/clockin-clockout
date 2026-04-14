@@ -267,20 +267,8 @@ export interface Announcement {
 
 // ─── LMS ─────────────────────────────────────────────────────────────────────
 
-export type LmsRole = "student" | "instructor" | "admin"
 export type CfStreamStatus = "pending" | "ready" | "error"
 export type TrainingStatus = "overdue" | "due_soon" | "pending" | "completed"
-
-export interface LmsProfile {
-  id: string
-  full_name: string | null
-  avatar_url: string | null
-  role: LmsRole
-  total_hours: number
-  badges: { id: string; label: string; icon: string }[]
-  created_at: string
-  updated_at: string
-}
 
 export interface Curriculum {
   id: string
@@ -321,7 +309,7 @@ export interface Lesson {
 
 export interface ProgressRecord {
   id: string
-  employee_id: string // was user_id
+  employee_id: string
   lesson_id: string
   percent_watched: number
   is_completed: boolean
@@ -332,13 +320,13 @@ export interface ProgressRecord {
 
 export interface Certification {
   id: string
-  user_id: string
+  employee_id: string
   curriculum_id: string
   issued_at: string
 }
 
 export interface TrainingRecord {
-  user_id: string
+  employee_id: string
   curriculum_id: string
   curriculum_title: string
   thumbnail_url: string | null
@@ -350,7 +338,7 @@ export interface TrainingRecord {
 
 export interface TrainingAssignment {
   id: string
-  user_id: string
+  employee_id: string
   curriculum_id: string
   due_date: string
   assigned_by: string | null

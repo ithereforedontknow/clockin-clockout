@@ -15,7 +15,6 @@ import {
   Clock,
   TrendingUp,
   AlertCircle,
-  ClipboardEdit,
   X,
   Loader2,
   DollarSign,
@@ -44,12 +43,7 @@ import {
 } from "@/components/ui/table"
 import { useAllClockEntries, useAllEmployeesForReports } from "@/lib/queries"
 import { formatMinutes } from "@/lib/supabase"
-import type {
-  ClockEntry,
-  BreakEntry,
-  Employee,
-  ClockCorrection,
-} from "@/lib/supabase"
+import type { ClockEntry, BreakEntry, Employee } from "@/lib/supabase"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

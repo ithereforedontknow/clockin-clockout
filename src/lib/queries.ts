@@ -717,7 +717,6 @@ export function useAllCorrections() {
         .order("created_at", { ascending: false })
 
       if (error) {
-        console.error("Corrections error:", error)
         throw error
       }
       return data ?? []
@@ -2018,7 +2017,7 @@ export function useUpdateLessonProgress() {
         )
       if (error) throw error
     },
-    onSuccess: (_, vars) => {
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["course-progress"] })
     },
   })
