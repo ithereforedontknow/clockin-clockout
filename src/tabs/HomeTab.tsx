@@ -187,7 +187,7 @@ export function HomeTab({ onNavigate }: Props) {
               Good {getGreeting()}, {employee?.first_name}! 👋
             </h1>
           )}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-muted-foreground">
             <span>{format(new Date(), "EEEE, MMMM d, yyyy")}</span>
             {upcomingHoliday && (
               <>

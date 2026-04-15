@@ -56,7 +56,7 @@ export function PeopleTab() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">People</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-0.5 text-muted-foreground">
             {isEmployer
               ? `Your team · ${employees.length} member${employees.length !== 1 ? "s" : ""}`
               : `${employees.length} active employee${employees.length !== 1 ? "s" : ""}`}
