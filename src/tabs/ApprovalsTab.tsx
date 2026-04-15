@@ -131,6 +131,13 @@ export function ApprovalsTab() {
     setComment("")
   }
 
+  if (!hasPermission("approve_time_off")) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        Access restricted.
+      </div>
+    )
+  }
   return (
     <div className="max-w-4xl space-y-4">
       {/* Header */}

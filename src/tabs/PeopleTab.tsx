@@ -19,12 +19,11 @@ const ROLE_STYLE: Record<string, string> = {
 export function PeopleTab() {
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<Employee | null>(null)
-  const { hasPermission } = usePermissions()
+
+  const { hasPermission, isAdmin, isEmployer } = usePermissions()
   const { data: currentEmployee } = useCurrentEmployee()
+
   const canViewAll = hasPermission("view_all_employees")
-  const role = currentEmployee?.role ?? "employee"
-  const isEmployer = role === "employer"
-  const isAdmin = role === "admin"
 
   const { data: allEmployees = [], isLoading: allLoading } = useEmployees()
   const { data: myTeam = [], isLoading: teamLoading } = useMyTeam(
@@ -46,9 +45,9 @@ export function PeopleTab() {
 
   const grouped: Record<string, Employee[]> = isAdmin
     ? {
-        Employers: filtered.filter((e: Employee) => e.role === "employer"),
-        Employees: filtered.filter((e: Employee) => e.role === "employee"),
-        Admins: filtered.filter((e: Employee) => e.role === "admin"),
+        Employers: filtered.filter((e) => e.role === "employer"),
+        Employees: filtered.filter((e) => e.role === "employee"),
+        Admins: filtered.filter((e) => e.role === "admin"),
       }
     : { "Team Members": filtered }
 
@@ -76,6 +75,7 @@ export function PeopleTab() {
       </div>
 
       {isLoading ? (
+        /* skeleton stays the same */
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array(6)
             .fill(0)
@@ -108,7 +108,7 @@ export function PeopleTab() {
                 </p>
               )}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {members.map((emp: Employee) => (
+                {members.map((emp) => (
                   <EmployeeCard
                     key={emp.id}
                     employee={emp}
@@ -129,6 +129,7 @@ export function PeopleTab() {
   )
 }
 
+// EmployeeCard stays exactly the same
 function EmployeeCard({
   employee: emp,
   onClick,

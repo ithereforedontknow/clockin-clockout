@@ -23,6 +23,8 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useCompanySettings, useUpdateCompanySettings } from "@/lib/queries"
+import { usePermissions } from "@/lib/auth/permissions"
+
 import { companySettingsSchema } from "@/lib/schemas"
 import { isTimezoneManila, TIMEZONE } from "@/lib/timezone"
 import type { UserRole } from "@/lib/supabase"
@@ -35,8 +37,8 @@ interface Props {
   role: UserRole
 }
 
-export function SettingsModal({ open, onClose, role }: Props) {
-  const isAdmin = role === "admin"
+export function SettingsModal({ open, onClose }: Props) {
+  const { isAdmin } = usePermissions()
   const correctTz = isTimezoneManila()
 
   return (

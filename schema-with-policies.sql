@@ -32,83 +32,87 @@ CREATE TYPE "public"."heartbeat_event" AS (
 ALTER TYPE "public"."heartbeat_event" OWNER TO "postgres";
 
 
-CREATE OR REPLACE FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text" DEFAULT NULL::"text") RETURNS json
+CREATE OR REPLACE FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text" DEFAULT ''::"text", "p_department" "text" DEFAULT ''::"text", "p_location" "text" DEFAULT ''::"text", "p_hire_date" "date" DEFAULT CURRENT_DATE, "p_standard_start_time" time without time zone DEFAULT '09:00:00'::time without time zone, "p_standard_hours_per_day" numeric DEFAULT 8, "p_standard_hours_per_week" numeric DEFAULT 40, "p_manager_id" "uuid" DEFAULT NULL::"uuid") RETURNS json
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public'
     AS $$
 DECLARE
-  v_caller_role text;
-  v_existing_id text;
-  v_new_employee employees;
+  v_role text;
+  v_emp  employees;
 BEGIN
-  -- Verify caller is admin
-  SELECT role INTO v_caller_role
-  FROM employees
-  WHERE user_id = auth.uid()
-  LIMIT 1;
-
-  IF v_caller_role != 'admin' THEN
+  SELECT role INTO v_role FROM employees WHERE user_id = auth.uid() LIMIT 1;
+  IF v_role != 'admin' THEN
     RAISE EXCEPTION 'Only admins can create employees';
   END IF;
-
-  -- Check duplicate email
-  SELECT id INTO v_existing_id
-  FROM employees
-  WHERE lower(email) = lower(p_email)
-  LIMIT 1;
-
-  IF v_existing_id IS NOT NULL THEN
+  IF EXISTS (SELECT 1 FROM employees WHERE lower(email) = lower(p_email)) THEN
     RAISE EXCEPTION 'An employee with email % already exists', p_email;
   END IF;
-
-  -- Insert employee
   INSERT INTO employees (
     first_name, last_name, email, role,
     job_title, department, location,
     hire_date, standard_start_time,
     standard_hours_per_day, standard_hours_per_week,
-    manager_id, user_id, employment_status, onboarding_completed
-  )
-  VALUES (
-    p_first_name,
-    p_last_name,
-    lower(trim(p_email)),
-    p_role,
-    coalesce(p_job_title, ''),
-    coalesce(p_department, ''),
-    coalesce(p_location, ''),
-    coalesce(p_hire_date, CURRENT_DATE),
-    coalesce(p_standard_start_time, '09:00:00'::time),
-    coalesce(p_standard_hours_per_day, 8),
-    coalesce(p_standard_hours_per_week, 40),
-    p_manager_id,
-    NULL,
-    'active',
-    false
-  )
-  RETURNING * INTO v_new_employee;
-
-  RETURN row_to_json(v_new_employee);
+    manager_id, employment_status, onboarding_completed
+  ) VALUES (
+    p_first_name, p_last_name, lower(trim(p_email)), p_role,
+    p_job_title, p_department, p_location,
+    p_hire_date, p_standard_start_time,
+    p_standard_hours_per_day, p_standard_hours_per_week,
+    p_manager_id, 'active', false
+  ) RETURNING * INTO v_emp;
+  RETURN row_to_json(v_emp);
 END;
 $$;
 
 
-ALTER FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text") OWNER TO "postgres";
+ALTER FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."close_stale_clock_entries"() RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+BEGIN
+  UPDATE clock_entries
+  SET
+    clock_out = (date + interval '23 hours 59 minutes')::timestamptz,
+    total_minutes = 1439,
+    notes = COALESCE(notes || ' ', '') || '[Auto-closed: missed clock-out]'
+  WHERE
+    clock_out IS NULL
+    AND date < CURRENT_DATE;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."close_stale_clock_entries"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."deduct_time_off_balance"("p_employee_id" "uuid", "p_category_id" "uuid", "p_days" numeric) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
-begin
-  update time_off_balances
-  set balance = balance - p_days
-  where employee_id = p_employee_id
-    and category_id = p_category_id;
-end;
+BEGIN
+  UPDATE time_off_balances
+  SET balance = balance - p_days
+  WHERE employee_id = p_employee_id
+    AND category_id = p_category_id;
+END;
 $$;
 
 
 ALTER FUNCTION "public"."deduct_time_off_balance"("p_employee_id" "uuid", "p_category_id" "uuid", "p_days" numeric) OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "public"."get_my_employee_id"() RETURNS "uuid"
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'public'
+    AS $$
+  SELECT id FROM public.employees WHERE user_id = auth.uid() LIMIT 1;
+$$;
+
+
+ALTER FUNCTION "public"."get_my_employee_id"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."get_my_role"() RETURNS "text"
@@ -128,7 +132,7 @@ SET default_table_access_method = "heap";
 
 CREATE TABLE IF NOT EXISTS "public"."certifications" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "user_id" "uuid" NOT NULL,
+    "employee_id" "uuid" NOT NULL,
     "curriculum_id" "uuid" NOT NULL,
     "issued_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
@@ -154,7 +158,7 @@ ALTER TABLE "public"."curriculums" OWNER TO "postgres";
 
 CREATE TABLE IF NOT EXISTS "public"."training_assignments" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "user_id" "uuid" NOT NULL,
+    "employee_id" "uuid" NOT NULL,
     "curriculum_id" "uuid" NOT NULL,
     "due_date" "date" NOT NULL,
     "assigned_by" "uuid",
@@ -166,7 +170,7 @@ ALTER TABLE "public"."training_assignments" OWNER TO "postgres";
 
 
 CREATE OR REPLACE VIEW "public"."training_record" AS
- SELECT "ta"."user_id",
+ SELECT "ta"."employee_id",
     "ta"."curriculum_id",
     "c"."title" AS "curriculum_title",
     "c"."thumbnail_url",
@@ -181,7 +185,7 @@ CREATE OR REPLACE VIEW "public"."training_record" AS
     ("ta"."due_date" - CURRENT_DATE) AS "days_remaining"
    FROM (("public"."training_assignments" "ta"
      JOIN "public"."curriculums" "c" ON (("c"."id" = "ta"."curriculum_id")))
-     LEFT JOIN "public"."certifications" "cert" ON ((("cert"."user_id" = "ta"."user_id") AND ("cert"."curriculum_id" = "ta"."curriculum_id"))));
+     LEFT JOIN "public"."certifications" "cert" ON ((("cert"."employee_id" = "ta"."employee_id") AND ("cert"."curriculum_id" = "ta"."curriculum_id"))));
 
 
 ALTER VIEW "public"."training_record" OWNER TO "postgres";
@@ -189,68 +193,22 @@ ALTER VIEW "public"."training_record" OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."get_my_training_record"() RETURNS SETOF "public"."training_record"
     LANGUAGE "sql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
-  select * from public.training_record
-  where user_id = auth.uid()
-  order by
-    case status
-      when 'overdue'   then 1
-      when 'due_soon'  then 2
-      when 'pending'   then 3
-      when 'completed' then 4
-    end,
-    due_date asc;
+  SELECT * FROM public.training_record
+  WHERE employee_id = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
+  ORDER BY
+    CASE status
+      WHEN 'overdue'   THEN 1
+      WHEN 'due_soon'  THEN 2
+      WHEN 'pending'   THEN 3
+      ELSE 4
+    END,
+    due_date;
 $$;
 
 
 ALTER FUNCTION "public"."get_my_training_record"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
-    LANGUAGE "plpgsql" SECURITY DEFINER
-    AS $$
-begin
-  insert into public.profiles (id, full_name, avatar_url)
-  values (
-    new.id,
-    new.raw_user_meta_data->>'full_name',
-    new.raw_user_meta_data->>'avatar_url'
-  );
-  return new;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."handle_new_user"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."handle_progress_completion"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-begin
-  if new.percent_watched >= 90 then
-    new.is_completed = true;
-  end if;
-  new.last_watched_at = now();
-  return new;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."handle_progress_completion"() OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."handle_updated_at"() RETURNS "trigger"
-    LANGUAGE "plpgsql"
-    AS $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$;
-
-
-ALTER FUNCTION "public"."handle_updated_at"() OWNER TO "postgres";
 
 
 CREATE OR REPLACE FUNCTION "public"."link_employee_on_auth_user"() RETURNS "trigger"
@@ -260,7 +218,7 @@ CREATE OR REPLACE FUNCTION "public"."link_employee_on_auth_user"() RETURNS "trig
 BEGIN
   UPDATE employees
   SET user_id = NEW.id
-  WHERE LOWER(email) = LOWER(NEW.email)
+  WHERE lower(email) = lower(NEW.email)
     AND user_id IS NULL;
   RETURN NEW;
 END;
@@ -273,10 +231,7 @@ ALTER FUNCTION "public"."link_employee_on_auth_user"() OWNER TO "postgres";
 CREATE OR REPLACE FUNCTION "public"."set_updated_at"() RETURNS "trigger"
     LANGUAGE "plpgsql"
     AS $$
-begin
-  new.updated_at = now();
-  return new;
-end;
+BEGIN new.updated_at = now(); RETURN new; END;
 $$;
 
 
@@ -285,21 +240,25 @@ ALTER FUNCTION "public"."set_updated_at"() OWNER TO "postgres";
 
 CREATE OR REPLACE FUNCTION "public"."upsert_progress_batch"("events" "public"."heartbeat_event"[]) RETURNS "void"
     LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public'
     AS $$
-declare
-  ev public.heartbeat_event;
-begin
-  foreach ev in array events loop
-    insert into public.progress_records (user_id, lesson_id, percent_watched)
-    values (auth.uid(), ev.lesson_id, ev.percent_watched)
-    on conflict (user_id, lesson_id) do update
-      set percent_watched = greatest(
-            public.progress_records.percent_watched,
-            excluded.percent_watched
-          );
-      -- Note: the trigger handles is_completed and last_watched_at
-  end loop;
-end;
+DECLARE
+  ev     public.heartbeat_event;
+  emp_id uuid;
+BEGIN
+  SELECT id INTO emp_id FROM employees WHERE user_id = auth.uid() LIMIT 1;
+  IF emp_id IS NULL THEN RETURN; END IF;
+  FOREACH ev IN ARRAY events LOOP
+    INSERT INTO progress_records (employee_id, lesson_id, percent_watched)
+    VALUES (emp_id, ev.lesson_id, ev.percent_watched)
+    ON CONFLICT (employee_id, lesson_id) DO UPDATE
+      SET percent_watched = GREATEST(progress_records.percent_watched, excluded.percent_watched),
+          is_completed    = CASE WHEN excluded.percent_watched >= 90 THEN true
+                                 ELSE progress_records.is_completed END,
+          last_watched_at = now(),
+          updated_at      = now();
+  END LOOP;
+END;
 $$;
 
 
@@ -307,14 +266,14 @@ ALTER FUNCTION "public"."upsert_progress_batch"("events" "public"."heartbeat_eve
 
 
 CREATE TABLE IF NOT EXISTS "public"."announcements" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "title" "text" NOT NULL,
     "body" "text" NOT NULL,
-    "posted_by" "text" NOT NULL,
+    "posted_by" "uuid" NOT NULL,
     "target" "text" DEFAULT 'all'::"text" NOT NULL,
-    "target_employer_id" "text",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "target_employer_id" "uuid",
     "pinned" boolean DEFAULT false NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "announcements_target_check" CHECK (("target" = ANY (ARRAY['all'::"text", 'employer_team'::"text"])))
 );
 
@@ -323,8 +282,8 @@ ALTER TABLE "public"."announcements" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."audit_log" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
-    "actor_id" "text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "actor_id" "uuid",
     "action" "text" NOT NULL,
     "target_table" "text" NOT NULL,
     "target_id" "text" NOT NULL,
@@ -339,8 +298,8 @@ ALTER TABLE "public"."audit_log" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."break_entries" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
-    "clock_entry_id" "text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "clock_entry_id" "uuid" NOT NULL,
     "break_start" timestamp with time zone NOT NULL,
     "break_end" timestamp with time zone,
     "duration_minutes" integer
@@ -351,9 +310,9 @@ ALTER TABLE "public"."break_entries" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."clock_corrections" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
-    "clock_entry_id" "text" NOT NULL,
-    "employee_id" "text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "clock_entry_id" "uuid" NOT NULL,
+    "employee_id" "uuid" NOT NULL,
     "requested_clock_in" timestamp with time zone,
     "requested_clock_out" timestamp with time zone,
     "requested_break_minutes" integer,
@@ -361,7 +320,7 @@ CREATE TABLE IF NOT EXISTS "public"."clock_corrections" (
     "reason" "text" NOT NULL,
     "status" "text" DEFAULT 'pending'::"text" NOT NULL,
     "reviewer_comment" "text",
-    "reviewed_by" "text",
+    "reviewed_by" "uuid",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "clock_corrections_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'denied'::"text"])))
@@ -372,8 +331,8 @@ ALTER TABLE "public"."clock_corrections" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."clock_entries" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
-    "employee_id" "text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "employee_id" "uuid" NOT NULL,
     "clock_in" timestamp with time zone NOT NULL,
     "clock_out" timestamp with time zone,
     "date" "date" NOT NULL,
@@ -387,7 +346,7 @@ ALTER TABLE "public"."clock_entries" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."company_holidays" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
     "month" integer NOT NULL,
     "day" integer NOT NULL,
@@ -409,7 +368,6 @@ CREATE TABLE IF NOT EXISTS "public"."company_settings" (
     "overtime_threshold_daily" numeric DEFAULT 8 NOT NULL,
     "overtime_threshold_weekly" numeric DEFAULT 40 NOT NULL,
     "logo_url" "text",
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "industry" "text",
     "phone" "text",
     "email" "text",
@@ -417,7 +375,8 @@ CREATE TABLE IF NOT EXISTS "public"."company_settings" (
     "address_line1" "text",
     "address_line2" "text",
     "city" "text",
-    "country" "text" DEFAULT 'Philippines'::"text"
+    "country" "text" DEFAULT 'Philippines'::"text",
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
 
@@ -425,9 +384,9 @@ ALTER TABLE "public"."company_settings" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."departments" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
-    "created_by" "text",
+    "created_by" "uuid",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
 );
 
@@ -436,27 +395,26 @@ ALTER TABLE "public"."departments" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."employees" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "user_id" "uuid",
     "first_name" "text" NOT NULL,
     "last_name" "text" NOT NULL,
     "email" "text" NOT NULL,
+    "preferred_name" "text",
+    "role" "text" DEFAULT 'employee'::"text" NOT NULL,
     "job_title" "text" DEFAULT ''::"text" NOT NULL,
     "department" "text" DEFAULT ''::"text" NOT NULL,
     "location" "text" DEFAULT ''::"text" NOT NULL,
     "hire_date" "date" DEFAULT CURRENT_DATE NOT NULL,
-    "manager_id" "text",
+    "manager_id" "uuid",
     "avatar_url" "text",
     "phone" "text",
-    "employment_status" "text" DEFAULT 'active'::"text" NOT NULL,
     "birthday" "date",
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "role" "text" DEFAULT 'employee'::"text" NOT NULL,
+    "employment_status" "text" DEFAULT 'active'::"text" NOT NULL,
     "standard_hours_per_day" numeric DEFAULT 8 NOT NULL,
     "standard_hours_per_week" numeric DEFAULT 40 NOT NULL,
+    "standard_start_time" time without time zone DEFAULT '09:00:00'::time without time zone,
     "onboarding_completed" boolean DEFAULT false NOT NULL,
-    "preferred_name" "text",
     "address_line1" "text",
     "address_line2" "text",
     "city" "text",
@@ -464,7 +422,8 @@ CREATE TABLE IF NOT EXISTS "public"."employees" (
     "emergency_name" "text",
     "emergency_phone" "text",
     "emergency_relation" "text",
-    "standard_start_time" time without time zone DEFAULT '09:00:00'::time without time zone,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "employees_employment_status_check" CHECK (("employment_status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'on_leave'::"text"]))),
     CONSTRAINT "employees_role_check" CHECK (("role" = ANY (ARRAY['employee'::"text", 'employer'::"text", 'admin'::"text"])))
 );
@@ -474,8 +433,8 @@ ALTER TABLE "public"."employees" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."info_change_requests" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
-    "employee_id" "text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "employee_id" "uuid" NOT NULL,
     "field_name" "text" NOT NULL,
     "old_value" "text",
     "new_value" "text" NOT NULL,
@@ -492,17 +451,17 @@ ALTER TABLE "public"."info_change_requests" OWNER TO "postgres";
 CREATE TABLE IF NOT EXISTS "public"."lessons" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "module_id" "uuid" NOT NULL,
+    "curriculum_id" "uuid",
     "title" "text" NOT NULL,
     "description" "text",
     "cf_stream_id" "text",
     "cf_stream_status" "text" DEFAULT 'pending'::"text",
     "duration_seconds" integer,
     "order_index" integer DEFAULT 0 NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "content_html" "text",
     "quiz" "jsonb",
-    "curriculum_id" "uuid",
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     CONSTRAINT "lessons_cf_stream_status_check" CHECK (("cf_stream_status" = ANY (ARRAY['pending'::"text", 'ready'::"text", 'error'::"text"])))
 );
 
@@ -525,8 +484,8 @@ ALTER TABLE "public"."modules" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."notifications" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
-    "employee_id" "text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "employee_id" "uuid" NOT NULL,
     "type" "text" NOT NULL,
     "title" "text" NOT NULL,
     "message" "text" NOT NULL,
@@ -539,25 +498,9 @@ CREATE TABLE IF NOT EXISTS "public"."notifications" (
 ALTER TABLE "public"."notifications" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."profiles" (
-    "id" "uuid" NOT NULL,
-    "full_name" "text",
-    "avatar_url" "text",
-    "role" "text" DEFAULT 'student'::"text" NOT NULL,
-    "total_hours" numeric DEFAULT 0 NOT NULL,
-    "badges" "jsonb" DEFAULT '[]'::"jsonb" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "profiles_role_check" CHECK (("role" = ANY (ARRAY['student'::"text", 'instructor'::"text", 'admin'::"text"])))
-);
-
-
-ALTER TABLE "public"."profiles" OWNER TO "postgres";
-
-
 CREATE TABLE IF NOT EXISTS "public"."progress_records" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "user_id" "uuid" NOT NULL,
+    "employee_id" "uuid" NOT NULL,
     "lesson_id" "uuid" NOT NULL,
     "percent_watched" numeric DEFAULT 0 NOT NULL,
     "is_completed" boolean DEFAULT false NOT NULL,
@@ -572,9 +515,9 @@ ALTER TABLE "public"."progress_records" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."time_off_balances" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
-    "employee_id" "text" NOT NULL,
-    "category_id" "text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "employee_id" "uuid" NOT NULL,
+    "category_id" "uuid" NOT NULL,
     "balance" numeric DEFAULT 0 NOT NULL,
     "scheduled" numeric DEFAULT 0 NOT NULL
 );
@@ -584,7 +527,7 @@ ALTER TABLE "public"."time_off_balances" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."time_off_categories" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
     "accrual_rate" numeric DEFAULT 1.67 NOT NULL,
     "max_balance" numeric,
@@ -597,9 +540,9 @@ ALTER TABLE "public"."time_off_categories" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."time_off_requests" (
-    "id" "text" DEFAULT ("gen_random_uuid"())::"text" NOT NULL,
-    "employee_id" "text" NOT NULL,
-    "category_id" "text" NOT NULL,
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "employee_id" "uuid" NOT NULL,
+    "category_id" "uuid" NOT NULL,
     "start_date" "date" NOT NULL,
     "end_date" "date" NOT NULL,
     "amount" numeric NOT NULL,
@@ -632,12 +575,12 @@ ALTER TABLE ONLY "public"."break_entries"
 
 
 ALTER TABLE ONLY "public"."certifications"
-    ADD CONSTRAINT "certifications_pkey" PRIMARY KEY ("id");
+    ADD CONSTRAINT "certifications_employee_id_curriculum_id_key" UNIQUE ("employee_id", "curriculum_id");
 
 
 
 ALTER TABLE ONLY "public"."certifications"
-    ADD CONSTRAINT "certifications_user_id_curriculum_id_key" UNIQUE ("user_id", "curriculum_id");
+    ADD CONSTRAINT "certifications_pkey" PRIMARY KEY ("id");
 
 
 
@@ -711,18 +654,13 @@ ALTER TABLE ONLY "public"."notifications"
 
 
 
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("id");
+ALTER TABLE ONLY "public"."progress_records"
+    ADD CONSTRAINT "progress_records_employee_id_lesson_id_key" UNIQUE ("employee_id", "lesson_id");
 
 
 
 ALTER TABLE ONLY "public"."progress_records"
     ADD CONSTRAINT "progress_records_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."progress_records"
-    ADD CONSTRAINT "progress_records_user_id_lesson_id_key" UNIQUE ("user_id", "lesson_id");
 
 
 
@@ -747,68 +685,44 @@ ALTER TABLE ONLY "public"."time_off_requests"
 
 
 ALTER TABLE ONLY "public"."training_assignments"
-    ADD CONSTRAINT "training_assignments_pkey" PRIMARY KEY ("id");
+    ADD CONSTRAINT "training_assignments_employee_id_curriculum_id_key" UNIQUE ("employee_id", "curriculum_id");
 
 
 
 ALTER TABLE ONLY "public"."training_assignments"
-    ADD CONSTRAINT "training_assignments_user_id_curriculum_id_key" UNIQUE ("user_id", "curriculum_id");
+    ADD CONSTRAINT "training_assignments_pkey" PRIMARY KEY ("id");
 
 
 
-CREATE INDEX "announcements_target" ON "public"."announcements" USING "btree" ("target", "target_employer_id", "created_at" DESC);
+CREATE INDEX "audit_log_actor_id_created_at_idx" ON "public"."audit_log" USING "btree" ("actor_id", "created_at" DESC);
 
 
 
-CREATE INDEX "audit_log_actor" ON "public"."audit_log" USING "btree" ("actor_id", "created_at" DESC);
+CREATE INDEX "clock_entries_employee_id_date_idx" ON "public"."clock_entries" USING "btree" ("employee_id", "date");
 
 
 
-CREATE INDEX "audit_log_created" ON "public"."audit_log" USING "btree" ("created_at" DESC);
+CREATE INDEX "employees_user_id_idx" ON "public"."employees" USING "btree" ("user_id");
 
 
 
-CREATE INDEX "audit_log_target" ON "public"."audit_log" USING "btree" ("target_table", "target_id");
+CREATE INDEX "lessons_curriculum_id_idx" ON "public"."lessons" USING "btree" ("curriculum_id");
 
 
 
-CREATE INDEX "clock_corrections_employee" ON "public"."clock_corrections" USING "btree" ("employee_id", "status");
+CREATE INDEX "lessons_module_id_order_index_idx" ON "public"."lessons" USING "btree" ("module_id", "order_index");
 
 
 
-CREATE INDEX "clock_corrections_status" ON "public"."clock_corrections" USING "btree" ("status");
+CREATE INDEX "modules_curriculum_id_order_index_idx" ON "public"."modules" USING "btree" ("curriculum_id", "order_index");
 
 
 
-CREATE INDEX "clock_entries_employee_date" ON "public"."clock_entries" USING "btree" ("employee_id", "date");
+CREATE INDEX "notifications_employee_id_read_created_at_idx" ON "public"."notifications" USING "btree" ("employee_id", "read", "created_at" DESC);
 
 
 
-CREATE INDEX "idx_lessons_curriculum_id" ON "public"."lessons" USING "btree" ("curriculum_id");
-
-
-
-CREATE INDEX "idx_progress_records_user_lesson" ON "public"."progress_records" USING "btree" ("user_id", "lesson_id");
-
-
-
-CREATE INDEX "lessons_module_order" ON "public"."lessons" USING "btree" ("module_id", "order_index");
-
-
-
-CREATE INDEX "modules_curriculum_order" ON "public"."modules" USING "btree" ("curriculum_id", "order_index");
-
-
-
-CREATE INDEX "notifications_employee_unread" ON "public"."notifications" USING "btree" ("employee_id", "read", "created_at" DESC);
-
-
-
-CREATE INDEX "progress_user_completed" ON "public"."progress_records" USING "btree" ("user_id", "is_completed");
-
-
-
-CREATE INDEX "progress_user_lesson" ON "public"."progress_records" USING "btree" ("user_id", "lesson_id");
+CREATE INDEX "progress_records_employee_id_is_completed_idx" ON "public"."progress_records" USING "btree" ("employee_id", "is_completed");
 
 
 
@@ -816,7 +730,7 @@ CREATE OR REPLACE TRIGGER "clock_corrections_updated_at" BEFORE UPDATE ON "publi
 
 
 
-CREATE OR REPLACE TRIGGER "curriculums_updated_at" BEFORE UPDATE ON "public"."curriculums" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+CREATE OR REPLACE TRIGGER "curriculums_updated_at" BEFORE UPDATE ON "public"."curriculums" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
@@ -824,23 +738,15 @@ CREATE OR REPLACE TRIGGER "employees_updated_at" BEFORE UPDATE ON "public"."empl
 
 
 
-CREATE OR REPLACE TRIGGER "lessons_updated_at" BEFORE UPDATE ON "public"."lessons" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+CREATE OR REPLACE TRIGGER "lessons_updated_at" BEFORE UPDATE ON "public"."lessons" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
-CREATE OR REPLACE TRIGGER "modules_updated_at" BEFORE UPDATE ON "public"."modules" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+CREATE OR REPLACE TRIGGER "modules_updated_at" BEFORE UPDATE ON "public"."modules" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
-CREATE OR REPLACE TRIGGER "profiles_updated_at" BEFORE UPDATE ON "public"."profiles" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "progress_auto_complete" BEFORE INSERT OR UPDATE ON "public"."progress_records" FOR EACH ROW EXECUTE FUNCTION "public"."handle_progress_completion"();
-
-
-
-CREATE OR REPLACE TRIGGER "progress_records_updated_at" BEFORE UPDATE ON "public"."progress_records" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+CREATE OR REPLACE TRIGGER "progress_updated_at" BEFORE UPDATE ON "public"."progress_records" FOR EACH ROW EXECUTE FUNCTION "public"."set_updated_at"();
 
 
 
@@ -874,7 +780,7 @@ ALTER TABLE ONLY "public"."certifications"
 
 
 ALTER TABLE ONLY "public"."certifications"
-    ADD CONSTRAINT "certifications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
+    ADD CONSTRAINT "certifications_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE CASCADE;
 
 
 
@@ -899,7 +805,7 @@ ALTER TABLE ONLY "public"."clock_entries"
 
 
 ALTER TABLE ONLY "public"."curriculums"
-    ADD CONSTRAINT "curriculums_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."profiles"("id") ON DELETE RESTRICT;
+    ADD CONSTRAINT "curriculums_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."employees"("id") ON DELETE RESTRICT;
 
 
 
@@ -943,18 +849,13 @@ ALTER TABLE ONLY "public"."notifications"
 
 
 
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."progress_records"
+    ADD CONSTRAINT "progress_records_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE CASCADE;
 
 
 
 ALTER TABLE ONLY "public"."progress_records"
     ADD CONSTRAINT "progress_records_lesson_id_fkey" FOREIGN KEY ("lesson_id") REFERENCES "public"."lessons"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."progress_records"
-    ADD CONSTRAINT "progress_records_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
 
 
 
@@ -979,7 +880,7 @@ ALTER TABLE ONLY "public"."time_off_requests"
 
 
 ALTER TABLE ONLY "public"."training_assignments"
-    ADD CONSTRAINT "training_assignments_assigned_by_fkey" FOREIGN KEY ("assigned_by") REFERENCES "public"."profiles"("id");
+    ADD CONSTRAINT "training_assignments_assigned_by_fkey" FOREIGN KEY ("assigned_by") REFERENCES "public"."employees"("id") ON DELETE SET NULL;
 
 
 
@@ -989,177 +890,69 @@ ALTER TABLE ONLY "public"."training_assignments"
 
 
 ALTER TABLE ONLY "public"."training_assignments"
-    ADD CONSTRAINT "training_assignments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."profiles"("id") ON DELETE CASCADE;
-
-
-
-CREATE POLICY "admin manage departments" ON "public"."departments" USING (("public"."get_my_role"() = 'admin'::"text")) WITH CHECK (("public"."get_my_role"() = 'admin'::"text"));
-
-
-
-CREATE POLICY "admin manage holidays" ON "public"."company_holidays" TO "authenticated" USING (("public"."get_my_role"() = 'admin'::"text")) WITH CHECK (("public"."get_my_role"() = 'admin'::"text"));
-
-
-
-CREATE POLICY "admin read audit log" ON "public"."audit_log" FOR SELECT TO "authenticated" USING (("public"."get_my_role"() = 'admin'::"text"));
-
-
-
-CREATE POLICY "admin update settings" ON "public"."company_settings" FOR UPDATE USING (("public"."get_my_role"() = 'admin'::"text"));
-
-
-
-CREATE POLICY "admin_all_corrections" ON "public"."clock_corrections" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = 'admin'::"text")))));
-
-
-
-CREATE POLICY "admin_insert_employee" ON "public"."employees" FOR INSERT TO "authenticated" WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."employees" "employees_1"
-  WHERE (("employees_1"."user_id" = "auth"."uid"()) AND ("employees_1"."role" = 'admin'::"text")))));
-
-
-
-CREATE POLICY "admin_see_all_corrections" ON "public"."clock_corrections" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = 'admin'::"text")))));
-
-
-
-CREATE POLICY "admin_update_any_employee" ON "public"."employees" FOR UPDATE TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "public"."employees" "employees_1"
-  WHERE (("employees_1"."user_id" = "auth"."uid"()) AND ("employees_1"."role" = 'admin'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."employees" "employees_1"
-  WHERE (("employees_1"."user_id" = "auth"."uid"()) AND ("employees_1"."role" = 'admin'::"text")))));
+    ADD CONSTRAINT "training_assignments_employee_id_fkey" FOREIGN KEY ("employee_id") REFERENCES "public"."employees"("id") ON DELETE CASCADE;
 
 
 
 ALTER TABLE "public"."announcements" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "announcements_manage" ON "public"."announcements" USING (((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = 'admin'::"text")))) OR ("posted_by" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1))));
+CREATE POLICY "announcements: select" ON "public"."announcements" FOR SELECT TO "authenticated" USING ((("target" = 'all'::"text") OR ("posted_by" = "public"."get_my_employee_id"())));
 
 
 
-CREATE POLICY "announcements_select" ON "public"."announcements" FOR SELECT USING ((("target" = 'all'::"text") OR (("target" = 'employer_team'::"text") AND ("target_employer_id" = ( SELECT "employees"."manager_id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1)))));
+CREATE POLICY "announcements: write" ON "public"."announcements" TO "authenticated" USING (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))) WITH CHECK (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
 
 
 
-CREATE POLICY "approve corrections" ON "public"."clock_corrections" FOR UPDATE TO "authenticated" USING ((("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])) AND ("employee_id" <> ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1))));
+CREATE POLICY "assignments: read" ON "public"."training_assignments" FOR SELECT TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
 
 
 
-CREATE POLICY "approve info changes" ON "public"."info_change_requests" FOR UPDATE TO "authenticated" USING ((("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])) AND ("employee_id" <> ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1))));
+CREATE POLICY "assignments: write" ON "public"."training_assignments" TO "authenticated" USING (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))) WITH CHECK (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
 
 
 
-CREATE POLICY "approver_review_corrections" ON "public"."clock_corrections" FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['employer'::"text", 'admin'::"text"]))))));
+CREATE POLICY "audit: admin read" ON "public"."audit_log" FOR SELECT TO "authenticated" USING (("public"."get_my_role"() = 'admin'::"text"));
 
 
 
-CREATE POLICY "assignments: admin write" ON "public"."training_assignments" USING ((EXISTS ( SELECT 1
-   FROM "public"."profiles"
-  WHERE (("profiles"."id" = "auth"."uid"()) AND ("profiles"."role" = ANY (ARRAY['instructor'::"text", 'admin'::"text"]))))));
-
-
-
-CREATE POLICY "assignments: owner read" ON "public"."training_assignments" FOR SELECT USING (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "assignments_select_admin" ON "public"."training_assignments" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = 'admin'::"text")))));
-
-
-
-CREATE POLICY "assignments_select_self" ON "public"."training_assignments" FOR SELECT USING (("user_id" = "auth"."uid"()));
-
-
-
-CREATE POLICY "assignments_select_team" ON "public"."training_assignments" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM ("public"."employees" "manager"
-     JOIN "public"."employees" "subordinate" ON (("subordinate"."manager_id" = "manager"."id")))
-  WHERE (("manager"."user_id" = "auth"."uid"()) AND ("manager"."role" = 'employer'::"text") AND ("subordinate"."user_id" = "training_assignments"."user_id")))));
+CREATE POLICY "audit: write" ON "public"."audit_log" FOR INSERT TO "authenticated" WITH CHECK (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
 
 
 
 ALTER TABLE "public"."audit_log" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "auth read categories" ON "public"."time_off_categories" FOR SELECT TO "authenticated" USING (("auth"."uid"() IS NOT NULL));
-
-
-
-CREATE POLICY "auth read holidays" ON "public"."company_holidays" FOR SELECT TO "authenticated" USING (("auth"."uid"() IS NOT NULL));
-
-
-
-CREATE POLICY "authenticated read departments" ON "public"."departments" FOR SELECT USING (("auth"."uid"() IS NOT NULL));
-
-
-
-CREATE POLICY "authenticated read settings" ON "public"."company_settings" FOR SELECT USING (("auth"."uid"() IS NOT NULL));
-
-
-
-CREATE POLICY "balances_select_admin" ON "public"."time_off_balances" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = 'admin'::"text")))));
-
-
-
-CREATE POLICY "balances_select_self" ON "public"."time_off_balances" FOR SELECT USING (("employee_id" IN ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"()))));
-
-
-
-CREATE POLICY "balances_select_team" ON "public"."time_off_balances" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM ("public"."employees" "manager"
-     JOIN "public"."employees" "subordinate" ON (("subordinate"."manager_id" = "manager"."id")))
-  WHERE (("manager"."user_id" = "auth"."uid"()) AND ("manager"."role" = 'employer'::"text") AND ("subordinate"."id" = "time_off_balances"."employee_id")))));
-
-
-
 ALTER TABLE "public"."break_entries" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "break_update_self" ON "public"."break_entries" FOR UPDATE USING (("clock_entry_id" IN ( SELECT "clock_entries"."id"
+CREATE POLICY "breaks: read write" ON "public"."break_entries" TO "authenticated" USING ((("clock_entry_id" IN ( SELECT "clock_entries"."id"
    FROM "public"."clock_entries"
-  WHERE ("clock_entries"."employee_id" IN ( SELECT "employees"."id"
-           FROM "public"."employees"
-          WHERE ("employees"."user_id" = "auth"."uid"()))))));
+  WHERE ("clock_entries"."employee_id" = "public"."get_my_employee_id"()))) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
 
 
 
 ALTER TABLE "public"."certifications" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "certifications: instructor read" ON "public"."certifications" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."profiles"
-  WHERE (("profiles"."id" = "auth"."uid"()) AND ("profiles"."role" = ANY (ARRAY['instructor'::"text", 'admin'::"text"]))))));
+CREATE POLICY "certifications: read" ON "public"."certifications" FOR SELECT TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
 
 
 
-CREATE POLICY "certifications: owner read" ON "public"."certifications" FOR SELECT USING (("auth"."uid"() = "user_id"));
+CREATE POLICY "certifications: write" ON "public"."certifications" TO "authenticated" USING (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))) WITH CHECK (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
+
+
+
+CREATE POLICY "clock: insert self" ON "public"."clock_entries" FOR INSERT TO "authenticated" WITH CHECK (("employee_id" = "public"."get_my_employee_id"()));
+
+
+
+CREATE POLICY "clock: read" ON "public"."clock_entries" FOR SELECT TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
+
+
+
+CREATE POLICY "clock: update" ON "public"."clock_entries" FOR UPDATE TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
 
 
 
@@ -1169,321 +962,129 @@ ALTER TABLE "public"."clock_corrections" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."clock_entries" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "clock_insert_self" ON "public"."clock_entries" FOR INSERT WITH CHECK (("employee_id" IN ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"()))));
-
-
-
-CREATE POLICY "clock_select_admin" ON "public"."clock_entries" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = 'admin'::"text")))));
-
-
-
-CREATE POLICY "clock_select_self" ON "public"."clock_entries" FOR SELECT USING (("employee_id" IN ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"()))));
-
-
-
-CREATE POLICY "clock_select_team" ON "public"."clock_entries" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM ("public"."employees" "manager"
-     JOIN "public"."employees" "subordinate" ON (("subordinate"."manager_id" = "manager"."id")))
-  WHERE (("manager"."user_id" = "auth"."uid"()) AND ("manager"."role" = 'employer'::"text") AND ("subordinate"."id" = "clock_entries"."employee_id")))));
-
-
-
-CREATE POLICY "clock_update_admin" ON "public"."clock_entries" FOR UPDATE USING (("public"."get_my_role"() = 'admin'::"text"));
-
-
-
-CREATE POLICY "clock_update_employer_team" ON "public"."clock_entries" FOR UPDATE USING (("employee_id" IN ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."manager_id" = ( SELECT "employees_1"."id"
-           FROM "public"."employees" "employees_1"
-          WHERE ("employees_1"."user_id" = "auth"."uid"())
-         LIMIT 1)))));
-
-
-
-CREATE POLICY "clock_update_self" ON "public"."clock_entries" FOR UPDATE USING (("employee_id" IN ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"()))));
-
-
-
 ALTER TABLE "public"."company_holidays" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."company_settings" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "corrections: insert self" ON "public"."clock_corrections" FOR INSERT TO "authenticated" WITH CHECK (("employee_id" = "public"."get_my_employee_id"()));
+
+
+
+CREATE POLICY "corrections: read" ON "public"."clock_corrections" FOR SELECT TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
+
+
+
+CREATE POLICY "corrections: update approver" ON "public"."clock_corrections" FOR UPDATE TO "authenticated" USING (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
+
+
+
 ALTER TABLE "public"."curriculums" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "curriculums: instructor insert" ON "public"."curriculums" FOR INSERT WITH CHECK ((("created_by" = "auth"."uid"()) AND (EXISTS ( SELECT 1
-   FROM "public"."profiles"
-  WHERE (("profiles"."id" = "auth"."uid"()) AND ("profiles"."role" = ANY (ARRAY['instructor'::"text", 'admin'::"text"])))))));
+CREATE POLICY "curriculums: read" ON "public"."curriculums" FOR SELECT TO "authenticated" USING ((("is_published" = true) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
 
 
 
-CREATE POLICY "curriculums: owner or admin modify" ON "public"."curriculums" FOR UPDATE USING ((("created_by" = "auth"."uid"()) OR (EXISTS ( SELECT 1
-   FROM "public"."profiles"
-  WHERE (("profiles"."id" = "auth"."uid"()) AND ("profiles"."role" = 'admin'::"text"))))));
-
-
-
-CREATE POLICY "curriculums: read published" ON "public"."curriculums" FOR SELECT USING ((("is_published" = true) OR ("created_by" = "auth"."uid"())));
-
-
-
-CREATE POLICY "curriculums_manage_instructor" ON "public"."curriculums" USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['admin'::"text", 'employer'::"text"]))))));
-
-
-
-CREATE POLICY "curriculums_select_instructor" ON "public"."curriculums" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['admin'::"text", 'employer'::"text"]))))));
-
-
-
-CREATE POLICY "curriculums_select_published" ON "public"."curriculums" FOR SELECT USING (("is_published" = true));
+CREATE POLICY "curriculums: write" ON "public"."curriculums" TO "authenticated" USING (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))) WITH CHECK (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
 
 
 
 ALTER TABLE "public"."departments" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "employee_insert_corrections" ON "public"."clock_corrections" FOR INSERT WITH CHECK (("employee_id" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1)));
+CREATE POLICY "departments: admin write" ON "public"."departments" TO "authenticated" USING (("public"."get_my_role"() = 'admin'::"text")) WITH CHECK (("public"."get_my_role"() = 'admin'::"text"));
 
 
 
-CREATE POLICY "employee_own_corrections" ON "public"."clock_corrections" FOR SELECT USING (("employee_id" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1)));
-
-
-
-CREATE POLICY "employee_own_corrections_insert" ON "public"."clock_corrections" FOR INSERT WITH CHECK (("employee_id" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1)));
-
-
-
-CREATE POLICY "employee_own_corrections_select" ON "public"."clock_corrections" FOR SELECT USING (("employee_id" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1)));
+CREATE POLICY "departments: read" ON "public"."departments" FOR SELECT TO "authenticated" USING (true);
 
 
 
 ALTER TABLE "public"."employees" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "employees_select_self" ON "public"."employees" FOR SELECT USING (("user_id" = "auth"."uid"()));
+CREATE POLICY "employees: admin write" ON "public"."employees" TO "authenticated" USING (("public"."get_my_role"() = 'admin'::"text")) WITH CHECK (("public"."get_my_role"() = 'admin'::"text"));
 
 
 
-CREATE POLICY "employees_select_unlinked" ON "public"."employees" FOR SELECT USING ((("user_id" IS NULL) AND ("lower"("email") = "lower"("auth"."email"()))));
+CREATE POLICY "employees: read" ON "public"."employees" FOR SELECT TO "authenticated" USING ((("employment_status" = 'active'::"text") OR ("user_id" = "auth"."uid"())));
 
 
 
-CREATE POLICY "employees_update_self" ON "public"."employees" FOR UPDATE USING (("user_id" = "auth"."uid"()));
+CREATE POLICY "employees: update self" ON "public"."employees" FOR UPDATE TO "authenticated" USING (("user_id" = "auth"."uid"()));
 
 
 
-CREATE POLICY "employees_update_unlinked" ON "public"."employees" FOR UPDATE USING ((("user_id" IS NULL) AND ("lower"("email") = "lower"("auth"."email"())))) WITH CHECK (("user_id" = "auth"."uid"()));
+CREATE POLICY "holidays: admin write" ON "public"."company_holidays" TO "authenticated" USING (("public"."get_my_role"() = 'admin'::"text")) WITH CHECK (("public"."get_my_role"() = 'admin'::"text"));
 
 
 
-CREATE POLICY "employer admin insert audit log" ON "public"."audit_log" FOR INSERT TO "authenticated" WITH CHECK ((("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])) AND ("actor_id" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1))));
+CREATE POLICY "holidays: read" ON "public"."company_holidays" FOR SELECT TO "authenticated" USING (true);
 
 
 
-CREATE POLICY "employer_team_corrections" ON "public"."clock_corrections" FOR SELECT USING (("employee_id" IN ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."manager_id" = ( SELECT "employees_1"."id"
-           FROM "public"."employees" "employees_1"
-          WHERE (("employees_1"."user_id" = "auth"."uid"()) AND ("employees_1"."role" = 'employer'::"text"))
-         LIMIT 1)))));
+CREATE POLICY "icr: insert self" ON "public"."info_change_requests" FOR INSERT TO "authenticated" WITH CHECK (("employee_id" = "public"."get_my_employee_id"()));
+
+
+
+CREATE POLICY "icr: read write" ON "public"."info_change_requests" TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
 
 
 
 ALTER TABLE "public"."info_change_requests" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "instructor read all progress" ON "public"."progress_records" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['employer'::"text", 'admin'::"text"]))))));
-
-
-
 ALTER TABLE "public"."lessons" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "lessons: instructor write" ON "public"."lessons" USING ((EXISTS ( SELECT 1
-   FROM (("public"."modules" "m"
-     JOIN "public"."curriculums" "c" ON (("c"."id" = "m"."curriculum_id")))
-     JOIN "public"."profiles" "p" ON (("p"."id" = "auth"."uid"())))
-  WHERE (("m"."id" = "lessons"."module_id") AND (("c"."created_by" = "auth"."uid"()) OR ("p"."role" = 'admin'::"text"))))));
-
-
-
-CREATE POLICY "lessons: read via module" ON "public"."lessons" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM ("public"."modules" "m"
-     JOIN "public"."curriculums" "c" ON (("c"."id" = "m"."curriculum_id")))
-  WHERE (("m"."id" = "lessons"."module_id") AND (("c"."is_published" = true) OR ("c"."created_by" = "auth"."uid"()))))));
-
-
-
-CREATE POLICY "lessons_select" ON "public"."lessons" FOR SELECT USING ((EXISTS ( SELECT 1
+CREATE POLICY "lessons: read" ON "public"."lessons" FOR SELECT TO "authenticated" USING (("curriculum_id" IN ( SELECT "curriculums"."id"
    FROM "public"."curriculums"
-  WHERE (("curriculums"."id" = "lessons"."curriculum_id") AND (("curriculums"."is_published" = true) OR (EXISTS ( SELECT 1
-           FROM "public"."employees"
-          WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['admin'::"text", 'employer'::"text"]))))))))));
+  WHERE (("curriculums"."is_published" = true) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))))));
 
 
 
-CREATE POLICY "manager admin insert notifications" ON "public"."notifications" FOR INSERT WITH CHECK (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
-
-
-
-CREATE POLICY "manager admin read info changes" ON "public"."info_change_requests" FOR SELECT USING ((("employee_id" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1)) OR ("public"."get_my_role"() = ANY (ARRAY['manager'::"text", 'admin'::"text"]))));
+CREATE POLICY "lessons: write" ON "public"."lessons" TO "authenticated" USING (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))) WITH CHECK (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
 
 
 
 ALTER TABLE "public"."modules" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "modules: instructor write" ON "public"."modules" USING ((EXISTS ( SELECT 1
-   FROM ("public"."curriculums" "c"
-     JOIN "public"."profiles" "p" ON (("p"."id" = "auth"."uid"())))
-  WHERE (("c"."id" = "modules"."curriculum_id") AND (("c"."created_by" = "auth"."uid"()) OR ("p"."role" = 'admin'::"text"))))));
-
-
-
-CREATE POLICY "modules: read via curriculum" ON "public"."modules" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."curriculums" "c"
-  WHERE (("c"."id" = "modules"."curriculum_id") AND (("c"."is_published" = true) OR ("c"."created_by" = "auth"."uid"()))))));
-
-
-
-CREATE POLICY "modules_manage_instructor" ON "public"."modules" USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['admin'::"text", 'employer'::"text"]))))));
-
-
-
-CREATE POLICY "modules_select" ON "public"."modules" FOR SELECT USING ((EXISTS ( SELECT 1
+CREATE POLICY "modules: read" ON "public"."modules" FOR SELECT TO "authenticated" USING (("curriculum_id" IN ( SELECT "curriculums"."id"
    FROM "public"."curriculums"
-  WHERE (("curriculums"."id" = "modules"."curriculum_id") AND (("curriculums"."is_published" = true) OR (EXISTS ( SELECT 1
-           FROM "public"."employees"
-          WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['admin'::"text", 'employer'::"text"]))))))))));
+  WHERE (("curriculums"."is_published" = true) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))))));
+
+
+
+CREATE POLICY "modules: write" ON "public"."modules" TO "authenticated" USING (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))) WITH CHECK (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
 
 
 
 ALTER TABLE "public"."notifications" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "own break entries" ON "public"."break_entries" USING ((("clock_entry_id" IN ( SELECT "clock_entries"."id"
-   FROM "public"."clock_entries"
-  WHERE ("clock_entries"."employee_id" = ( SELECT "employees"."id"
-           FROM "public"."employees"
-          WHERE ("employees"."user_id" = "auth"."uid"())
-         LIMIT 1)))) OR (( SELECT "employees"."role"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1) = ANY (ARRAY['manager'::"text", 'admin'::"text"]))));
+CREATE POLICY "notifications: own" ON "public"."notifications" TO "authenticated" USING (("employee_id" = "public"."get_my_employee_id"()));
 
 
 
-CREATE POLICY "own info changes" ON "public"."info_change_requests" USING (("employee_id" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1)));
+CREATE POLICY "notifications: write" ON "public"."notifications" FOR INSERT TO "authenticated" WITH CHECK (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
 
 
 
-CREATE POLICY "own notifications" ON "public"."notifications" USING (("employee_id" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1)));
-
-
-
-CREATE POLICY "own requests" ON "public"."time_off_requests" USING (("employee_id" = ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"())
- LIMIT 1)));
-
-
-
-ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "profiles: admin update" ON "public"."profiles" FOR UPDATE USING ((EXISTS ( SELECT 1
-   FROM "public"."profiles" "p"
-  WHERE (("p"."id" = "auth"."uid"()) AND ("p"."role" = 'admin'::"text")))));
-
-
-
-CREATE POLICY "profiles: owner update" ON "public"."profiles" FOR UPDATE USING (("auth"."uid"() = "id"));
-
-
-
-CREATE POLICY "profiles: public read" ON "public"."profiles" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "progress: instructor read" ON "public"."progress_records" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."profiles"
-  WHERE (("profiles"."id" = "auth"."uid"()) AND ("profiles"."role" = ANY (ARRAY['instructor'::"text", 'admin'::"text"]))))));
-
-
-
-CREATE POLICY "progress: owner only" ON "public"."progress_records" USING (("auth"."uid"() = "user_id"));
+CREATE POLICY "progress: read write" ON "public"."progress_records" TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])))) WITH CHECK (("employee_id" = "public"."get_my_employee_id"()));
 
 
 
 ALTER TABLE "public"."progress_records" ENABLE ROW LEVEL SECURITY;
 
 
-CREATE POLICY "requests_insert_self" ON "public"."time_off_requests" FOR INSERT WITH CHECK (("employee_id" IN ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"()))));
+CREATE POLICY "settings: admin write" ON "public"."company_settings" FOR UPDATE TO "authenticated" USING (("public"."get_my_role"() = 'admin'::"text"));
 
 
 
-CREATE POLICY "requests_select_admin" ON "public"."time_off_requests" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."employees"
-  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = 'admin'::"text")))));
-
-
-
-CREATE POLICY "requests_select_self" ON "public"."time_off_requests" FOR SELECT USING (("employee_id" IN ( SELECT "employees"."id"
-   FROM "public"."employees"
-  WHERE ("employees"."user_id" = "auth"."uid"()))));
-
-
-
-CREATE POLICY "requests_select_team" ON "public"."time_off_requests" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM ("public"."employees" "manager"
-     JOIN "public"."employees" "subordinate" ON (("subordinate"."manager_id" = "manager"."id")))
-  WHERE (("manager"."user_id" = "auth"."uid"()) AND ("manager"."role" = 'employer'::"text") AND ("subordinate"."id" = "time_off_requests"."employee_id")))));
+CREATE POLICY "settings: read" ON "public"."company_settings" FOR SELECT TO "authenticated" USING (true);
 
 
 
@@ -1496,11 +1097,31 @@ ALTER TABLE "public"."time_off_categories" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."time_off_requests" ENABLE ROW LEVEL SECURITY;
 
 
+CREATE POLICY "tob: admin write" ON "public"."time_off_balances" TO "authenticated" USING (("public"."get_my_role"() = 'admin'::"text")) WITH CHECK (("public"."get_my_role"() = 'admin'::"text"));
+
+
+
+CREATE POLICY "tob: read" ON "public"."time_off_balances" FOR SELECT TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
+
+
+
+CREATE POLICY "toc: read" ON "public"."time_off_categories" FOR SELECT TO "authenticated" USING (true);
+
+
+
+CREATE POLICY "tor: insert self" ON "public"."time_off_requests" FOR INSERT TO "authenticated" WITH CHECK (("employee_id" = "public"."get_my_employee_id"()));
+
+
+
+CREATE POLICY "tor: read" ON "public"."time_off_requests" FOR SELECT TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
+
+
+
+CREATE POLICY "tor: update" ON "public"."time_off_requests" FOR UPDATE TO "authenticated" USING ((("employee_id" = "public"."get_my_employee_id"()) OR ("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"]))));
+
+
+
 ALTER TABLE "public"."training_assignments" ENABLE ROW LEVEL SECURITY;
-
-
-CREATE POLICY "users can manage own progress" ON "public"."progress_records" USING (("user_id" = "auth"."uid"())) WITH CHECK (("user_id" = "auth"."uid"()));
-
 
 
 GRANT USAGE ON SCHEMA "public" TO "postgres";
@@ -1510,15 +1131,27 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text") TO "anon";
-GRANT ALL ON FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text") TO "authenticated";
-GRANT ALL ON FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "text") TO "service_role";
+GRANT ALL ON FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "uuid") TO "anon";
+GRANT ALL ON FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "uuid") TO "authenticated";
+GRANT ALL ON FUNCTION "public"."admin_create_employee"("p_first_name" "text", "p_last_name" "text", "p_email" "text", "p_role" "text", "p_job_title" "text", "p_department" "text", "p_location" "text", "p_hire_date" "date", "p_standard_start_time" time without time zone, "p_standard_hours_per_day" numeric, "p_standard_hours_per_week" numeric, "p_manager_id" "uuid") TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."close_stale_clock_entries"() TO "anon";
+GRANT ALL ON FUNCTION "public"."close_stale_clock_entries"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."close_stale_clock_entries"() TO "service_role";
 
 
 
 GRANT ALL ON FUNCTION "public"."deduct_time_off_balance"("p_employee_id" "uuid", "p_category_id" "uuid", "p_days" numeric) TO "anon";
 GRANT ALL ON FUNCTION "public"."deduct_time_off_balance"("p_employee_id" "uuid", "p_category_id" "uuid", "p_days" numeric) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."deduct_time_off_balance"("p_employee_id" "uuid", "p_category_id" "uuid", "p_days" numeric) TO "service_role";
+
+
+
+GRANT ALL ON FUNCTION "public"."get_my_employee_id"() TO "anon";
+GRANT ALL ON FUNCTION "public"."get_my_employee_id"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_my_employee_id"() TO "service_role";
 
 
 
@@ -1558,24 +1191,6 @@ GRANT ALL ON FUNCTION "public"."get_my_training_record"() TO "service_role";
 
 
 
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."handle_progress_completion"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_progress_completion"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."handle_progress_completion"() TO "service_role";
-
-
-
-GRANT ALL ON FUNCTION "public"."handle_updated_at"() TO "anon";
-GRANT ALL ON FUNCTION "public"."handle_updated_at"() TO "authenticated";
-GRANT ALL ON FUNCTION "public"."handle_updated_at"() TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."link_employee_on_auth_user"() TO "anon";
 GRANT ALL ON FUNCTION "public"."link_employee_on_auth_user"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."link_employee_on_auth_user"() TO "service_role";
@@ -1588,7 +1203,6 @@ GRANT ALL ON FUNCTION "public"."set_updated_at"() TO "service_role";
 
 
 
-REVOKE ALL ON FUNCTION "public"."upsert_progress_batch"("events" "public"."heartbeat_event"[]) FROM PUBLIC;
 GRANT ALL ON FUNCTION "public"."upsert_progress_batch"("events" "public"."heartbeat_event"[]) TO "anon";
 GRANT ALL ON FUNCTION "public"."upsert_progress_batch"("events" "public"."heartbeat_event"[]) TO "authenticated";
 GRANT ALL ON FUNCTION "public"."upsert_progress_batch"("events" "public"."heartbeat_event"[]) TO "service_role";
@@ -1670,12 +1284,6 @@ GRANT ALL ON TABLE "public"."modules" TO "service_role";
 GRANT ALL ON TABLE "public"."notifications" TO "anon";
 GRANT ALL ON TABLE "public"."notifications" TO "authenticated";
 GRANT ALL ON TABLE "public"."notifications" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."profiles" TO "anon";
-GRANT ALL ON TABLE "public"."profiles" TO "authenticated";
-GRANT ALL ON TABLE "public"."profiles" TO "service_role";
 
 
 

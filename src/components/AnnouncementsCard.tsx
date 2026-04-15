@@ -39,6 +39,7 @@ import {
   useDeleteAnnouncement,
   usePinAnnouncement,
 } from "@/lib/queries"
+import { usePermissions } from "@/lib/auth/permissions"
 import type { Employee, Announcement } from "@/lib/supabase"
 
 interface Props {
@@ -46,20 +47,21 @@ interface Props {
 }
 
 export function AnnouncementsCard({ currentEmployee }: Props) {
-  const role = currentEmployee.role
-  const canPost = role === "admin" || role === "employer"
-  const employerId = role === "employer" ? currentEmployee.id : undefined
+  const { hasPermission, isEmployer } = usePermissions()
+  const canPost = hasPermission("manage_employees") // or create a new "post_announcements" permission later
+
+  const employerId = isEmployer ? currentEmployee.id : undefined
 
   const { data: announcements = [], isLoading } = useAnnouncements(
     currentEmployee.id,
     employerId
   )
+
   const createAnnouncement = useCreateAnnouncement()
   const deleteAnnouncement = useDeleteAnnouncement()
   const pinAnnouncement = usePinAnnouncement()
 
   const [postOpen, setPostOpen] = useState(false)
-
   return (
     <>
       <Card>

@@ -137,7 +137,6 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
 interface AppSidebarProps {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
-  role: UserRole
   children: ReactNode
   onOpenSettings: () => void
   onOpenPalette: () => void
@@ -147,7 +146,6 @@ interface AppSidebarProps {
 export function AppSidebar({
   activeTab,
   onTabChange,
-  role,
   children,
   onOpenSettings,
   onOpenPalette,
@@ -179,7 +177,12 @@ export function AppSidebar({
 
   const visibleNav = NAV_ITEMS.filter(
     (item) =>
-      !item.roles || item.roles.some((role) => hasPermission(role as any))
+      !item.roles ||
+      item.roles.some(
+        (r) =>
+          (r === "admin" && hasPermission("admin_full_access")) ||
+          (r === "employer" && hasPermission("approve_time_off"))
+      )
   )
 
   return (
@@ -284,7 +287,6 @@ export function AppSidebar({
             {/* Footer — user + notifications + collapse */}
             <SidebarFooter
               collapsed={collapsed}
-              role={role}
               onNavigate={onTabChange}
               onOpenSettings={onOpenSettings}
               onOpenHelp={onOpenHelp}
@@ -355,18 +357,18 @@ function NavButton({
 // ─── Sidebar footer ───────────────────────────────────────────────────────────
 function SidebarFooter({
   collapsed,
-  role,
   onNavigate,
   onOpenSettings,
   onOpenHelp,
 }: {
   collapsed: boolean
-  role: UserRole
   onNavigate: (tab: TabId) => void
   onOpenSettings: () => void
   onOpenHelp: () => void
 }) {
   const { data: employee, isLoading } = useCurrentEmployee()
+  const { role } = usePermissions()
+
   const employeeId = employee?.id ?? ""
   const { data: notifications = [] } = useNotifications(employeeId)
   const markRead = useMarkNotificationRead()

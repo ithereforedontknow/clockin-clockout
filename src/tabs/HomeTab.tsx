@@ -58,8 +58,6 @@ export function HomeTab({ onNavigate }: Props) {
   )
   const { data: employee, isLoading: empLoading } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
-  // const isEmployerOrAdmin =
-  //   employee?.role === "employer" || employee?.role === "admin"
 
   const { hasPermission } = usePermissions()
   const canViewApprovals = hasPermission("approve_time_off")
