@@ -38,6 +38,7 @@ import {
   useMarkAllRead,
   useCompanySettings,
 } from "@/lib/queries"
+import { usePermissions } from "@/lib/auth/permissions"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -159,7 +160,7 @@ export function AppSidebar({
       return false
     }
   })
-
+  const { hasPermission } = usePermissions()
   const { data: settings } = useCompanySettings()
   const companyName = settings?.company_name ?? "Company"
   useEffect(() => {
@@ -177,7 +178,8 @@ export function AppSidebar({
   }
 
   const visibleNav = NAV_ITEMS.filter(
-    (item) => !item.roles || item.roles.includes(role)
+    (item) =>
+      !item.roles || item.roles.some((role) => hasPermission(role as any))
   )
 
   return (

@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useEmployees, useCurrentEmployee, useMyTeam } from "@/lib/queries"
+import { usePermissions } from "@/lib/auth/permissions"
 import { EmployeeProfileSheet } from "@/components/EmployeeProfileSheet"
 import type { Employee } from "@/lib/supabase"
 
@@ -18,18 +19,19 @@ const ROLE_STYLE: Record<string, string> = {
 export function PeopleTab() {
   const [search, setSearch] = useState("")
   const [selected, setSelected] = useState<Employee | null>(null)
-
+  const { hasPermission } = usePermissions()
   const { data: currentEmployee } = useCurrentEmployee()
+  const canViewAll = hasPermission("view_all_employees")
   const role = currentEmployee?.role ?? "employee"
   const isEmployer = role === "employer"
   const isAdmin = role === "admin"
 
   const { data: allEmployees = [], isLoading: allLoading } = useEmployees()
   const { data: myTeam = [], isLoading: teamLoading } = useMyTeam(
-    isEmployer ? (currentEmployee?.id ?? "") : ""
+    canViewAll ? (currentEmployee?.id ?? "") : ""
   )
 
-  const employees = isEmployer ? myTeam : allEmployees
+  const employees = canViewAll ? allEmployees : myTeam
   const isLoading = isEmployer ? teamLoading : allLoading
 
   const filtered: Employee[] = employees.filter((e: Employee) => {

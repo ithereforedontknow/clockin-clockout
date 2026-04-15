@@ -42,6 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { useAllClockEntries, useAllEmployeesForReports } from "@/lib/queries"
+import { usePermissions } from "@/lib/auth/permissions"
 import { formatMinutes } from "@/lib/supabase"
 import type { ClockEntry, BreakEntry, Employee } from "@/lib/supabase"
 
@@ -145,6 +146,7 @@ function calcUndertimeMins(
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function ReportsTab() {
+  const { hasPermission } = usePermissions()
   const [weekOffset, setWeekOffset] = useState(0)
   const [payPeriod, setPayPeriod] = useState<PayPeriod>("weekly")
   const [payOffset, setPayOffset] = useState(0)
@@ -275,6 +277,9 @@ export function ReportsTab() {
     downloadCSV(rows, `timesheet-${weekStartStr}.csv`)
   }
 
+  if (!hasPermission("view_reports")) {
+    return <div className="p-8 text-center">Access restricted.</div>
+  }
   return (
     <div className="max-w-5xl space-y-4">
       <div>

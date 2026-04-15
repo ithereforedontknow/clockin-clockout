@@ -52,53 +52,52 @@ async function getMyEmployeeId(): Promise<string> {
 }
 // ─── Current Employee ─────────────────────────────────────────────────────────
 
+// src/lib/queries.ts
 export function useCurrentEmployee() {
   return useQuery({
-    queryKey: keys.currentEmployee(),
+    queryKey: ["current-employee"],
     queryFn: async (): Promise<Employee> => {
       const {
         data: { user },
-        error: authErr,
       } = await supabase.auth.getUser()
-      if (authErr || !user) throw new Error("Not authenticated")
+      if (!user) throw new Error("Not authenticated")
 
-      const { data: byUserId } = await supabase
+      // First attempt: Find by user_id (already linked)
+      const { data: linkedEmployee } = await supabase
         .from("employees")
         .select("*")
         .eq("user_id", user.id)
-        .maybeSingle()
-      if (byUserId) return byUserId
+        .single()
 
-      const normalisedEmail = (user.email ?? "").trim().toLowerCase()
-      const { data: byEmail, error: emailErr } = await supabase
+      if (linkedEmployee) return linkedEmployee
+
+      // Second attempt: Auto-link by email (only if not linked yet)
+      const { data: unlinkedEmployee } = await supabase
         .from("employees")
         .select("*")
-        .eq("email", normalisedEmail)
+        .eq("email", user.email!.toLowerCase().trim())
         .is("user_id", null)
-        .maybeSingle()
-      if (emailErr) throw emailErr
+        .single()
 
-      if (byEmail) {
-        const { data: linked, error: linkErr } = await supabase
+      if (unlinkedEmployee) {
+        const { data: newlyLinked, error } = await supabase
           .from("employees")
-          .update({ user_id: user.id, updated_at: new Date().toISOString() })
-          .eq("id", byEmail.id)
+          .update({
+            user_id: user.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", unlinkedEmployee.id)
           .select()
           .single()
-        if (linkErr) throw linkErr
 
-        return linked
+        if (error) throw error
+        return newlyLinked
       }
 
-      throw new Error(
-        "No employee record found. Contact your HR administrator."
-      )
+      throw new Error("No employee record found. Contact HR.")
     },
-    staleTime: 1000 * 60 * 10,
-    retry: (failureCount, error: any) => {
-      if (error?.message?.includes("No employee record")) return false
-      return failureCount < 2
-    },
+    staleTime: 1000 * 60 * 15, // 15 minutes
+    gcTime: 1000 * 60 * 30,
   })
 }
 

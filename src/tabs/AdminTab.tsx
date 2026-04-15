@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAllEmployees } from "@/lib/queries"
+import { usePermissions } from "@/lib/auth/permissions"
 import { EmployeeManagement } from "@/components/admin/EmployeeManagement"
 import { DepartmentsPanel } from "@/components/admin/DepartmentsPanel"
 import { HolidaysPanel } from "@/components/admin/HolidaysPanel"
@@ -17,14 +18,20 @@ import { AuditLogPanel } from "@/components/admin/AuditLogPanel"
 
 export function AdminTab() {
   const { data: employees = [], isLoading } = useAllEmployees("", "", "", "")
-
+  const { isAdmin } = usePermissions()
   const activeCount = employees.filter(
     (e) => e.employment_status === "active"
   ).length
   const inactiveCount = employees.filter(
     (e) => e.employment_status === "inactive"
   ).length
-
+  if (!isAdmin) {
+    return (
+      <div className="p-8 text-center text-muted-foreground">
+        Access restricted to admins only.
+      </div>
+    )
+  }
   return (
     <div className="max-w-6xl space-y-5">
       <div className="flex items-center justify-between">

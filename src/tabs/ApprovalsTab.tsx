@@ -36,6 +36,7 @@ import {
   useReviewCorrection,
   useCurrentEmployee,
 } from "@/lib/queries"
+import { usePermissions } from "@/lib/auth/permissions"
 import type {
   TimeOffRequest,
   InfoChangeRequest,
@@ -63,7 +64,7 @@ type ReviewTarget =
 
 export function ApprovalsTab() {
   const { data: reviewer } = useCurrentEmployee()
-
+  const { hasPermission } = usePermissions()
   const { data: timeOffReqs = [], isLoading: toLoading } =
     usePendingTimeOffRequests()
   const { data: infoChanges = [], isLoading: icLoading } =
@@ -141,221 +142,221 @@ export function ApprovalsTab() {
             : "No pending requests"}
         </p>
       </div>
-
-      <Tabs defaultValue="timeoff">
-        <TabsList>
-          <TabsTrigger value="timeoff" className="gap-2">
-            <Calendar className="h-4 w-4" />
-            Time Off
-            {timeOffReqs.length > 0 && (
-              <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">
-                {timeOffReqs.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="infochange" className="gap-2">
-            <User className="h-4 w-4" />
-            Profile Changes
-            {infoChanges.length > 0 && (
-              <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">
-                {infoChanges.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="corrections" className="gap-2">
-            <Clock className="h-4 w-4" />
-            Time Corrections
-            {pendingCorrections.length > 0 && (
-              <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">
-                {pendingCorrections.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ── Time Off ── */}
-        <TabsContent value="timeoff" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <Calendar className="h-4 w-4 text-primary" />
-                Pending Time Off Requests
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {toLoading ? (
-                <LoadingSkeleton />
-              ) : timeOffReqs.length === 0 ? (
-                <EmptyState message="No pending time off requests" />
-              ) : (
-                <div className="divide-y divide-border">
-                  {timeOffReqs.map((req) => {
-                    const emp = req.employee as Employee | undefined
-                    const isSelf = req.employee_id === reviewer?.id // time off + info changes
-
-                    return (
-                      <RequestRow
-                        key={req.id}
-                        avatar={`${emp?.first_name?.[0]}${emp?.last_name?.[0]}`}
-                        title={`${emp?.first_name} ${emp?.last_name}`}
-                        subtitle={emp?.department}
-                        lines={[
-                          `${req.category?.name} — ${format(new Date(req.start_date), "MMM d")} – ${format(new Date(req.end_date), "MMM d, yyyy")}`,
-                          `${req.amount} ${req.category?.unit}${req.note ? ` · "${req.note}"` : ""}`,
-                          `Requested ${format(new Date(req.created_at), "MMM d 'at' h:mm a")}`,
-                        ]}
-                        onApprove={() =>
-                          openReview({
-                            kind: "timeoff",
-                            item: req,
-                            decision: "approved",
-                          })
-                        }
-                        onDeny={() =>
-                          openReview({
-                            kind: "timeoff",
-                            item: req,
-                            decision: "denied",
-                          })
-                        }
-                        selfBlock={isSelf}
-                      />
-                    )
-                  })}
-                </div>
+      {hasPermission("approve_time_off") && (
+        <Tabs defaultValue="timeoff">
+          <TabsList>
+            <TabsTrigger value="timeoff" className="gap-2">
+              <Calendar className="h-4 w-4" />
+              Time Off
+              {timeOffReqs.length > 0 && (
+                <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">
+                  {timeOffReqs.length}
+                </Badge>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* ── Profile Changes ── */}
-        <TabsContent value="infochange" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <User className="h-4 w-4 text-primary" />
-                Pending Profile Changes
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {icLoading ? (
-                <LoadingSkeleton />
-              ) : infoChanges.length === 0 ? (
-                <EmptyState message="No pending profile changes" />
-              ) : (
-                <div className="divide-y divide-border">
-                  {infoChanges.map((req) => {
-                    const emp = req.employee as Employee | undefined
-                    const isSelf = req.employee_id === reviewer?.id
-                    return (
-                      <RequestRow
-                        key={req.id}
-                        avatar={`${emp?.first_name?.[0]}${emp?.last_name?.[0]}`}
-                        title={`${emp?.first_name} ${emp?.last_name}`}
-                        subtitle={emp?.department}
-                        lines={[
-                          `${req.field_name.replace(/_/g, " ")} change`,
-                          `${req.old_value || "—"} → ${req.new_value}`,
-                          `Requested ${format(new Date(req.created_at), "MMM d 'at' h:mm a")}`,
-                        ]}
-                        onApprove={() =>
-                          openReview({
-                            kind: "infochange",
-                            item: req,
-                            decision: "approved",
-                          })
-                        }
-                        onDeny={() =>
-                          openReview({
-                            kind: "infochange",
-                            item: req,
-                            decision: "denied",
-                          })
-                        }
-                        selfBlock={isSelf}
-                      />
-                    )
-                  })}
-                </div>
+            </TabsTrigger>
+            <TabsTrigger value="infochange" className="gap-2">
+              <User className="h-4 w-4" />
+              Profile Changes
+              {infoChanges.length > 0 && (
+                <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">
+                  {infoChanges.length}
+                </Badge>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsTrigger>
+            <TabsTrigger value="corrections" className="gap-2">
+              <Clock className="h-4 w-4" />
+              Time Corrections
+              {pendingCorrections.length > 0 && (
+                <Badge className="ml-1 h-5 min-w-5 px-1 text-[10px]">
+                  {pendingCorrections.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
 
-        {/* ── Time Corrections ── */}
-        <TabsContent value="corrections" className="mt-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <Clock className="h-4 w-4 text-primary" />
-                Pending Time Corrections
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              {corrLoading ? (
-                <LoadingSkeleton />
-              ) : pendingCorrections.length === 0 ? (
-                <EmptyState message="No pending corrections" />
-              ) : (
-                <div className="divide-y divide-border">
-                  {pendingCorrections.map((c) => {
-                    const emp = c.employee as Employee | undefined
-                    const entry = c.clock_entry as ClockEntry | undefined
-                    const isSelf = c.employee_id === reviewer?.id
-                    const changes: string[] = []
-                    if (c.requested_clock_in)
-                      changes.push(
-                        `Clock in → ${format(new Date(c.requested_clock_in), "h:mm a")}`
+          {/* ── Time Off ── */}
+          <TabsContent value="timeoff" className="mt-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <Calendar className="h-4 w-4 text-primary" />
+                  Pending Time Off Requests
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {toLoading ? (
+                  <LoadingSkeleton />
+                ) : timeOffReqs.length === 0 ? (
+                  <EmptyState message="No pending time off requests" />
+                ) : (
+                  <div className="divide-y divide-border">
+                    {timeOffReqs.map((req) => {
+                      const emp = req.employee as Employee | undefined
+                      const isSelf = req.employee_id === reviewer?.id // time off + info changes
+
+                      return (
+                        <RequestRow
+                          key={req.id}
+                          avatar={`${emp?.first_name?.[0]}${emp?.last_name?.[0]}`}
+                          title={`${emp?.first_name} ${emp?.last_name}`}
+                          subtitle={emp?.department}
+                          lines={[
+                            `${req.category?.name} — ${format(new Date(req.start_date), "MMM d")} – ${format(new Date(req.end_date), "MMM d, yyyy")}`,
+                            `${req.amount} ${req.category?.unit}${req.note ? ` · "${req.note}"` : ""}`,
+                            `Requested ${format(new Date(req.created_at), "MMM d 'at' h:mm a")}`,
+                          ]}
+                          onApprove={() =>
+                            openReview({
+                              kind: "timeoff",
+                              item: req,
+                              decision: "approved",
+                            })
+                          }
+                          onDeny={() =>
+                            openReview({
+                              kind: "timeoff",
+                              item: req,
+                              decision: "denied",
+                            })
+                          }
+                          selfBlock={isSelf}
+                        />
                       )
-                    if (c.requested_clock_out)
-                      changes.push(
-                        `Clock out → ${format(new Date(c.requested_clock_out), "h:mm a")}`
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Profile Changes ── */}
+          <TabsContent value="infochange" className="mt-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <User className="h-4 w-4 text-primary" />
+                  Pending Profile Changes
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {icLoading ? (
+                  <LoadingSkeleton />
+                ) : infoChanges.length === 0 ? (
+                  <EmptyState message="No pending profile changes" />
+                ) : (
+                  <div className="divide-y divide-border">
+                    {infoChanges.map((req) => {
+                      const emp = req.employee as Employee | undefined
+                      const isSelf = req.employee_id === reviewer?.id
+                      return (
+                        <RequestRow
+                          key={req.id}
+                          avatar={`${emp?.first_name?.[0]}${emp?.last_name?.[0]}`}
+                          title={`${emp?.first_name} ${emp?.last_name}`}
+                          subtitle={emp?.department}
+                          lines={[
+                            `${req.field_name.replace(/_/g, " ")} change`,
+                            `${req.old_value || "—"} → ${req.new_value}`,
+                            `Requested ${format(new Date(req.created_at), "MMM d 'at' h:mm a")}`,
+                          ]}
+                          onApprove={() =>
+                            openReview({
+                              kind: "infochange",
+                              item: req,
+                              decision: "approved",
+                            })
+                          }
+                          onDeny={() =>
+                            openReview({
+                              kind: "infochange",
+                              item: req,
+                              decision: "denied",
+                            })
+                          }
+                          selfBlock={isSelf}
+                        />
                       )
-                    if (c.requested_break_minutes !== null)
-                      changes.push(`Break → ${c.requested_break_minutes} min`)
-                    if (c.requested_notes !== null)
-                      changes.push(`Notes → "${c.requested_notes}"`)
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-                    return (
-                      <RequestRow
-                        key={c.id}
-                        avatar={`${emp?.first_name?.[0]}${emp?.last_name?.[0]}`}
-                        title={`${emp?.first_name} ${emp?.last_name}`}
-                        subtitle={
-                          entry
-                            ? format(new Date(entry.date), "EEE, MMM d")
-                            : undefined
-                        }
-                        lines={[
-                          changes.join(" · "),
-                          `Reason: "${c.reason}"`,
-                          `Submitted ${format(new Date(c.created_at), "MMM d 'at' h:mm a")}`,
-                        ]}
-                        onApprove={() =>
-                          openReview({
-                            kind: "correction",
-                            item: c,
-                            decision: "approved",
-                          })
-                        }
-                        onDeny={() =>
-                          openReview({
-                            kind: "correction",
-                            item: c,
-                            decision: "denied",
-                          })
-                        }
-                        selfBlock={isSelf}
-                      />
-                    )
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+          {/* ── Time Corrections ── */}
+          <TabsContent value="corrections" className="mt-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                  <Clock className="h-4 w-4 text-primary" />
+                  Pending Time Corrections
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {corrLoading ? (
+                  <LoadingSkeleton />
+                ) : pendingCorrections.length === 0 ? (
+                  <EmptyState message="No pending corrections" />
+                ) : (
+                  <div className="divide-y divide-border">
+                    {pendingCorrections.map((c) => {
+                      const emp = c.employee as Employee | undefined
+                      const entry = c.clock_entry as ClockEntry | undefined
+                      const isSelf = c.employee_id === reviewer?.id
+                      const changes: string[] = []
+                      if (c.requested_clock_in)
+                        changes.push(
+                          `Clock in → ${format(new Date(c.requested_clock_in), "h:mm a")}`
+                        )
+                      if (c.requested_clock_out)
+                        changes.push(
+                          `Clock out → ${format(new Date(c.requested_clock_out), "h:mm a")}`
+                        )
+                      if (c.requested_break_minutes !== null)
+                        changes.push(`Break → ${c.requested_break_minutes} min`)
+                      if (c.requested_notes !== null)
+                        changes.push(`Notes → "${c.requested_notes}"`)
 
+                      return (
+                        <RequestRow
+                          key={c.id}
+                          avatar={`${emp?.first_name?.[0]}${emp?.last_name?.[0]}`}
+                          title={`${emp?.first_name} ${emp?.last_name}`}
+                          subtitle={
+                            entry
+                              ? format(new Date(entry.date), "EEE, MMM d")
+                              : undefined
+                          }
+                          lines={[
+                            changes.join(" · "),
+                            `Reason: "${c.reason}"`,
+                            `Submitted ${format(new Date(c.created_at), "MMM d 'at' h:mm a")}`,
+                          ]}
+                          onApprove={() =>
+                            openReview({
+                              kind: "correction",
+                              item: c,
+                              decision: "approved",
+                            })
+                          }
+                          onDeny={() =>
+                            openReview({
+                              kind: "correction",
+                              item: c,
+                              decision: "denied",
+                            })
+                          }
+                          selfBlock={isSelf}
+                        />
+                      )
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      )}
       {/* ── Review dialog ── */}
       {target && (
         <Dialog

@@ -18,7 +18,7 @@ import { TrainingTab } from "@/tabs/TrainingTab"
 import { useCurrentEmployee } from "@/lib/queries"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-
+import { usePermissions } from "@/lib/auth/permissions"
 export type TabId =
   | "home"
   | "timesheet"
@@ -42,6 +42,7 @@ export function Appshell() {
 
   const { data: employee, isLoading, error } = useCurrentEmployee()
   const role = employee?.role ?? "employee"
+  const { hasPermission } = usePermissions()
 
   // ⌘K shortcut
   useEffect(() => {
@@ -185,7 +186,8 @@ export function Appshell() {
       <AppSidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        role={role}
+        // role={role}
+        hasPermission={hasPermission}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenPalette={() => setPaletteOpen(true)}
         onOpenHelp={() => setHelpOpen(true)}

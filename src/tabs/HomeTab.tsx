@@ -40,6 +40,7 @@ import {
   useReviewTimeOff,
   useSeedMyBalances,
 } from "@/lib/queries"
+import { usePermissions } from "@/lib/auth/permissions"
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
 import type { BreakEntry, Employee, ClockEntry } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
@@ -57,8 +58,12 @@ export function HomeTab({ onNavigate }: Props) {
   )
   const { data: employee, isLoading: empLoading } = useCurrentEmployee()
   const employeeId = employee?.id ?? ""
-  const isEmployerOrAdmin =
-    employee?.role === "employer" || employee?.role === "admin"
+  // const isEmployerOrAdmin =
+  //   employee?.role === "employer" || employee?.role === "admin"
+
+  const { hasPermission } = usePermissions()
+  const canViewApprovals = hasPermission("approve_time_off")
+  const canViewLiveClock = hasPermission("view_reports")
   const { data: whosOut = [] } = useWhosOut(weekStart)
   const { data: balances = [], isLoading: balancesLoading } =
     useTimeOffBalances(employeeId)
@@ -333,7 +338,7 @@ export function HomeTab({ onNavigate }: Props) {
             </CardContent>
           </Card>
 
-          {isEmployerOrAdmin && (
+          {canViewApprovals && (
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-3">
                 <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
@@ -607,7 +612,7 @@ export function HomeTab({ onNavigate }: Props) {
             </CardContent>
           </Card>
           {/* Live Monitoring */}
-          {isEmployerOrAdmin && (
+          {canViewLiveClock && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
