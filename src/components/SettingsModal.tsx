@@ -27,14 +27,12 @@ import { usePermissions } from "@/lib/auth/permissions"
 
 import { companySettingsSchema } from "@/lib/schemas"
 import { isTimezoneManila, TIMEZONE } from "@/lib/timezone"
-import type { UserRole } from "@/lib/supabase"
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
 interface Props {
   open: boolean
   onClose: () => void
-  role: UserRole
 }
 
 export function SettingsModal({ open, onClose }: Props) {
