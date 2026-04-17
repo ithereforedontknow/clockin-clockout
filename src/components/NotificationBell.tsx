@@ -8,6 +8,7 @@ import {
   AlertCircle,
   UserPlus,
   Loader2,
+  Award,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -40,6 +41,7 @@ const NOTIF_ICON: Record<NotificationType, typeof Bell> = {
   correction_denied: Clock,
   late_clock_in: AlertCircle,
   new_employee: UserPlus,
+  course_completed: Award,
 }
 
 const NOTIF_COLOR: Record<NotificationType, string> = {
@@ -51,6 +53,7 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   correction_denied: "text-red-600 bg-red-50",
   late_clock_in: "text-amber-600 bg-amber-50",
   new_employee: "text-blue-600 bg-blue-50",
+  course_completed: "text-green-600 bg-green-50",
 }
 
 export function NotificationBell({ employeeId, onNavigate }: Props) {

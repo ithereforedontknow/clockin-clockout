@@ -27,6 +27,7 @@ import {
   Settings,
   HelpCircle,
   GraduationCap,
+  Award,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -121,6 +122,7 @@ const NOTIF_ICON: Record<NotificationType, typeof Bell> = {
   correction_denied: Timer,
   late_clock_in: AlertCircle,
   new_employee: UserPlus,
+  course_completed: Award,
 }
 const NOTIF_COLOR: Record<NotificationType, string> = {
   timeoff_approved: "text-green-600 bg-green-50 dark:bg-green-950",
@@ -131,6 +133,7 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   correction_denied: "text-destructive bg-destructive/10",
   late_clock_in: "text-amber-600 bg-amber-50 dark:bg-amber-950",
   new_employee: "text-blue-600 bg-blue-50 dark:bg-blue-950",
+  course_completed: "text-green-600 bg-green-50 dark:bg-green-950",
 }
 
 // ─── Root layout ─────────────────────────────────────────────────────────────
