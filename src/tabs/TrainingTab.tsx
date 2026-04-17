@@ -11,6 +11,7 @@ import {
   Trophy,
   Plus,
   Pencil,
+  Award,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -45,6 +46,7 @@ import {
   useCreateCurriculum,
   useAllTrainingRecords,
   useEmployees,
+  useMyCertifications,
 } from "@/lib/queries"
 import type { TrainingRecord, Curriculum } from "@/lib/supabase"
 import { AssignCourseDialog } from "@/components/AssignCourseDialog"
@@ -198,6 +200,7 @@ function MyTrainingPanel() {
           </Card>
         ))}
       </div>
+      <CertificationsPanel />
 
       {urgent.length > 0 && (
         <div className="flex items-center gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
@@ -434,6 +437,51 @@ function ManageCoursesPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  )
+}
+function CertificationsPanel() {
+  const { data: certs = [], isLoading } = useMyCertifications()
+
+  if (!isLoading && certs.length === 0) return null
+
+  return (
+    <div className="space-y-3">
+      <h3 className="flex items-center gap-2 text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+        <Award className="h-4 w-4" />
+        Certificates Earned
+      </h3>
+
+      {isLoading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array(2)
+            .fill(0)
+            .map((_, i) => (
+              <Skeleton key={i} className="h-20 rounded-xl" />
+            ))}
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {certs.map((cert) => (
+            <div
+              key={cert.id}
+              className="flex items-center gap-3 rounded-xl border border-yellow-200 bg-yellow-50 p-4 dark:border-yellow-900/40 dark:bg-yellow-900/10"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
+                <Award className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">
+                  {cert.curriculum?.title ?? "Course"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Issued {format(new Date(cert.issued_at), "MMM d, yyyy")}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -155,6 +155,7 @@ export type NotificationType =
   | "correction_denied"
   | "late_clock_in"
   | "new_employee"
+  | "course_completed"
 
 export interface AppNotification {
   id: string

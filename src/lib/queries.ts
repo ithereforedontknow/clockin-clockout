@@ -1980,7 +1980,7 @@ export function useMarkLessonComplete() {
       const totalCount = allLessons?.length ?? 0
       const completedCount = completedRecords?.length ?? 0
 
-      // 4. If all lessons complete, issue certification (upsert = safe to re-run)
+      // 4. If all lessons complete, issue certification (upsert = safe to re-run), toast
       if (totalCount > 0 && completedCount >= totalCount) {
         await supabase
           .from("certifications")
@@ -1988,6 +1988,21 @@ export function useMarkLessonComplete() {
             { employee_id, curriculum_id: lessonData.curriculum_id },
             { onConflict: "employee_id,curriculum_id" }
           )
+
+        // Fetch curriculum title for the notification message
+        const { data: curriculumData } = await supabase
+          .from("curriculums")
+          .select("title")
+          .eq("id", lessonData.curriculum_id)
+          .single()
+
+        await createNotification({
+          employee_id,
+          type: "course_completed",
+          title: "Course Completed 🎓",
+          message: `You've completed "${curriculumData?.title ?? "the course"}" and earned a certificate.`,
+          link_tab: "training",
+        })
       }
     },
     onSuccess: () => {
@@ -2168,7 +2183,8 @@ export function usePayrollDailySummary(startDate: Date, endDate: Date) {
           open_entries,
           employees!employee_id (
             first_name,
-            last_name
+            last_name,
+            hourly_rate
           )
         `
         )
@@ -2186,7 +2202,7 @@ export function usePayrollDailySummary(startDate: Date, endDate: Date) {
         date: row.date,
         reg_hours: Number(row.reg_hours) || 0,
         ot_hours: Number(row.ot_hours) || 0,
-        missing_clock_outs: Number(row.missing_clock_outs) || 0,
+        missing_clock_outs: Number(row.open_entries) || 0,
         first_name: row.employees?.first_name || "Unknown",
         last_name: row.employees?.last_name || "Employee",
         hourly_rate: Number(row.employees?.hourly_rate) || 0,

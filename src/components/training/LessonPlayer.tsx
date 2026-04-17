@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Video,
   HelpCircle,
+  Loader2,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -132,12 +133,27 @@ export function LessonPlayer({
           {/* Cloudflare Video */}
           {lesson.cf_stream_id && (
             <div className="aspect-video overflow-hidden rounded-2xl border bg-black">
-              <iframe
-                src={`https://iframe.videodelivery.net/${lesson.cf_stream_id}`}
-                className="h-full w-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
+              {lesson.cf_stream_status === "ready" ||
+              !lesson.cf_stream_status ? (
+                <iframe
+                  src={`https://iframe.videodelivery.net/${lesson.cf_stream_id}`}
+                  className="h-full w-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : lesson.cf_stream_status === "error" ? (
+                <div className="flex h-full flex-col items-center justify-center gap-2 text-white/60">
+                  <p className="text-sm font-medium">Video failed to process</p>
+                  <p className="text-xs">Contact your administrator</p>
+                </div>
+              ) : (
+                // pending — video is still being processed
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-white/60">
+                  <Loader2 className="h-8 w-8 animate-spin" />
+                  <p className="text-sm font-medium">Video is processing…</p>
+                  <p className="text-xs">Check back in a few minutes</p>
+                </div>
+              )}
             </div>
           )}
 
