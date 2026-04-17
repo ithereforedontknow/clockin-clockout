@@ -6,6 +6,8 @@ import { CourseEditor } from "@/components/training/CourseEditor"
 import { CourseDetailPage } from "@/pages/CourseDetailPage"
 import { EmployeeTrainingPage } from "@/pages/EmployeeTrainingPage"
 import { InstructorRoute } from "@/components/InstructorRoute"
+import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage"
+import { ResetPasswordPage } from "@/pages/ResetPasswordPage"
 
 export const router = createBrowserRouter([
   // ── Public ────────────────────────────────────────────────────────────────
@@ -17,11 +19,11 @@ export const router = createBrowserRouter([
   // ── Catch removed auth routes — redirect to login ─────────────────────────
   {
     path: "/forgot-password",
-    element: <Navigate to="/login" replace />,
+    element: <ForgotPasswordPage />,
   },
   {
     path: "/reset-password",
-    element: <Navigate to="/login" replace />,
+    element: <ResetPasswordPage />,
   },
 
   // ── Protected ─────────────────────────────────────────────────────────────
