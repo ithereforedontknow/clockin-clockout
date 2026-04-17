@@ -42,6 +42,10 @@ export const router = createBrowserRouter([
           </InstructorRoute>
         ),
       },
+      {
+        path: "/admin/employee/:employeeId/training",
+        element: <EmployeeTrainingPage />,
+      },
     ],
   },
 
@@ -49,9 +53,5 @@ export const router = createBrowserRouter([
   {
     path: "*",
     element: <Navigate to="/" replace />,
-  },
-  {
-    path: "/admin/employee/:employeeId/training",
-    element: <EmployeeTrainingPage />,
   },
 ])

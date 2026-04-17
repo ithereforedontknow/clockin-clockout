@@ -17,6 +17,7 @@ import { AdminTab } from "@/tabs/AdminTab"
 import { TrainingTab } from "@/tabs/TrainingTab"
 import { useCurrentEmployee } from "@/lib/queries"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { toast } from "sonner"
 
 export type TabId =
@@ -140,20 +141,24 @@ export function Appshell() {
   }
 
   const renderTab = () => {
+    const wrap = (label: string, node: React.ReactNode) => (
+      <ErrorBoundary label={label}>{node}</ErrorBoundary>
+    )
+
     switch (activeTab) {
       case "home":
-        return <HomeTab onNavigate={setActiveTab} />
+        return wrap("Home", <HomeTab onNavigate={setActiveTab} />)
       case "timesheet":
-        return <TimeSheetTab onNavigate={setActiveTab} />
+        return wrap("Timesheet", <TimeSheetTab onNavigate={setActiveTab} />)
       case "timeoff":
-        return <TimeOffTab />
+        return wrap("Time Off", <TimeOffTab />)
       case "people":
-        return <PeopleTab />
+        return wrap("People", <PeopleTab />)
       case "myinfo":
-        return <MyInfoTab />
+        return wrap("My Info", <MyInfoTab />)
       case "approvals":
         return role === "employer" || role === "admin" ? (
-          <ApprovalsTab />
+          wrap("Approvals", <ApprovalsTab />)
         ) : (
           <div className="p-8 text-sm text-muted-foreground">
             Access restricted.
@@ -161,7 +166,7 @@ export function Appshell() {
         )
       case "admin":
         return role === "admin" ? (
-          <AdminTab />
+          wrap("Admin", <AdminTab />)
         ) : (
           <div className="p-8 text-sm text-muted-foreground">
             Access restricted.
@@ -169,14 +174,14 @@ export function Appshell() {
         )
       case "reports":
         return role === "employer" || role === "admin" ? (
-          <ReportsTab />
+          wrap("Reports", <ReportsTab />)
         ) : (
           <div className="p-8 text-sm text-muted-foreground">
             Access restricted.
           </div>
         )
       case "training":
-        return <TrainingTab />
+        return wrap("Training", <TrainingTab />)
     }
   }
 

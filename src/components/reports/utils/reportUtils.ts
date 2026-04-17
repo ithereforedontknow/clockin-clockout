@@ -1,7 +1,7 @@
 // src/components/reports/utils/reportUtils.ts
 import { format } from "date-fns"
 import type { Employee } from "@/lib/supabase"
-import type { EmployeeWeekSummary } from "../hooks/useTimesheetData"
+import type { EmployeeWeekSummary } from "@/components/reports/hooks/useTimesheetData"
 
 export function downloadCSV(rows: string[][], filename: string) {
   const csvContent = rows
@@ -118,7 +118,7 @@ export function downloadPayrollCSV(
 
   downloadCSV(rows, `payroll-${period}-${format(start, "yyyy-MM-dd")}.csv`)
 }
-function calcLateMins(
+export function calcLateMins(
   clockIn: string,
   standardStart: string | null,
   graceMins = 5

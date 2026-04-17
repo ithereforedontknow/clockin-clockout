@@ -41,6 +41,8 @@ export interface Employee {
   emergency_phone: string | null
   emergency_relation: string | null
   standard_start_time: string | null // "HH:MM:SS" — used for late clock-in detection
+  hourly_rate: number | null
+  terminated_at: string | null
   created_at: string
   updated_at: string
 }

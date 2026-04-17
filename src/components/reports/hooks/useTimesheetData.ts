@@ -8,6 +8,7 @@ import {
 } from "date-fns"
 import { useAllClockEntries, useAllEmployeesForReports } from "@/lib/queries"
 import type { ClockEntry, BreakEntry, Employee } from "@/lib/supabase"
+import { calcLateMins } from "@/components/reports/utils/reportUtils"
 
 export type EmployeeWeekSummary = {
   employee: Employee
@@ -92,18 +93,6 @@ export function useTimesheetData(weekOffset: number, deptFilter: string = "") {
 }
 
 // Pure utility functions
-function calcLateMins(
-  clockIn: string,
-  standardStart: string | null,
-  graceMins = 5
-): number {
-  if (!standardStart) return 0
-  const ci = new Date(clockIn)
-  const [h, m] = standardStart.split(":").map(Number)
-  const expected = new Date(ci)
-  expected.setHours(h, m + graceMins, 0, 0)
-  return Math.max(0, Math.round((ci.getTime() - expected.getTime()) / 60000))
-}
 
 function calcUndertimeMins(
   totalMinutes: number | null,

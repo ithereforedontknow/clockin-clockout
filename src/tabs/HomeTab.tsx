@@ -38,7 +38,6 @@ import {
   usePendingTimeOffRequests,
   useMyTrainingRecord,
   useReviewTimeOff,
-  useSeedMyBalances,
 } from "@/lib/queries"
 import { usePermissions } from "@/lib/auth/permissions"
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
@@ -79,7 +78,6 @@ export function HomeTab({ onNavigate }: Props) {
   const [, setTick] = useState(0)
 
   // Seed my balances
-  useSeedMyBalances(employeeId)
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000)

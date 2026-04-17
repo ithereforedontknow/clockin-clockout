@@ -83,3 +83,56 @@ SET user_id = u.id
 FROM auth.users u
 WHERE lower(e.email) = lower(u.email)
   AND e.user_id IS NULL;
+
+--
+CREATE OR REPLACE VIEW daily_payroll_analysis AS
+WITH daily_sums AS (
+    -- Step 1: Sum minutes per employee per day
+    SELECT
+        employee_id,
+        date,
+        SUM(
+            CASE
+                WHEN clock_out IS NOT NULL THEN
+                    EXTRACT(EPOCH FROM (clock_out - clock_in)) / 60
+                ELSE 0
+            END
+        ) as total_minutes_worked,
+        COUNT(*) FILTER (WHERE clock_out IS NULL) as open_entries
+    FROM clock_entries
+    GROUP BY employee_id, date
+)
+-- Step 2: Apply the 8-hour (480 min) daily limit logic
+SELECT
+    employee_id,
+    date,
+    total_minutes_worked / 60.0 as total_hours,
+    LEAST(total_minutes_worked, 480) / 60.0 as reg_hours,
+    GREATEST(0, total_minutes_worked - 480) / 60.0 as ot_hours,
+    open_entries
+FROM daily_sums;
+
+create or replace view public.daily_payroll_analysis with (security_invoker = on) as
+ WITH daily_sums AS (
+         SELECT clock_entries.employee_id,
+            clock_entries.date,
+            sum(
+                CASE
+                    WHEN clock_entries.clock_out IS NOT NULL THEN EXTRACT(epoch FROM clock_entries.clock_out - clock_entries.clock_in) / 60::numeric
+                    ELSE 0::numeric
+                END) AS total_minutes_worked,
+            count(*) FILTER (WHERE clock_entries.clock_out IS NULL) AS open_entries
+           FROM clock_entries
+          GROUP BY clock_entries.employee_id, clock_entries.date
+        )
+ SELECT employee_id,
+    date,
+    total_minutes_worked / 60.0 AS total_hours,
+    LEAST(total_minutes_worked, 480::numeric) / 60.0 AS reg_hours,
+    GREATEST(0::numeric, total_minutes_worked - 480::numeric) / 60.0 AS ot_hours,
+    open_entries
+   FROM daily_sums;
+---
+ALTER TABLE public.employees
+  ADD COLUMN IF NOT EXISTS hourly_rate numeric DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS terminated_at timestamptz;

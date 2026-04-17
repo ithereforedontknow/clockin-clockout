@@ -2,7 +2,6 @@ import { useState } from "react"
 import { usePermissions } from "@/lib/auth/permissions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Clock, DollarSign, Users } from "lucide-react"
-
 import { ReportsHeader } from "@/components/reports/ReportsHeader"
 import { TimesheetTable } from "@/components/reports/TimesheetTable"
 import { PayrollExportPanel } from "@/components/reports/PayrollExportPanel"
@@ -32,6 +31,7 @@ export function ReportsTab() {
   return (
     <div className="max-w-6xl space-y-6">
       <ReportsHeader />
+
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
         <TabsList>
           <TabsTrigger value="timesheets" className="flex items-center gap-2">
@@ -67,7 +67,10 @@ export function ReportsTab() {
         </TabsContent>
 
         <TabsContent value="workforce" className="mt-6">
-          <WorkforceOverview employees={summaries.map((s) => s.employee)} />
+          <WorkforceOverview
+            employees={summaries.map((s) => s.employee)}
+            isLoading={isLoading}
+          />
         </TabsContent>
       </Tabs>
     </div>

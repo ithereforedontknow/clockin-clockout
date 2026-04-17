@@ -1,63 +1,153 @@
 import { useState, useMemo } from "react"
-import { format, startOfMonth, endOfMonth } from "date-fns"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { format, startOfWeek, endOfWeek, addWeeks } from "date-fns"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  // CardDescription,
+} from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useAllEmployeesForReports } from "@/lib/queries"
-import { downloadPayrollCSV } from "./utils/reportUtils"
 import { toast } from "sonner"
+import { usePayrollDailySummary } from "@/lib/queries"
 
-type PayPeriod = "monthly" | "bimonthly"
+interface EmployeeSummary {
+  id: string
+  name: string
+  regHours: number
+  otHours: number
+  baseRate: number
+  missingOuts: number
+  activeRate: number
+  adjustment: number
+  grossPay: number
+}
 
 export function PayrollExportPanel() {
-  const [payPeriod, setPayPeriod] = useState<PayPeriod>("monthly")
-  const [payOffset, setPayOffset] = useState(0)
-  const [isExporting, setIsExporting] = useState(false)
+  const [weekOffset, setWeekOffset] = useState(0)
 
-  const { data: employees = [], isLoading } = useAllEmployeesForReports()
+  // Calculate week range based on offset
+  const baseDate = new Date()
+  const weekStart = startOfWeek(addWeeks(baseDate, weekOffset), {
+    weekStartsOn: 1,
+  })
+  const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 })
+  const periodLabel = `${format(weekStart, "MMM d")} – ${format(weekEnd, "MMM d, yyyy")}`
 
-  const currentPeriod = useMemo(
-    () => getPayPeriodRange(payPeriod, payOffset),
-    [payPeriod, payOffset]
+  const { data: rawData = [], isLoading } = usePayrollDailySummary(
+    weekStart,
+    weekEnd
   )
 
-  const payrollSummary = useMemo(() => {
-    let totalHours = 0
-    let totalOT = 0
+  const [editableRates, setEditableRates] = useState<Record<string, number>>({})
+  const [adjustments, setAdjustments] = useState<Record<string, number>>({})
+  const [isExporting, setIsExporting] = useState(false)
 
-    // This is simplified — in real app you would fetch actual clock entries
-    employees.forEach((emp) => {
-      // Placeholder calculation
-      const estHours = emp.standard_hours_per_week || 40
-      totalHours += estHours
-      totalOT += Math.max(0, estHours - 40)
+  const payrollSummary = useMemo<EmployeeSummary[]>(() => {
+    const summaryMap = rawData.reduce<Record<string, any>>((acc, curr) => {
+      const id = curr.employee_id
+      if (!acc[id]) {
+        acc[id] = {
+          id,
+          name: `${curr.first_name} ${curr.last_name}`,
+          regHours: 0,
+          otHours: 0,
+          baseRate: curr.hourly_rate || 0,
+          missingOuts: 0,
+        }
+      }
+      acc[id].regHours += curr.reg_hours || 0
+      acc[id].otHours += curr.ot_hours || 0
+      acc[id].missingOuts += curr.missing_clock_outs || 0
+      return acc
+    }, {})
+
+    return Object.values(summaryMap).map((emp: any) => {
+      const activeRate = editableRates[emp.id] ?? emp.baseRate
+      const adjustment = adjustments[emp.id] || 0
+      const regPay = emp.regHours * activeRate
+      const otPay = emp.otHours * (activeRate * 1.25)
+
+      return {
+        ...emp,
+        activeRate,
+        adjustment,
+        grossPay: regPay + otPay + adjustment,
+      }
     })
+  }, [rawData, editableRates, adjustments])
 
-    return {
-      totalEmployees: employees.length,
-      estimatedTotalHours: totalHours,
-      estimatedOTHours: totalOT,
-    }
-  }, [employees])
+  const totalCompanyPayroll = payrollSummary.reduce(
+    (sum, emp) => sum + emp.grossPay,
+    0
+  )
+
+  const handleRateChange = (empId: string, value: string) => {
+    const num = parseFloat(value)
+    setEditableRates((prev) => ({
+      ...prev,
+      [empId]: isNaN(num) ? 0 : num,
+    }))
+  }
+
+  const handleAdjustmentChange = (empId: string, value: string) => {
+    const num = parseFloat(value)
+    setAdjustments((prev) => ({
+      ...prev,
+      [empId]: isNaN(num) ? 0 : num,
+    }))
+  }
 
   const handleExport = async () => {
     setIsExporting(true)
     try {
-      await downloadPayrollCSV(
-        employees,
-        currentPeriod.start,
-        currentPeriod.end,
-        payPeriod
-      )
-      toast.success("Payroll CSV exported successfully", {
-        description: `${payrollSummary.totalEmployees} employees • ${currentPeriod.label}`,
+      const rows: string[][] = [
+        [
+          "Employee",
+          "Reg Hours",
+          "OT Hours",
+          "Hourly Rate",
+          "Adjustment",
+          "Gross Pay",
+        ],
+      ]
+      for (const emp of payrollSummary) {
+        rows.push([
+          emp.name,
+          emp.regHours.toFixed(2),
+          emp.otHours.toFixed(2),
+          emp.activeRate.toFixed(2),
+          emp.adjustment.toFixed(2),
+          emp.grossPay.toFixed(2),
+        ])
+      }
+      rows.push(["TOTAL", "", "", "", "", totalCompanyPayroll.toFixed(2)])
+
+      const csv = rows
+        .map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(","))
+        .join("\n")
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const a = Object.assign(document.createElement("a"), {
+        href: url,
+        download: `payroll-${format(weekStart, "yyyy-MM-dd")}.csv`,
+      })
+      a.click()
+      URL.revokeObjectURL(url)
+
+      toast.success("Payroll CSV downloaded", {
+        description: `${payrollSummary.length} employees · ${periodLabel}`,
       })
     } catch (err: any) {
       toast.error("Export failed", { description: err.message })
@@ -66,126 +156,113 @@ export function PayrollExportPanel() {
     }
   }
 
+  if (isLoading) {
+    return <Skeleton className="h-96 w-full" />
+  }
+
   return (
-    <Card>
-      <CardContent className="space-y-6 p-6">
-        {/* Period Selector */}
-        <div className="flex flex-col justify-between gap-4 sm:flex-row">
-          <div className="flex items-center">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPayOffset((o) => o - 1)}
-            >
-              ←
-            </Button>
-            <div className="min-w-[240px] text-center font-medium">
-              {currentPeriod.label}
-            </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => setPayOffset((o) => o + 1)}
-            >
-              →
-            </Button>
-          </div>
-          <div className="flex items-center">
-            <Select
-              value={payPeriod}
-              onValueChange={(v) => {
-                setPayPeriod(v as PayPeriod)
-                setPayOffset(0)
-              }}
-            >
-              <SelectTrigger className="w-52">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="monthly">Monthly</SelectItem>
-                <SelectItem value="bimonthly">Bi-monthly</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+    <Card className="w-full">
+      <CardHeader className="flex flex-row items-center justify-between border-b">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setWeekOffset((p) => p - 1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="min-w-[200px] text-center font-medium">
+            {periodLabel}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setWeekOffset((p) => p + 1)}
+            disabled={weekOffset >= 0}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">Employees</p>
-              {isLoading ? (
-                <Skeleton className="mt-2 h-9 w-16" />
-              ) : (
-                <p className="text-3xl font-bold">
-                  {payrollSummary.totalEmployees}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">Est. Total Hours</p>
-              {isLoading ? (
-                <Skeleton className="mt-2 h-9 w-20" />
-              ) : (
-                <p className="text-3xl font-bold">
-                  {payrollSummary.estimatedTotalHours}
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">Est. OT Hours</p>
-              {isLoading ? (
-                <Skeleton className="mt-2 h-9 w-16" />
-              ) : (
-                <p className="text-3xl font-bold text-amber-600">
-                  {payrollSummary.estimatedOTHours}
-                </p>
-              )}
-            </CardContent>
-          </Card>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">TOTAL PAYROLL</p>
+          <p className="text-3xl font-bold text-primary">
+            ₱
+            {totalCompanyPayroll.toLocaleString("en-PH", {
+              minimumFractionDigits: 2,
+            })}
+          </p>
         </div>
+      </CardHeader>
+
+      <CardContent className="pt-6">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Employee</TableHead>
+              <TableHead className="text-right">Reg Hours</TableHead>
+              <TableHead className="text-right">OT Hours</TableHead>
+              <TableHead className="w-24">Hourly Rate</TableHead>
+              <TableHead className="w-24">Adjustment</TableHead>
+              <TableHead className="text-right">Gross Pay</TableHead>
+              <TableHead className="w-28 text-center">Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {payrollSummary.map((emp) => (
+              <TableRow key={emp.id}>
+                <TableCell className="font-medium">{emp.name}</TableCell>
+                <TableCell className="text-right font-mono">
+                  {emp.regHours.toFixed(1)}
+                </TableCell>
+                <TableCell className="text-right font-mono text-amber-600">
+                  {emp.otHours.toFixed(1)}
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    className="h-9 w-20 font-mono"
+                    value={emp.activeRate}
+                    onChange={(e) => handleRateChange(emp.id, e.target.value)}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    className="h-9 w-20 font-mono"
+                    value={emp.adjustment || ""}
+                    placeholder="0.00"
+                    onChange={(e) =>
+                      handleAdjustmentChange(emp.id, e.target.value)
+                    }
+                  />
+                </TableCell>
+                <TableCell className="text-right font-mono font-semibold">
+                  ₱{emp.grossPay.toFixed(2)}
+                </TableCell>
+                <TableCell className="text-center">
+                  {emp.missingOuts > 0 ? (
+                    <Badge variant="destructive">Missing Out</Badge>
+                  ) : (
+                    <Badge variant="secondary">Ready</Badge>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
 
         <Button
           onClick={handleExport}
-          disabled={isExporting || isLoading}
+          disabled={isExporting || payrollSummary.length === 0}
+          className="mt-6 w-full"
           size="lg"
-          className="w-full"
         >
-          {isExporting
-            ? "Generating Payroll Report..."
-            : `Download Payroll CSV — ${currentPeriod.label}`}
+          {isExporting ? "Generating CSV..." : "Export Payroll CSV"}
         </Button>
       </CardContent>
     </Card>
   )
-}
-
-function getPayPeriodRange(period: PayPeriod, offset: number) {
-  const baseDate = new Date()
-  baseDate.setMonth(baseDate.getMonth() + offset)
-
-  if (period === "monthly") {
-    return {
-      start: startOfMonth(baseDate),
-      end: endOfMonth(baseDate),
-      label: format(baseDate, "MMMM yyyy"),
-    }
-  } else {
-    const isFirstHalf = baseDate.getDate() <= 15
-    return {
-      start: isFirstHalf
-        ? startOfMonth(baseDate)
-        : new Date(baseDate.getFullYear(), baseDate.getMonth(), 16),
-      end: isFirstHalf
-        ? new Date(baseDate.getFullYear(), baseDate.getMonth(), 15)
-        : endOfMonth(baseDate),
-      label: isFirstHalf
-        ? `${format(baseDate, "MMM 1")} – ${format(baseDate, "MMM 15")}`
-        : `${format(baseDate, "MMM 16")} – ${format(baseDate, "MMM d")}`,
-    }
-  }
 }
