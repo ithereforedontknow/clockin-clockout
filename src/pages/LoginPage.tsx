@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { useLocation, Navigate } from "react-router-dom"
+import { useLocation, Navigate, useNavigate } from "react-router-dom"
 import { Loader2, AlarmClock, MailCheck, ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
@@ -14,13 +14,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-
 type Stage = "form" | "sent"
 
 export function LoginPage() {
   const location = useLocation()
   const { session, isLoading: sessionLoading } = useSession()
-
+  const navigate = useNavigate()
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [stage, setStage] = useState<Stage>("form")
@@ -114,6 +113,15 @@ export function LoginPage() {
                     )}
                   </Button>
                 </form>
+                <div className="text-center">
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                    onClick={() => navigate("/forgot-password")}
+                  >
+                    Forgot your password?
+                  </button>
+                </div>
               </CardContent>
             </>
           ) : (
