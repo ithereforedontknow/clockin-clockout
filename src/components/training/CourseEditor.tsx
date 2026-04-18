@@ -9,6 +9,9 @@ import {
   Plus,
   GripVertical,
   ImagePlus,
+  BookOpen,
+  Search,
+  ChevronRight,
 } from "lucide-react"
 import {
   DndContext,
@@ -27,7 +30,6 @@ import {
 import { CSS } from "@dnd-kit/utilities"
 import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -67,8 +69,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
 import { supabase } from "@/lib/supabase"
+
 export function CourseEditor() {
   const { courseId } = useParams()
   const navigate = useNavigate()
@@ -83,7 +85,6 @@ export function CourseEditor() {
   const [searchTerm, setSearchTerm] = useState("")
 
   const sensors = useSensors(useSensor(PointerSensor))
-
   const queryClient = useQueryClient()
 
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null)
@@ -93,11 +94,7 @@ export function CourseEditor() {
     string | null
   >(null)
   const [newLessonTitle, setNewLessonTitle] = useState("")
-
-  const thumbInputRef = useRef<HTMLInputElement>(null)
-
   const [showDeleteCourseDialog, setShowDeleteCourseDialog] = useState(false)
-
   const [confirmDelete, setConfirmDelete] = useState<{
     type: "module" | "lesson"
     id: string
@@ -106,13 +103,13 @@ export function CourseEditor() {
 
   if (isLoading)
     return (
-      <div className="flex h-screen items-center justify-center">
-        Loading course...
+      <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
+        Loading…
       </div>
     )
   if (!course)
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
         Course not found
       </div>
     )
@@ -123,8 +120,6 @@ export function CourseEditor() {
         .flatMap((m: any) => m.lessons || [])
         .find((l: any) => l.id === selectedLessonId)
     : null
-
-  const handleDeleteCourse = () => setShowDeleteCourseDialog(true)
 
   const handleAddModule = async () => {
     if (!newModuleTitle.trim()) return
@@ -161,37 +156,12 @@ export function CourseEditor() {
     const oldIndex = modules.findIndex((m: any) => m.id === active.id)
     const newIndex = modules.findIndex((m: any) => m.id === over.id)
     const reordered = arrayMove(modules, oldIndex, newIndex)
-    // Optimistically update UI via refetch after saving
     await Promise.all(
       reordered.map((m: any, i: number) =>
         updateModule.mutateAsync({ id: m.id, updates: { order_index: i } })
       )
     )
     queryClient.invalidateQueries({ queryKey: ["curriculum", course.id] })
-  }
-
-  const handleThumbnailUpload = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const ext = file.name.split(".").pop()
-    const path = `thumbnails/${course.id}.${ext}`
-    const { error: uploadError } = await supabase.storage
-      .from("course-assets")
-      .upload(path, file, { upsert: true })
-    if (uploadError) {
-      toast.error("Upload failed")
-      return
-    }
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("course-assets").getPublicUrl(path)
-    updateCurriculum.mutate({
-      id: course.id,
-      updates: { thumbnail_url: publicUrl },
-    })
-    toast.success("Thumbnail updated")
   }
 
   const filteredModules = modules
@@ -202,7 +172,6 @@ export function CourseEditor() {
       const filteredLessons = (module.lessons || []).filter((lesson: any) =>
         lesson.title.toLowerCase().includes(searchTerm.toLowerCase())
       )
-
       if (moduleMatches || filteredLessons.length > 0) {
         return {
           ...module,
@@ -213,119 +182,154 @@ export function CourseEditor() {
     })
     .filter(Boolean)
 
+  const totalLessons = modules.reduce(
+    (acc: number, m: any) => acc + (m.lessons?.length ?? 0),
+    0
+  )
+
   return (
-    <div className="flex h-screen flex-col">
-      {/* Top Bar */}
-      <>
-        <input
-          ref={thumbInputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={handleThumbnailUpload}
-        />
-        <Button
-          variant="outline"
-          onClick={() => thumbInputRef.current?.click()}
-        >
-          <ImagePlus className="mr-2 h-4 w-4" />
-          {course.thumbnail_url ? "Change Thumbnail" : "Add Thumbnail"}
-        </Button>
-      </>
-      <div className="border-b bg-background px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/", { state: { tab: "training" } })}
+    <div className="flex h-screen flex-col bg-background">
+      {/* Top bar */}
+      <header className="flex shrink-0 items-center justify-between border-b bg-background px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => navigate("/", { state: { tab: "training" } })}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+
+          <div className="flex items-center gap-2.5">
+            <Input
+              defaultValue={course.title}
+              className="h-8 border-0 bg-transparent px-0 text-base font-semibold shadow-none focus-visible:ring-0"
+              onBlur={(e) =>
+                updateCurriculum.mutate({
+                  id: course.id,
+                  updates: { title: e.target.value },
+                })
+              }
+            />
+            <Badge
+              variant={course.is_published ? "default" : "secondary"}
+              className="shrink-0 text-[10px] font-medium"
             >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              <Input
-                defaultValue={course.title}
-                className="h-auto border-0 px-0 text-2xl font-bold"
-                onBlur={(e) =>
-                  updateCurriculum.mutate({
-                    id: course.id,
-                    updates: { title: e.target.value },
-                  })
-                }
-              />
-            </div>
-            <Badge variant={course.is_published ? "default" : "secondary"}>
               {course.is_published ? "Published" : "Draft"}
             </Badge>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() =>
-                updateCurriculum.mutate({
-                  id: course.id,
-                  updates: { is_published: !course.is_published },
-                })
-              }
-            >
-              {course.is_published ? (
-                <EyeOff className="mr-2 h-4 w-4" />
-              ) : (
-                <Eye className="mr-2 h-4 w-4" />
-              )}
-              {course.is_published ? "Unpublish" : "Publish"}
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteCourse}>
-              <Trash2 className="mr-2 h-4 w-4" />
-              Delete
-            </Button>
-          </div>
         </div>
-      </div>
-      {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar - Modules & Lessons */}
-        <div className="w-80 overflow-y-auto border-r bg-muted/20">
-          <div className="border-b p-4">
-            <Input
-              placeholder="Search modules & lessons..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-8"
-            />
-          </div>
-          <div className="p-4">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="font-semibold">Course Content</h3>
-              <Button size="sm" onClick={() => setIsAddingModule(true)}>
-                <Plus className="mr-1 h-4 w-4" /> Module
-              </Button>
-            </div>
 
-            {isAddingModule && (
-              <div className="mb-4 space-y-2">
-                <Input
-                  placeholder="Module title"
-                  value={newModuleTitle}
-                  onChange={(e) => setNewModuleTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleAddModule()}
-                />
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={handleAddModule}>
-                    Add
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setIsAddingModule(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              updateCurriculum.mutate({
+                id: course.id,
+                updates: { is_published: !course.is_published },
+              })
+            }
+          >
+            {course.is_published ? (
+              <EyeOff className="mr-1.5 h-3.5 w-3.5" />
+            ) : (
+              <Eye className="mr-1.5 h-3.5 w-3.5" />
             )}
+            {course.is_published ? "Unpublish" : "Publish"}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive"
+            onClick={() => setShowDeleteCourseDialog(true)}
+          >
+            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            Delete
+          </Button>
+        </div>
+      </header>
 
-            <div className="space-y-4">
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar */}
+        <aside className="flex w-72 shrink-0 flex-col border-r bg-muted/20">
+          {/* Search */}
+          <div className="border-b px-3 py-2.5">
+            <div className="relative">
+              <Search className="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search content…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-8 pl-8 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <div>
+              <p className="text-xs font-semibold">Course Content</p>
+              <p className="mt-0.5 text-[10px] text-muted-foreground">
+                {modules.length} module{modules.length !== 1 ? "s" : ""} ·{" "}
+                {totalLessons} lesson{totalLessons !== 1 ? "s" : ""}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs"
+              onClick={() => setIsAddingModule(true)}
+            >
+              <Plus className="mr-1 h-3 w-3" />
+              Module
+            </Button>
+          </div>
+
+          {/* Add module input */}
+          {isAddingModule && (
+            <div className="mx-3 mb-3 space-y-2 rounded-lg border bg-background p-3">
+              <Input
+                placeholder="Module title"
+                value={newModuleTitle}
+                onChange={(e) => setNewModuleTitle(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddModule()}
+                className="h-8 text-sm"
+                autoFocus
+              />
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={handleAddModule}
+                >
+                  Add
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    setIsAddingModule(false)
+                    setNewModuleTitle("")
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Module list */}
+          <div className="flex-1 overflow-y-auto px-3 pb-4">
+            {filteredModules.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
+                <BookOpen className="h-8 w-8 opacity-25" />
+                <p className="text-xs">No modules yet</p>
+              </div>
+            ) : (
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -335,131 +339,142 @@ export function CourseEditor() {
                   items={modules.map((m: any) => m.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  {filteredModules.map((module: any) => (
-                    <SortableModule key={module.id} module={module}>
-                      <div
-                        key={module.id}
-                        className="rounded-lg border bg-background p-3"
-                      >
-                        <div className="mb-2 flex items-center justify-between">
-                          <Input
-                            defaultValue={module.title}
-                            className="h-8 border-0 px-0 text-sm font-semibold"
-                            onBlur={(e) =>
-                              updateModule.mutate({
-                                id: module.id,
-                                updates: { title: e.target.value },
-                              })
-                            }
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() =>
-                              setConfirmDelete({
-                                type: "module",
-                                id: module.id,
-                                label: module.title,
-                              })
-                            }
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-
-                        <div className="ml-2 space-y-1">
-                          {(module.lessons || []).map((lesson: any) => (
-                            <div
-                              key={lesson.id}
-                              className={`flex cursor-pointer items-center justify-between rounded px-2 py-1 hover:bg-muted ${
-                                selectedLessonId === lesson.id ? "bg-muted" : ""
-                              }`}
-                              onClick={() => setSelectedLessonId(lesson.id)}
-                            >
-                              <span className="flex-1 truncate text-sm">
-                                {lesson.title}
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-5 w-5"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setConfirmDelete({
-                                    type: "lesson",
-                                    id: lesson.id,
-                                    label: lesson.title,
-                                  })
-                                }}
-                              >
-                                <Trash2 className="h-2.5 w-2.5" />
-                              </Button>
-                            </div>
-                          ))}
-
-                          {addingLessonForModule === module.id && (
-                            <div className="mt-2 space-y-2">
-                              <Input
-                                placeholder="Lesson title"
-                                className="h-8"
-                                value={newLessonTitle}
-                                onChange={(e) =>
-                                  setNewLessonTitle(e.target.value)
-                                }
-                                onKeyDown={(e) =>
-                                  e.key === "Enter" &&
-                                  handleAddLesson(module.id)
-                                }
-                              />
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleAddLesson(module.id)}
-                                >
-                                  Add
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => setAddingLessonForModule(null)}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-
-                          {addingLessonForModule !== module.id && (
+                  <div className="space-y-2">
+                    {filteredModules.map((module: any) => (
+                      <SortableModule key={module.id} module={module}>
+                        <div className="rounded-lg border bg-background">
+                          {/* Module header */}
+                          <div className="flex items-center gap-1 px-3 py-2">
+                            <Input
+                              defaultValue={module.title}
+                              className="h-7 flex-1 border-0 bg-transparent px-0 text-xs font-semibold shadow-none focus-visible:ring-0"
+                              onBlur={(e) =>
+                                updateModule.mutate({
+                                  id: module.id,
+                                  updates: { title: e.target.value },
+                                })
+                              }
+                            />
                             <Button
                               variant="ghost"
-                              size="sm"
-                              className="w-full justify-start text-xs"
+                              size="icon"
+                              className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
                               onClick={() =>
-                                setAddingLessonForModule(module.id)
+                                setConfirmDelete({
+                                  type: "module",
+                                  id: module.id,
+                                  label: module.title,
+                                })
                               }
                             >
-                              <Plus className="mr-1 h-3 w-3" /> Add Lesson
+                              <Trash2 className="h-3 w-3" />
                             </Button>
-                          )}
+                          </div>
+
+                          {/* Lessons */}
+                          <div className="border-t">
+                            {(module.lessons || []).map((lesson: any) => (
+                              <button
+                                key={lesson.id}
+                                className={`group flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors hover:bg-muted/60 ${
+                                  selectedLessonId === lesson.id
+                                    ? "bg-primary/5 font-medium text-primary"
+                                    : "text-muted-foreground"
+                                }`}
+                                onClick={() => setSelectedLessonId(lesson.id)}
+                              >
+                                <ChevronRight
+                                  className={`h-3 w-3 shrink-0 transition-transform ${selectedLessonId === lesson.id ? "rotate-90 text-primary" : ""}`}
+                                />
+                                <span className="flex-1 truncate">
+                                  {lesson.title}
+                                </span>
+                                <Trash2
+                                  className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setConfirmDelete({
+                                      type: "lesson",
+                                      id: lesson.id,
+                                      label: lesson.title,
+                                    })
+                                  }}
+                                />
+                              </button>
+                            ))}
+
+                            {addingLessonForModule === module.id ? (
+                              <div className="space-y-2 p-3">
+                                <Input
+                                  placeholder="Lesson title"
+                                  className="h-7 text-xs"
+                                  value={newLessonTitle}
+                                  onChange={(e) =>
+                                    setNewLessonTitle(e.target.value)
+                                  }
+                                  onKeyDown={(e) =>
+                                    e.key === "Enter" &&
+                                    handleAddLesson(module.id)
+                                  }
+                                  autoFocus
+                                />
+                                <div className="flex gap-1.5">
+                                  <Button
+                                    size="sm"
+                                    className="h-6 text-xs"
+                                    onClick={() => handleAddLesson(module.id)}
+                                  >
+                                    Add
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-6 text-xs"
+                                    onClick={() => {
+                                      setAddingLessonForModule(null)
+                                      setNewLessonTitle("")
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                className="flex w-full items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                                onClick={() =>
+                                  setAddingLessonForModule(module.id)
+                                }
+                              >
+                                <Plus className="h-3 w-3" />
+                                Add lesson
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    </SortableModule>
-                  ))}
+                      </SortableModule>
+                    ))}
+                  </div>
                 </SortableContext>
               </DndContext>
-            </div>
+            )}
           </div>
-        </div>
+        </aside>
 
-        {/* Right Panel - Lesson Editor */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-4xl p-6">
+        {/* Main editor */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-8 py-7">
             <Tabs defaultValue={selectedLesson ? "lesson" : "details"}>
-              <TabsList className="mb-6">
-                <TabsTrigger value="details">Course Details</TabsTrigger>
-                <TabsTrigger value="lesson" disabled={!selectedLesson}>
-                  {selectedLesson ? "Edit Lesson" : "Select a Lesson"}
+              <TabsList className="mb-7 h-9">
+                <TabsTrigger value="details" className="text-sm">
+                  Course Details
+                </TabsTrigger>
+                <TabsTrigger
+                  value="lesson"
+                  disabled={!selectedLesson}
+                  className="text-sm"
+                >
+                  {selectedLesson ? selectedLesson.title : "Select a Lesson"}
                 </TabsTrigger>
               </TabsList>
 
@@ -485,28 +500,34 @@ export function CourseEditor() {
                     }
                   />
                 ) : (
-                  <div className="flex h-96 items-center justify-center text-muted-foreground">
-                    Select a lesson from the sidebar to edit
+                  <div className="flex h-80 flex-col items-center justify-center gap-3 rounded-xl border border-dashed text-muted-foreground">
+                    <BookOpen className="h-8 w-8 opacity-25" />
+                    <p className="text-sm">
+                      Select a lesson from the sidebar to edit
+                    </p>
                   </div>
                 )}
               </TabsContent>
             </Tabs>
           </div>
-        </div>
+        </main>
       </div>
+
+      {/* Delete module/lesson dialog */}
       <AlertDialog
         open={!!confirmDelete}
         onOpenChange={(open) => !open && setConfirmDelete(null)}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {confirmDelete?.type} "{confirmDelete?.label}"?
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete {confirmDelete?.type}?</AlertDialogTitle>
             <AlertDialogDescription>
+              <span className="font-medium text-foreground">
+                "{confirmDelete?.label}"
+              </span>{" "}
               {confirmDelete?.type === "module"
-                ? "All lessons inside this module will also be deleted."
-                : "This lesson will be permanently deleted."}
+                ? "and all its lessons will be permanently deleted."
+                : "will be permanently deleted."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -517,8 +538,8 @@ export function CourseEditor() {
                 if (confirmDelete?.type === "module") {
                   await deleteModule.mutateAsync(confirmDelete.id)
                   toast.success("Module deleted")
-                } else if (confirmDelete?.type === "lesson") {
-                  await deleteLesson.mutateAsync(confirmDelete.id)
+                } else {
+                  await deleteLesson.mutateAsync(confirmDelete!.id)
                   toast.success("Lesson deleted")
                 }
                 setConfirmDelete(null)
@@ -530,17 +551,20 @@ export function CourseEditor() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete course confirmation */}
+      {/* Delete course dialog */}
       <AlertDialog
         open={showDeleteCourseDialog}
         onOpenChange={setShowDeleteCourseDialog}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete "{course.title}"?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this course?</AlertDialogTitle>
             <AlertDialogDescription>
-              All modules and lessons will be permanently deleted. This cannot
-              be undone.
+              <span className="font-medium text-foreground">
+                "{course.title}"
+              </span>
+              , all its modules and lessons will be permanently deleted. This
+              cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -562,17 +586,23 @@ export function CourseEditor() {
   )
 }
 
-function LessonEditor({ lesson }: { lesson: any; onUpdate: () => void }) {
+function LessonEditor({
+  lesson,
+  onUpdate,
+}: {
+  lesson: any
+  onUpdate: () => void
+}) {
   const updateLesson = useUpdateLesson()
   const [content, setContent] = useState(lesson.content_html || "")
 
   return (
-    <div className="space-y-6">
-      <div>
-        <label className="text-sm font-medium">Lesson Title</label>
+    <div className="space-y-7">
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Title</label>
         <Input
           defaultValue={lesson.title}
-          className="mt-1 text-xl"
+          className="text-base font-medium"
           onBlur={(e) =>
             updateLesson.mutate({
               id: lesson.id,
@@ -582,12 +612,13 @@ function LessonEditor({ lesson }: { lesson: any; onUpdate: () => void }) {
         />
       </div>
 
-      <div>
+      <div className="space-y-1.5">
         <label className="text-sm font-medium">Description</label>
         <Textarea
           defaultValue={lesson.description || ""}
-          className="mt-1"
-          placeholder="Brief description of this lesson"
+          placeholder="Brief summary of this lesson"
+          className="resize-none"
+          rows={2}
           onBlur={(e) =>
             updateLesson.mutate({
               id: lesson.id,
@@ -597,12 +628,12 @@ function LessonEditor({ lesson }: { lesson: any; onUpdate: () => void }) {
         />
       </div>
 
-      <div>
+      <div className="space-y-1.5">
         <label className="text-sm font-medium">Cloudflare Stream ID</label>
         <Input
           defaultValue={lesson.cf_stream_id || ""}
-          className="mt-1 font-mono text-sm"
-          placeholder="video ID from Cloudflare"
+          className="font-mono text-sm"
+          placeholder="Paste the video ID from Cloudflare Stream"
           onBlur={(e) =>
             updateLesson.mutate({
               id: lesson.id,
@@ -610,11 +641,14 @@ function LessonEditor({ lesson }: { lesson: any; onUpdate: () => void }) {
             })
           }
         />
+        <p className="text-xs text-muted-foreground">
+          Found in your Cloudflare Stream dashboard under the video details.
+        </p>
       </div>
 
-      <div>
+      <div className="space-y-1.5">
         <label className="text-sm font-medium">Lesson Content</label>
-        <div className="mt-2 rounded-lg border">
+        <div className="overflow-hidden rounded-lg border">
           <RichTextEditor
             content={content}
             onChange={(html) => {
@@ -628,15 +662,18 @@ function LessonEditor({ lesson }: { lesson: any; onUpdate: () => void }) {
         </div>
       </div>
 
-      <QuizBuilder
-        quiz={lesson.quiz}
-        onSave={(quiz) =>
-          updateLesson.mutate({ id: lesson.id, updates: { quiz } })
-        }
-      />
+      <div className="rounded-xl border bg-muted/20 p-5">
+        <QuizBuilder
+          quiz={lesson.quiz}
+          onSave={(quiz) =>
+            updateLesson.mutate({ id: lesson.id, updates: { quiz } })
+          }
+        />
+      </div>
     </div>
   )
 }
+
 function CourseDetailsEditor({
   course,
   onUpdate,
@@ -684,23 +721,23 @@ function CourseDetailsEditor({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       {/* Thumbnail */}
-      <div>
-        <label className="text-sm font-medium">Course Thumbnail</label>
-        <div className="mt-2 flex items-center gap-4">
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Thumbnail</label>
+        <div className="flex items-start gap-4">
           {course.thumbnail_url ? (
             <img
               src={course.thumbnail_url}
-              alt="Thumbnail"
-              className="h-24 w-40 rounded-lg border object-cover"
+              alt="Course thumbnail"
+              className="h-28 w-44 shrink-0 rounded-lg border object-cover"
             />
           ) : (
-            <div className="flex h-24 w-40 items-center justify-center rounded-lg border border-dashed bg-muted text-xs text-muted-foreground">
+            <div className="flex h-28 w-44 shrink-0 items-center justify-center rounded-lg border border-dashed bg-muted text-xs text-muted-foreground">
               No thumbnail
             </div>
           )}
-          <div className="space-y-2">
+          <div className="space-y-2 pt-1">
             <input
               ref={thumbInputRef}
               type="file"
@@ -713,14 +750,14 @@ function CourseDetailsEditor({
               size="sm"
               onClick={() => thumbInputRef.current?.click()}
             >
-              <ImagePlus className="mr-2 h-4 w-4" />
-              {course.thumbnail_url ? "Change Thumbnail" : "Upload Thumbnail"}
+              <ImagePlus className="mr-1.5 h-3.5 w-3.5" />
+              {course.thumbnail_url ? "Replace" : "Upload Thumbnail"}
             </Button>
             {course.thumbnail_url && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-destructive"
+                className="block text-muted-foreground hover:text-destructive"
                 onClick={() =>
                   updateCurriculum.mutate(
                     { id: course.id, updates: { thumbnail_url: null } },
@@ -731,18 +768,21 @@ function CourseDetailsEditor({
                 Remove
               </Button>
             )}
+            <p className="text-[11px] text-muted-foreground">
+              Recommended: 16:9, at least 800×450px
+            </p>
           </div>
         </div>
       </div>
 
       {/* Description */}
-      <div>
+      <div className="space-y-1.5">
         <label className="text-sm font-medium">Description</label>
         <Textarea
-          className="mt-1"
           defaultValue={course.description ?? ""}
-          placeholder="What will students learn in this course?"
-          rows={4}
+          placeholder="What will learners gain from this course?"
+          rows={3}
+          className="resize-none"
           onBlur={(e) =>
             updateCurriculum.mutate(
               { id: course.id, updates: { description: e.target.value } },
@@ -751,7 +791,9 @@ function CourseDetailsEditor({
           }
         />
       </div>
-      <div>
+
+      {/* Category */}
+      <div className="space-y-1.5">
         <label className="text-sm font-medium">Category</label>
         <Select
           value={categoryId || "none"}
@@ -761,8 +803,8 @@ function CourseDetailsEditor({
             updateCategory.mutate({ id: course.id, categoryId: newValue })
           }}
         >
-          <SelectTrigger className="mt-1">
-            <SelectValue placeholder="Select category" />
+          <SelectTrigger>
+            <SelectValue placeholder="Select a category" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">None</SelectItem>
@@ -775,7 +817,8 @@ function CourseDetailsEditor({
         </Select>
       </div>
 
-      <div>
+      {/* Tags */}
+      <div className="space-y-1.5">
         <label className="text-sm font-medium">Tags</label>
         <TagSelector
           selectedTagIds={selectedTags}
@@ -788,6 +831,7 @@ function CourseDetailsEditor({
     </div>
   )
 }
+
 function SortableModule({
   module,
   children,
@@ -795,24 +839,31 @@ function SortableModule({
   module: any
   children: React.ReactNode
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: module.id })
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: module.id,
+  })
+
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className="rounded-lg border bg-background p-3"
+      className={`relative ${isDragging ? "z-50 opacity-80 shadow-lg" : ""}`}
     >
-      <div className="mb-2 flex items-center gap-1">
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab text-muted-foreground"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-        {children}
-      </div>
+      <button
+        {...attributes}
+        {...listeners}
+        className="absolute top-2.5 left-2 cursor-grab touch-none text-muted-foreground/40 hover:text-muted-foreground active:cursor-grabbing"
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+      <div className="pl-6">{children}</div>
     </div>
   )
 }

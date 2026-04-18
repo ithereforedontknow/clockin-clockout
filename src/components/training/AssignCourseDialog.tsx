@@ -21,6 +21,7 @@ import {
 import { useAssignCourse, useAllCurriculums } from "@/lib/queries"
 import { useQuery } from "@tanstack/react-query"
 import { supabase } from "@/lib/supabase"
+import { BookPlus } from "lucide-react"
 
 interface Props {
   employeeId: string
@@ -34,21 +35,6 @@ export function AssignCourseDialog({ employeeId, employeeName }: Props) {
   const { data: courses = [] } = useAllCurriculums()
   const assignCourse = useAssignCourse()
 
-  const handleAssign = async () => {
-    if (!curriculumId || !dueDate) {
-      toast.error("Select a course and due date")
-      return
-    }
-    await assignCourse.mutateAsync({
-      employee_id: employeeId,
-      curriculum_id: curriculumId,
-      due_date: dueDate,
-    })
-    toast.success("Course assigned")
-    setOpen(false)
-    setCurriculumId("")
-    setDueDate("")
-  }
   const { data: certifications = [] } = useQuery({
     queryKey: ["certifications", employeeId],
     queryFn: async () => {
@@ -58,28 +44,49 @@ export function AssignCourseDialog({ employeeId, employeeName }: Props) {
         .eq("employee_id", employeeId)
       return data ?? []
     },
-    enabled: open, // only fetch when dialog opens
+    enabled: open,
   })
 
   const completedCourseIds = new Set(certifications.map((c) => c.curriculum_id))
-  const availableCourses = courses.filter((c) => !completedCourseIds.has(c.id))
+  const availableCourses = courses.filter(
+    (c) => c.is_published && !completedCourseIds.has(c.id)
+  )
+
+  const handleAssign = async () => {
+    if (!curriculumId || !dueDate) {
+      toast.error("Please select a course and due date")
+      return
+    }
+    await assignCourse.mutateAsync({
+      employee_id: employeeId,
+      curriculum_id: curriculumId,
+      due_date: dueDate,
+    })
+    toast.success(`Course assigned to ${employeeName}`)
+    setOpen(false)
+    setCurriculumId("")
+    setDueDate("")
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          Assign Course
+        <Button size="sm" variant="outline" className="gap-1.5">
+          <BookPlus className="h-3.5 w-3.5" />
+          Assign
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Assign course to {employeeName}</DialogTitle>{" "}
+          <DialogTitle>Assign Course</DialogTitle>
           <DialogDescription>
-            Select a published course and set a due date for completion.
+            Assign a course to{" "}
+            <span className="font-medium text-foreground">{employeeName}</span>.
           </DialogDescription>
         </DialogHeader>
+
         <div className="space-y-4 pt-2">
-          <div className="space-y-1">
+          <div className="space-y-1.5">
             <Label>Course</Label>
             <Select value={curriculumId} onValueChange={setCurriculumId}>
               <SelectTrigger>
@@ -88,22 +95,26 @@ export function AssignCourseDialog({ employeeId, employeeName }: Props) {
               <SelectContent>
                 {availableCourses.length === 0 ? (
                   <SelectItem disabled value="none">
-                    All published courses already completed
+                    No available courses
                   </SelectItem>
                 ) : (
-                  availableCourses
-                    .filter((c) => c.is_published)
-                    .map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.title}
-                      </SelectItem>
-                    ))
+                  availableCourses.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.title}
+                    </SelectItem>
+                  ))
                 )}
               </SelectContent>
             </Select>
+            {availableCourses.length === 0 && certifications.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                This employee has completed all available courses.
+              </p>
+            )}
           </div>
-          <div className="space-y-1">
-            <Label>Due date</Label>
+
+          <div className="space-y-1.5">
+            <Label>Due Date</Label>
             <Input
               type="date"
               value={dueDate}
@@ -111,13 +122,23 @@ export function AssignCourseDialog({ employeeId, employeeName }: Props) {
               min={new Date().toISOString().split("T")[0]}
             />
           </div>
-          <Button
-            className="w-full"
-            onClick={handleAssign}
-            disabled={assignCourse.isPending}
-          >
-            {assignCourse.isPending ? "Assigning…" : "Assign"}
-          </Button>
+
+          <div className="flex gap-2 pt-1">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              className="flex-1"
+              onClick={handleAssign}
+              disabled={assignCourse.isPending || !curriculumId || !dueDate}
+            >
+              {assignCourse.isPending ? "Assigning…" : "Assign"}
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

@@ -1,6 +1,5 @@
 import { useState } from "react"
 import { useMyTrainingRecord, useCourseCategories } from "@/lib/queries"
-import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -48,44 +47,61 @@ export function MyTrainingPanel() {
   )
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
+      {/* Stats row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: "Assigned", value: stats.total, color: "" },
+          {
+            label: "Assigned",
+            value: stats.total,
+            valueClass: "text-foreground",
+          },
           {
             label: "Completed",
             value: stats.completed,
-            color: "text-green-600",
+            valueClass: "text-emerald-600 dark:text-emerald-400",
           },
-          { label: "In Progress", value: stats.active, color: "text-blue-600" },
+          {
+            label: "In Progress",
+            value: stats.active,
+            valueClass: "text-blue-600 dark:text-blue-400",
+          },
           {
             label: "Overdue",
             value: stats.overdue,
-            color: stats.overdue > 0 ? "text-red-600" : "",
+            valueClass:
+              stats.overdue > 0
+                ? "text-red-600 dark:text-red-400"
+                : "text-foreground",
           },
-        ].map(({ label, value, color }) => (
-          <Card key={label}>
-            <CardContent className="px-4 py-3">
-              <p className="text-xs text-muted-foreground">{label}</p>
-              <p className={`text-2xl font-bold ${color}`}>{value}</p>
-            </CardContent>
-          </Card>
+        ].map(({ label, value, valueClass }) => (
+          <div key={label} className="rounded-xl border bg-card px-4 py-4">
+            <p className="text-xs font-medium text-muted-foreground">{label}</p>
+            <p
+              className={`mt-1 text-3xl font-semibold tabular-nums ${valueClass}`}
+            >
+              {value}
+            </p>
+          </div>
         ))}
       </div>
+
       <CertificationsPanel />
 
+      {/* Urgent alert */}
       {urgent.length > 0 && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-          <AlertCircle className="h-4 w-4 shrink-0 text-red-500" />
-          <p className="text-sm text-red-700">
+        <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/40 dark:bg-red-900/10">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+          <p className="text-sm text-red-700 dark:text-red-400">
             <span className="font-semibold">
               {urgent.length} course{urgent.length > 1 ? "s" : ""}
             </span>{" "}
-            need{urgent.length === 1 ? "s" : ""} your attention
+            {urgent.length === 1 ? "requires" : "require"} your attention
           </p>
         </div>
       )}
 
+      {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -97,11 +113,11 @@ export function MyTrainingPanel() {
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Courses</SelectItem>
+            <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="pending">In Progress</SelectItem>
             <SelectItem value="due_soon">Due Soon</SelectItem>
             <SelectItem value="overdue">Overdue</SelectItem>
@@ -109,8 +125,8 @@ export function MyTrainingPanel() {
           </SelectContent>
         </Select>
         <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-40">
-            <SelectValue placeholder="Category" />
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="All Categories" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
@@ -123,17 +139,18 @@ export function MyTrainingPanel() {
         </Select>
       </div>
 
+      {/* Course grid */}
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {Array(6)
             .fill(0)
             .map((_, i) => (
-              <Skeleton key={i} className="h-64 rounded-xl" />
+              <Skeleton key={i} className="h-72 rounded-xl" />
             ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-16 text-center text-muted-foreground">
-          <BookOpen className="h-10 w-10 opacity-30" />
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-20 text-center text-muted-foreground">
+          <BookOpen className="h-10 w-10 opacity-25" />
           <p className="font-medium">
             {search || statusFilter !== "all" || categoryFilter !== "all"
               ? "No matching courses"

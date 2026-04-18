@@ -38,7 +38,7 @@ import { useEmployees, useAllCurriculums, useBulkUnassign } from "@/lib/queries"
 export function BulkUnassignDialog() {
   const [open, setOpen] = useState(false)
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
-  const [curriculumId, setCurriculumId] = useState<string>("all") // "all" or specific course id
+  const [curriculumId, setCurriculumId] = useState<string>("all")
   const [isUnassigning, setIsUnassigning] = useState(false)
 
   const { data: employees = [] } = useEmployees()
@@ -57,7 +57,9 @@ export function BulkUnassignDialog() {
         employeeIds: selectedEmployeeIds,
         curriculumId: curriculumId === "all" ? undefined : curriculumId,
       })
-      toast.success(`Unassigned from ${selectedEmployeeIds.length} employee(s)`)
+      toast.success(
+        `Unassigned from ${selectedEmployeeIds.length} employee${selectedEmployeeIds.length > 1 ? "s" : ""}`
+      )
       setOpen(false)
       setSelectedEmployeeIds([])
       setCurriculumId("all")
@@ -71,24 +73,26 @@ export function BulkUnassignDialog() {
   const selectedEmployees = employees.filter((e) =>
     selectedEmployeeIds.includes(e.id)
   )
+  const isRemovingAll = curriculumId === "all"
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <Trash2 className="mr-2 h-4 w-4" />
+        <Button variant="outline" className="gap-2 text-muted-foreground">
+          <Trash2 className="h-4 w-4" />
           Bulk Unassign
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Bulk Course Unassignment</DialogTitle>
+          <DialogTitle>Bulk Unassign</DialogTitle>
           <DialogDescription>
             Remove course assignments from multiple employees at once.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          {/* Employee Multi-Select */}
+
+        <div className="space-y-5 pt-2">
+          {/* Employee picker */}
           <div className="space-y-2">
             <Label>Employees</Label>
             <Popover>
@@ -96,34 +100,34 @@ export function BulkUnassignDialog() {
                 <Button
                   variant="outline"
                   role="combobox"
-                  className="w-full justify-between"
+                  className="w-full justify-between font-normal"
                 >
                   {selectedEmployeeIds.length === 0
-                    ? "Select employees..."
-                    : `${selectedEmployeeIds.length} selected`}
+                    ? "Select employees…"
+                    : `${selectedEmployeeIds.length} employee${selectedEmployeeIds.length > 1 ? "s" : ""} selected`}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0">
+              <PopoverContent className="w-[380px] p-0">
                 <Command>
-                  <CommandInput placeholder="Search employees..." />
+                  <CommandInput placeholder="Search employees…" />
                   <CommandList>
-                    <CommandEmpty>No employee found.</CommandEmpty>
+                    <CommandEmpty>No employees found.</CommandEmpty>
                     <CommandGroup>
-                      <ScrollArea className="h-72">
+                      <ScrollArea className="h-64">
                         {employees.map((emp) => (
                           <CommandItem
                             key={emp.id}
-                            onSelect={() => {
+                            onSelect={() =>
                               setSelectedEmployeeIds((prev) =>
                                 prev.includes(emp.id)
                                   ? prev.filter((id) => id !== emp.id)
                                   : [...prev, emp.id]
                               )
-                            }}
+                            }
                           >
                             <Check
-                              className={`mr-2 h-4 w-4 ${
+                              className={`mr-2 h-4 w-4 transition-opacity ${
                                 selectedEmployeeIds.includes(emp.id)
                                   ? "opacity-100"
                                   : "opacity-0"
@@ -138,15 +142,16 @@ export function BulkUnassignDialog() {
                 </Command>
               </PopoverContent>
             </Popover>
+
             {selectedEmployees.length > 0 && (
-              <div className="flex flex-wrap gap-1 pt-2">
+              <div className="flex flex-wrap gap-1.5">
                 {selectedEmployees.slice(0, 5).map((emp) => (
-                  <Badge key={emp.id} variant="secondary">
+                  <Badge key={emp.id} variant="secondary" className="text-xs">
                     {emp.first_name} {emp.last_name}
                   </Badge>
                 ))}
                 {selectedEmployees.length > 5 && (
-                  <Badge variant="secondary">
+                  <Badge variant="secondary" className="text-xs">
                     +{selectedEmployees.length - 5} more
                   </Badge>
                 )}
@@ -154,12 +159,17 @@ export function BulkUnassignDialog() {
             )}
           </div>
 
-          {/* Course Filter (optional) */}
+          {/* Course filter */}
           <div className="space-y-2">
-            <Label>Course (optional)</Label>
+            <Label>
+              Course{" "}
+              <span className="font-normal text-muted-foreground">
+                (optional)
+              </span>
+            </Label>
             <Select value={curriculumId} onValueChange={setCurriculumId}>
               <SelectTrigger>
-                <SelectValue placeholder="All courses" />
+                <SelectValue placeholder="All assigned courses" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All assigned courses</SelectItem>
@@ -171,21 +181,25 @@ export function BulkUnassignDialog() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              If a course is selected, only that course will be unassigned.
+              {isRemovingAll
+                ? "All course assignments will be removed."
+                : "Only the selected course will be unassigned."}
             </p>
           </div>
         </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
           <Button
             variant="destructive"
             onClick={handleUnassign}
-            disabled={isUnassigning}
+            disabled={isUnassigning || selectedEmployeeIds.length === 0}
           >
-            {isUnassigning ? "Unassigning..." : "Unassign"}
+            {isUnassigning
+              ? "Unassigning…"
+              : `Unassign ${selectedEmployeeIds.length > 0 ? selectedEmployeeIds.length : ""}${selectedEmployeeIds.length > 0 ? ` employee${selectedEmployeeIds.length > 1 ? "s" : ""}` : ""}`}
           </Button>
         </div>
       </DialogContent>

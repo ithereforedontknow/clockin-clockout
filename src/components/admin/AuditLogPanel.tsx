@@ -23,6 +23,12 @@ export function AuditLogPanel() {
     deny_info_change: "Denied profile change",
     approve_correction: "Approved correction",
     deny_correction: "Denied correction",
+    // Add training actions
+    create_curriculum: "Created course",
+    delete_curriculum: "Deleted course",
+    assign_course: "Assigned course",
+    bulk_unassign_courses: "Bulk unassigned courses",
+    complete_course: "Completed course",
   }
 
   const ACTION_COLOR: Record<string, string> = {
@@ -32,6 +38,12 @@ export function AuditLogPanel() {
     deny_info_change: "border-red-200 bg-red-50 text-red-700",
     approve_correction: "border-green-200 bg-green-50 text-green-700",
     deny_correction: "border-red-200 bg-red-50 text-red-700",
+    // Add training actions
+    create_curriculum: "border-blue-200 bg-blue-50 text-blue-700",
+    delete_curriculum: "border-red-200 bg-red-50 text-red-700",
+    assign_course: "border-blue-200 bg-blue-50 text-blue-700",
+    bulk_unassign_courses: "border-orange-200 bg-orange-50 text-orange-700",
+    complete_course: "border-green-200 bg-green-50 text-green-700",
   }
 
   return (

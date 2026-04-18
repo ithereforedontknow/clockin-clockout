@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Check, Plus, X } from "lucide-react"
+import { Check, X, Tag } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -19,6 +19,7 @@ import {
 import { useCourseTags } from "@/lib/queries"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
+
 interface TagSelectorProps {
   selectedTagIds: string[]
   onChange: (tagIds: string[]) => void
@@ -32,18 +33,19 @@ export function TagSelector({ selectedTagIds, onChange }: TagSelectorProps) {
   const selectedTags = allTags.filter((tag) => selectedTagIds.includes(tag.id))
 
   const handleToggle = (tagId: string) => {
-    if (selectedTagIds.includes(tagId)) {
-      onChange(selectedTagIds.filter((id) => id !== tagId))
-    } else {
-      onChange([...selectedTagIds, tagId])
-    }
+    onChange(
+      selectedTagIds.includes(tagId)
+        ? selectedTagIds.filter((id) => id !== tagId)
+        : [...selectedTagIds, tagId]
+    )
   }
 
   const handleCreateTag = async () => {
-    if (!newTagName.trim()) return
+    const name = newTagName.trim()
+    if (!name) return
     const { data, error } = await supabase
       .from("course_tags")
-      .insert({ name: newTagName.trim() })
+      .insert({ name })
       .select()
       .single()
     if (error) {
@@ -56,40 +58,58 @@ export function TagSelector({ selectedTagIds, onChange }: TagSelectorProps) {
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap gap-1.5">
         {selectedTags.map((tag) => (
-          <Badge key={tag.id} variant="secondary" className="gap-1">
+          <Badge
+            key={tag.id}
+            variant="secondary"
+            className="gap-1 pr-1 text-xs"
+          >
             {tag.name}
             <button
               onClick={() => handleToggle(tag.id)}
-              className="ml-1 rounded-full hover:bg-muted"
+              className="ml-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full hover:bg-foreground/10"
+              aria-label={`Remove ${tag.name}`}
             >
-              <X className="h-3 w-3" />
+              <X className="h-2.5 w-2.5" />
             </button>
           </Badge>
         ))}
+        {selectedTags.length === 0 && (
+          <span className="text-xs text-muted-foreground">
+            No tags selected
+          </span>
+        )}
       </div>
+
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="h-8">
-            <Plus className="mr-1 h-3 w-3" /> Add Tags
+          <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
+            <Tag className="h-3 w-3" />
+            Add Tags
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[250px] p-0">
+        <PopoverContent className="w-60 p-0" align="start">
           <Command>
-            <CommandInput placeholder="Search tags..." />
+            <CommandInput placeholder="Search tags…" />
             <CommandList>
               <CommandEmpty>
-                <div className="p-2">
-                  <p className="text-sm text-muted-foreground">No tags found</p>
-                  <div className="mt-2 flex gap-2">
+                <div className="space-y-2 p-3">
+                  <p className="text-xs text-muted-foreground">No tags found</p>
+                  <div className="flex gap-2">
                     <Input
                       placeholder="New tag name"
                       value={newTagName}
                       onChange={(e) => setNewTagName(e.target.value)}
-                      className="h-8"
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
+                      className="h-7 text-xs"
                     />
-                    <Button size="sm" onClick={handleCreateTag}>
+                    <Button
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={handleCreateTag}
+                      disabled={!newTagName.trim()}
+                    >
                       Create
                     </Button>
                   </div>
@@ -102,7 +122,7 @@ export function TagSelector({ selectedTagIds, onChange }: TagSelectorProps) {
                     onSelect={() => handleToggle(tag.id)}
                   >
                     <Check
-                      className={`mr-2 h-4 w-4 ${
+                      className={`mr-2 h-4 w-4 transition-opacity ${
                         selectedTagIds.includes(tag.id)
                           ? "opacity-100"
                           : "opacity-0"

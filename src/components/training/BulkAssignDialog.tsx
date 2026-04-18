@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Check, ChevronsUpDown } from "lucide-react"
+import { Check, ChevronsUpDown, Users } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -48,18 +48,10 @@ export function BulkAssignDialog() {
   const { data: courses = [] } = useAllCurriculums()
 
   const handleAssign = async () => {
-    if (selectedEmployeeIds.length === 0) {
-      toast.error("Select at least one employee")
-      return
-    }
-    if (!curriculumId) {
-      toast.error("Select a course")
-      return
-    }
-    if (!dueDate) {
-      toast.error("Select a due date")
-      return
-    }
+    if (selectedEmployeeIds.length === 0)
+      return toast.error("Select at least one employee")
+    if (!curriculumId) return toast.error("Select a course")
+    if (!dueDate) return toast.error("Set a due date")
 
     setIsAssigning(true)
     try {
@@ -76,7 +68,9 @@ export function BulkAssignDialog() {
 
       if (error) throw error
 
-      toast.success(`Assigned to ${selectedEmployeeIds.length} employee(s)`)
+      toast.success(
+        `Assigned to ${selectedEmployeeIds.length} employee${selectedEmployeeIds.length > 1 ? "s" : ""}`
+      )
       setOpen(false)
       setSelectedEmployeeIds([])
       setCurriculumId("")
@@ -91,22 +85,26 @@ export function BulkAssignDialog() {
   const selectedEmployees = employees.filter((e) =>
     selectedEmployeeIds.includes(e.id)
   )
+  const publishedCourses = courses.filter((c) => c.is_published)
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">Bulk Assign</Button>
+        <Button variant="outline" className="gap-2">
+          <Users className="h-4 w-4" />
+          Bulk Assign
+        </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Bulk Course Assignment</DialogTitle>
+          <DialogTitle>Bulk Assign Course</DialogTitle>
           <DialogDescription>
-            Assign a course to multiple employees at once. All selected
-            employees will receive the same due date.
+            Assign one course to multiple employees with a shared due date.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4">
-          {/* Employee Multi-Select */}
+
+        <div className="space-y-5 pt-2">
+          {/* Employee picker */}
           <div className="space-y-2">
             <Label>Employees</Label>
             <Popover>
@@ -114,34 +112,34 @@ export function BulkAssignDialog() {
                 <Button
                   variant="outline"
                   role="combobox"
-                  className="w-full justify-between"
+                  className="w-full justify-between font-normal"
                 >
                   {selectedEmployeeIds.length === 0
-                    ? "Select employees..."
-                    : `${selectedEmployeeIds.length} selected`}
+                    ? "Select employees…"
+                    : `${selectedEmployeeIds.length} employee${selectedEmployeeIds.length > 1 ? "s" : ""} selected`}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[400px] p-0">
+              <PopoverContent className="w-[380px] p-0">
                 <Command>
-                  <CommandInput placeholder="Search employees..." />
+                  <CommandInput placeholder="Search employees…" />
                   <CommandList>
-                    <CommandEmpty>No employee found.</CommandEmpty>
+                    <CommandEmpty>No employees found.</CommandEmpty>
                     <CommandGroup>
-                      <ScrollArea className="h-72">
+                      <ScrollArea className="h-64">
                         {employees.map((emp) => (
                           <CommandItem
                             key={emp.id}
-                            onSelect={() => {
+                            onSelect={() =>
                               setSelectedEmployeeIds((prev) =>
                                 prev.includes(emp.id)
                                   ? prev.filter((id) => id !== emp.id)
                                   : [...prev, emp.id]
                               )
-                            }}
+                            }
                           >
                             <Check
-                              className={`mr-2 h-4 w-4 ${
+                              className={`mr-2 h-4 w-4 transition-opacity ${
                                 selectedEmployeeIds.includes(emp.id)
                                   ? "opacity-100"
                                   : "opacity-0"
@@ -156,15 +154,16 @@ export function BulkAssignDialog() {
                 </Command>
               </PopoverContent>
             </Popover>
+
             {selectedEmployees.length > 0 && (
-              <div className="flex flex-wrap gap-1 pt-2">
+              <div className="flex flex-wrap gap-1.5">
                 {selectedEmployees.slice(0, 5).map((emp) => (
-                  <Badge key={emp.id} variant="secondary">
+                  <Badge key={emp.id} variant="secondary" className="text-xs">
                     {emp.first_name} {emp.last_name}
                   </Badge>
                 ))}
                 {selectedEmployees.length > 5 && (
-                  <Badge variant="secondary">
+                  <Badge variant="secondary" className="text-xs">
                     +{selectedEmployees.length - 5} more
                   </Badge>
                 )}
@@ -172,7 +171,7 @@ export function BulkAssignDialog() {
             )}
           </div>
 
-          {/* Course Select */}
+          {/* Course */}
           <div className="space-y-2">
             <Label>Course</Label>
             <Select value={curriculumId} onValueChange={setCurriculumId}>
@@ -180,13 +179,11 @@ export function BulkAssignDialog() {
                 <SelectValue placeholder="Select a course" />
               </SelectTrigger>
               <SelectContent>
-                {courses
-                  .filter((c) => c.is_published)
-                  .map((course) => (
-                    <SelectItem key={course.id} value={course.id}>
-                      {course.title}
-                    </SelectItem>
-                  ))}
+                {publishedCourses.map((course) => (
+                  <SelectItem key={course.id} value={course.id}>
+                    {course.title}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
@@ -203,12 +200,22 @@ export function BulkAssignDialog() {
           </div>
         </div>
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={handleAssign} disabled={isAssigning}>
-            {isAssigning ? "Assigning..." : "Assign"}
+          <Button
+            onClick={handleAssign}
+            disabled={
+              isAssigning ||
+              selectedEmployeeIds.length === 0 ||
+              !curriculumId ||
+              !dueDate
+            }
+          >
+            {isAssigning
+              ? "Assigning…"
+              : `Assign to ${selectedEmployeeIds.length || "…"}`}
           </Button>
         </div>
       </DialogContent>
