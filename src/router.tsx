@@ -1,4 +1,6 @@
 import { createBrowserRouter, Navigate } from "react-router-dom"
+import { AppShell } from "@/components/AppShell"
+
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LoginPage } from "@/pages/LoginPage"
 import { CourseEditor } from "@/components/training/CourseEditor"
@@ -7,7 +9,6 @@ import { EmployeeTrainingPage } from "@/pages/EmployeeTrainingPage"
 import { InstructorRoute } from "@/components/InstructorRoute"
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage"
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage"
-import { AppShell } from "@/components/AppShell"
 export const router = createBrowserRouter([
   // ── Public ────────────────────────────────────────────────────────────────
   {

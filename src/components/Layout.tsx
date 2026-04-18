@@ -1,4 +1,6 @@
 import { type ReactNode } from "react"
+import type { TabId } from "@/components/AppShell"
+
 import {
   Home,
   User,
@@ -10,7 +12,6 @@ import {
   AlarmClock,
   ClipboardCheck,
 } from "lucide-react"
-import type { TabId } from "@/components/AppShell"
 import { cn } from "@/lib/utils"
 import type { UserRole } from "@/lib/supabase"
 import { useCurrentEmployee } from "@/lib/queries"

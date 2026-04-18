@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from "react"
+import type { TabId } from "@/components/AppShell"
+
 import {
   Home,
   Timer,
@@ -25,7 +27,6 @@ import {
   useTodayClockEntry,
 } from "@/lib/queries"
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
-import type { TabId } from "@/components/AppShell"
 import type { UserRole, BreakEntry } from "@/lib/supabase"
 import { toast } from "sonner"
 

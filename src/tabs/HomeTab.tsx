@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react"
+import type { TabId } from "@/components/AppShell"
+
 import { format, startOfWeek } from "date-fns"
 import {
   Users,
@@ -43,7 +45,6 @@ import { usePermissions } from "@/lib/auth/permissions"
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
 import type { BreakEntry, Employee, ClockEntry } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
-import type { TabId } from "@/components/AppShell"
 import { AnnouncementsCard } from "@/components/AnnouncementsCard"
 interface Props {
   onNavigate?: (tab: TabId) => void
