@@ -19,7 +19,7 @@ export default defineConfig({
         manualChunks: {
           vendor: ["react", "react-dom", "react-router-dom", "framer-motion"],
           supabase: ["@supabase/supabase-js"],
-          ui: ["lucide-react", "@radix-ui/react-icons"], // Add icon/UI libs here
+          ui: ["lucide-react"], // Add icon/UI libs here
         },
       },
     },
