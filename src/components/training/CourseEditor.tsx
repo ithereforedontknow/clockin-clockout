@@ -586,13 +586,7 @@ export function CourseEditor() {
   )
 }
 
-function LessonEditor({
-  lesson,
-  onUpdate,
-}: {
-  lesson: any
-  onUpdate: () => void
-}) {
+function LessonEditor({ lesson }: { lesson: any; onUpdate: () => void }) {
   const updateLesson = useUpdateLesson()
   const [content, setContent] = useState(lesson.content_html || "")
 
