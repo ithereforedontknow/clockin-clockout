@@ -27,7 +27,7 @@ import { formatMinutes } from "@/lib/supabase"
 import type { ClockEntry, BreakEntry } from "@/lib/supabase"
 import { lateMins, undertimeMins } from "@/lib/attendance"
 import { ClockCorrectionDialog } from "@/components/ClockCorrectionDialog"
-import type { TabId } from "@/components/Appshell"
+import type { TabId } from "@/components/AppShell"
 
 interface Props {
   onNavigate?: (tab: TabId) => void

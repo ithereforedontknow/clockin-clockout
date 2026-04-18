@@ -25,7 +25,7 @@ import {
   useMarkAllRead,
 } from "@/lib/queries"
 import type { AppNotification, NotificationType } from "@/lib/supabase"
-import type { TabId } from "@/components/Appshell"
+import type { TabId } from "@/components/AppShell"
 
 interface Props {
   employeeId: string

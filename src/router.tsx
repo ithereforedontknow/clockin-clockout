@@ -7,7 +7,7 @@ import { EmployeeTrainingPage } from "@/pages/EmployeeTrainingPage"
 import { InstructorRoute } from "@/components/InstructorRoute"
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage"
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage"
-import { AppShell } from "@/components/Appshell"
+import { AppShell } from "@/components/AppShell"
 export const router = createBrowserRouter([
   // ── Public ────────────────────────────────────────────────────────────────
   {

@@ -65,7 +65,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { TabId } from "@/components/Appshell"
+import type { TabId } from "@/components/AppShell"
 import type {
   UserRole,
   AppNotification,
