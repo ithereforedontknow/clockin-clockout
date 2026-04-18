@@ -1,14 +1,13 @@
 import { createBrowserRouter, Navigate } from "react-router-dom"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LoginPage } from "@/pages/LoginPage"
-import { Appshell } from "@/components/Appshell"
 import { CourseEditor } from "@/components/training/CourseEditor"
 import { CourseDetailPage } from "@/pages/CourseDetailPage"
 import { EmployeeTrainingPage } from "@/pages/EmployeeTrainingPage"
 import { InstructorRoute } from "@/components/InstructorRoute"
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage"
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage"
-
+import { AppShell } from "@/components/AppShell"
 export const router = createBrowserRouter([
   // ── Public ────────────────────────────────────────────────────────────────
   {
@@ -32,7 +31,7 @@ export const router = createBrowserRouter([
     children: [
       {
         path: "/",
-        element: <Appshell />,
+        element: <AppShell />,
       },
       { path: "/training/courses/:courseId", element: <CourseDetailPage /> },
 

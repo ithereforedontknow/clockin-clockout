@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useEmployees, useAllTrainingRecords } from "@/lib/queries"
-import { AssignCourseDialog } from "@/components/AssignCourseDialog"
+import { AssignCourseDialog } from "@/components/training/AssignCourseDialog"
 
 const STATUS_CONFIG = {
   completed: {

@@ -13,6 +13,7 @@ export interface LmsModuleWithLessons extends LmsModule {
 export type UserRole = "employee" | "employer" | "admin"
 
 export interface Employee {
+  notification_prefs: Record<string, boolean>
   id: string
   user_id: string
   first_name: string
@@ -156,6 +157,7 @@ export type NotificationType =
   | "late_clock_in"
   | "new_employee"
   | "course_completed"
+  | "course_assigned"
 
 export interface AppNotification {
   id: string
@@ -274,6 +276,7 @@ export type CfStreamStatus = "pending" | "ready" | "error"
 export type TrainingStatus = "overdue" | "due_soon" | "pending" | "completed"
 
 export interface Curriculum {
+  category_id: any
   id: string
   title: string
   description: string | null
@@ -329,14 +332,17 @@ export interface Certification {
 }
 
 export interface TrainingRecord {
-  employee_id: string
   curriculum_id: string
   curriculum_title: string
   thumbnail_url: string | null
+  category_id?: string
+  category_name?: string
+  assigned_at: string
   due_date: string
-  completed_at: string | null
   status: TrainingStatus
-  days_remaining: number
+  completed_at: string | null
+  employee_id?: string
+  days_remaining?: number
 }
 
 export interface TrainingAssignment {

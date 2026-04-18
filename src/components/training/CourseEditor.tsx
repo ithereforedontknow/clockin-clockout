@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { useQueryClient } from "@tanstack/react-query"
 import {
@@ -53,8 +53,21 @@ import {
   useUpdateModule,
   useCreateLesson,
   useDeleteLesson,
+  useCourseCategories,
+  useUpdateCurriculumCategory,
+  useCurriculumTags,
+  useSetCurriculumTags,
 } from "@/lib/queries"
 import { QuizBuilder } from "@/components/training/QuizBuilder"
+import { TagSelector } from "@/components/training/TagSelector"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
 import { supabase } from "@/lib/supabase"
 export function CourseEditor() {
   const { courseId } = useParams()
@@ -67,6 +80,7 @@ export function CourseEditor() {
   const createLesson = useCreateLesson()
   const updateModule = useUpdateModule()
   const deleteLesson = useDeleteLesson()
+  const [searchTerm, setSearchTerm] = useState("")
 
   const sensors = useSensors(useSensor(PointerSensor))
 
@@ -180,6 +194,25 @@ export function CourseEditor() {
     toast.success("Thumbnail updated")
   }
 
+  const filteredModules = modules
+    .map((module: any) => {
+      const moduleMatches = module.title
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase())
+      const filteredLessons = (module.lessons || []).filter((lesson: any) =>
+        lesson.title.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+
+      if (moduleMatches || filteredLessons.length > 0) {
+        return {
+          ...module,
+          lessons: filteredLessons.length ? filteredLessons : module.lessons,
+        }
+      }
+      return null
+    })
+    .filter(Boolean)
+
   return (
     <div className="flex h-screen flex-col">
       {/* Top Bar */}
@@ -253,6 +286,14 @@ export function CourseEditor() {
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Modules & Lessons */}
         <div className="w-80 overflow-y-auto border-r bg-muted/20">
+          <div className="border-b p-4">
+            <Input
+              placeholder="Search modules & lessons..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-8"
+            />
+          </div>
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
               <h3 className="font-semibold">Course Content</h3>
@@ -294,7 +335,7 @@ export function CourseEditor() {
                   items={modules.map((m: any) => m.id)}
                   strategy={verticalListSortingStrategy}
                 >
-                  {modules.map((module: any) => (
+                  {filteredModules.map((module: any) => (
                     <SortableModule key={module.id} module={module}>
                       <div
                         key={module.id}
@@ -605,6 +646,18 @@ function CourseDetailsEditor({
 }) {
   const updateCurriculum = useUpdateCurriculum()
   const thumbInputRef = useRef<HTMLInputElement>(null)
+  const { data: categories = [] } = useCourseCategories()
+  const [categoryId, setCategoryId] = useState(course.category_id || "")
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const { data: curriculumTags } = useCurriculumTags(course.id)
+  const updateCategory = useUpdateCurriculumCategory()
+  const setTags = useSetCurriculumTags()
+
+  useEffect(() => {
+    if (curriculumTags) {
+      setSelectedTags(curriculumTags.map((ct) => ct.tag_id))
+    }
+  }, [curriculumTags])
 
   const handleThumbnailUpload = async (
     e: React.ChangeEvent<HTMLInputElement>
@@ -696,6 +749,40 @@ function CourseDetailsEditor({
               { onSuccess: onUpdate }
             )
           }
+        />
+      </div>
+      <div>
+        <label className="text-sm font-medium">Category</label>
+        <Select
+          value={categoryId || "none"}
+          onValueChange={(v) => {
+            const newValue = v === "none" ? null : v
+            setCategoryId(newValue || "")
+            updateCategory.mutate({ id: course.id, categoryId: newValue })
+          }}
+        >
+          <SelectTrigger className="mt-1">
+            <SelectValue placeholder="Select category" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">None</SelectItem>
+            {categories.map((cat) => (
+              <SelectItem key={cat.id} value={cat.id}>
+                {cat.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <label className="text-sm font-medium">Tags</label>
+        <TagSelector
+          selectedTagIds={selectedTags}
+          onChange={(ids) => {
+            setSelectedTags(ids)
+            setTags.mutate({ curriculumId: course.id, tagIds: ids })
+          }}
         />
       </div>
     </div>

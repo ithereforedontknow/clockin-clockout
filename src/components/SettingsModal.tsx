@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react"
+// src/components/SettingsModal.tsx
+import { useState, useEffect, useRef } from "react"
 import {
   Loader2,
   Building2,
@@ -6,6 +7,9 @@ import {
   Bell,
   AlertTriangle,
   Save,
+  ImagePlus,
+  X,
+  GraduationCap,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -22,11 +26,16 @@ import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
-import { useCompanySettings, useUpdateCompanySettings } from "@/lib/queries"
+import {
+  useUpdateNotificationPrefs,
+  useCompanySettings,
+  useUpdateCompanySettings,
+  useCurrentEmployee,
+} from "@/lib/queries"
 import { usePermissions } from "@/lib/auth/permissions"
-
-import { companySettingsSchema } from "@/lib/schemas"
+import { supabase } from "@/lib/supabase"
 import { isTimezoneManila, TIMEZONE } from "@/lib/timezone"
+import { companySettingsSchema } from "@/lib/schemas"
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
@@ -61,8 +70,7 @@ export function SettingsModal({ open, onClose }: Props) {
               </p>
               <p className="mt-0.5 text-xs text-amber-600">
                 This system requires <strong>Asia/Manila (UTC+8)</strong>. Your
-                device is using a different timezone. Please update your OS
-                timezone settings.
+                device is using a different timezone.
               </p>
             </div>
           </div>
@@ -72,17 +80,14 @@ export function SettingsModal({ open, onClose }: Props) {
           <TabsList className="w-full">
             {isAdmin && (
               <TabsTrigger value="company" className="flex-1 gap-2">
-                <Building2 className="h-4 w-4" />
-                Company
+                <Building2 className="h-4 w-4" /> Company
               </TabsTrigger>
             )}
             <TabsTrigger value="notifications" className="flex-1 gap-2">
-              <Bell className="h-4 w-4" />
-              Notifications
+              <Bell className="h-4 w-4" /> Notifications
             </TabsTrigger>
             <TabsTrigger value="system" className="flex-1 gap-2">
-              <Clock className="h-4 w-4" />
-              System
+              <Clock className="h-4 w-4" /> System
             </TabsTrigger>
           </TabsList>
 
@@ -106,12 +111,17 @@ export function SettingsModal({ open, onClose }: Props) {
   )
 }
 
-// ─── Company settings ─────────────────────────────────────────────────────────
+// ─── Company Settings Form ─────────────────────────────────────────────────────
 
 function CompanySettingsForm() {
   const { data: settings, isLoading } = useCompanySettings()
   const update = useUpdateCompanySettings()
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isDirty, setIsDirty] = useState(false)
+  const [logoUrl, setLogoUrl] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const logoInputRef = useRef<HTMLInputElement>(null)
+
   const [form, setForm] = useState({
     company_name: "",
     standard_hours_per_day: 8,
@@ -120,7 +130,6 @@ function CompanySettingsForm() {
     working_days: [1, 2, 3, 4, 5] as number[],
     overtime_threshold_daily: 8,
     overtime_threshold_weekly: 40,
-    // company profile
     industry: "",
     phone: "",
     email: "",
@@ -135,12 +144,12 @@ function CompanySettingsForm() {
     if (!settings) return
     setForm({
       company_name: settings.company_name,
-      standard_hours_per_day: settings.standard_hours_per_day,
-      standard_hours_per_week: settings.standard_hours_per_week,
+      standard_hours_per_day: Number(settings.standard_hours_per_day),
+      standard_hours_per_week: Number(settings.standard_hours_per_week),
       standard_start_time: settings.standard_start_time,
       working_days: settings.working_days,
-      overtime_threshold_daily: settings.overtime_threshold_daily,
-      overtime_threshold_weekly: settings.overtime_threshold_weekly,
+      overtime_threshold_daily: Number(settings.overtime_threshold_daily),
+      overtime_threshold_weekly: Number(settings.overtime_threshold_weekly),
       industry: settings.industry ?? "",
       phone: settings.phone ?? "",
       email: settings.email ?? "",
@@ -150,7 +159,33 @@ function CompanySettingsForm() {
       city: settings.city ?? "",
       country: settings.country ?? "Philippines",
     })
+    setLogoUrl(settings.logo_url ?? null)
   }, [settings])
+
+  // Check dirty state
+  useEffect(() => {
+    if (!settings) return
+    const current = JSON.stringify({ ...form, logo_url: logoUrl })
+    const original = JSON.stringify({
+      company_name: settings.company_name,
+      standard_hours_per_day: Number(settings.standard_hours_per_day),
+      standard_hours_per_week: Number(settings.standard_hours_per_week),
+      standard_start_time: settings.standard_start_time,
+      working_days: settings.working_days,
+      overtime_threshold_daily: Number(settings.overtime_threshold_daily),
+      overtime_threshold_weekly: Number(settings.overtime_threshold_weekly),
+      industry: settings.industry ?? "",
+      phone: settings.phone ?? "",
+      email: settings.email ?? "",
+      website: settings.website ?? "",
+      address_line1: settings.address_line1 ?? "",
+      address_line2: settings.address_line2 ?? "",
+      city: settings.city ?? "",
+      country: settings.country ?? "Philippines",
+      logo_url: settings.logo_url ?? null,
+    })
+    setIsDirty(current !== original)
+  }, [form, logoUrl, settings])
 
   function set<K extends keyof typeof form>(key: K, val: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: val }))
@@ -164,8 +199,47 @@ function CompanySettingsForm() {
     set("working_days", next)
   }
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setIsUploading(true)
+    const path = `logos/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "_")}`
+
+    const { error } = await supabase.storage
+      .from("company-assets")
+      .upload(path, file, { upsert: true })
+
+    if (error) {
+      toast.error("Upload failed: " + error.message)
+      setIsUploading(false)
+      return
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("company-assets").getPublicUrl(path)
+    setLogoUrl(publicUrl)
+    await update.mutateAsync({ logo_url: publicUrl })
+    setIsUploading(false)
+    toast.success("Logo updated")
+  }
+
+  const handleRemoveLogo = async () => {
+    setLogoUrl(null)
+    await update.mutateAsync({ logo_url: null })
+    toast.success("Logo removed")
+  }
+
   async function handleSave() {
-    const result = companySettingsSchema.safeParse(form)
+    const result = companySettingsSchema.safeParse({
+      ...form,
+      standard_hours_per_day: Number(form.standard_hours_per_day),
+      standard_hours_per_week: Number(form.standard_hours_per_week),
+      overtime_threshold_daily: Number(form.overtime_threshold_daily),
+      overtime_threshold_weekly: Number(form.overtime_threshold_weekly),
+    })
+
     if (!result.success) {
       const errs: Record<string, string> = {}
       result.error.issues.forEach((e) => {
@@ -175,8 +249,10 @@ function CompanySettingsForm() {
       toast.error("Please fix the errors below")
       return
     }
-    await update.mutateAsync(result.data)
+
+    await update.mutateAsync({ ...result.data, logo_url: logoUrl })
     toast.success("Company settings saved")
+    setIsDirty(false)
   }
 
   if (isLoading) {
@@ -193,7 +269,59 @@ function CompanySettingsForm() {
 
   return (
     <div className="space-y-4">
-      {/* ── Company profile ── */}
+      {/* Logo Upload */}
+      <div className="space-y-1.5">
+        <Label className="text-sm">Company Logo</Label>
+        <div className="flex items-center gap-4">
+          {logoUrl ? (
+            <div className="relative">
+              <img
+                src={logoUrl}
+                alt="Logo"
+                className="h-16 w-16 rounded-lg border object-cover"
+              />
+              <button
+                onClick={handleRemoveLogo}
+                className="absolute -top-1 -right-1 rounded-full bg-destructive p-0.5 text-white hover:bg-destructive/90"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-dashed bg-muted">
+              <ImagePlus className="h-6 w-6 text-muted-foreground" />
+            </div>
+          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => logoInputRef.current?.click()}
+            disabled={isUploading}
+          >
+            {isUploading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Uploading...
+              </>
+            ) : (
+              <>
+                <ImagePlus className="mr-2 h-4 w-4" />
+                {logoUrl ? "Change Logo" : "Upload Logo"}
+              </>
+            )}
+          </Button>
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleLogoUpload}
+          />
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Company name */}
       <div className="space-y-1.5">
         <Label className="text-sm">Company name</Label>
         <Input
@@ -206,6 +334,7 @@ function CompanySettingsForm() {
         )}
       </div>
 
+      {/* Industry & Email */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-sm">Industry</Label>
@@ -226,6 +355,7 @@ function CompanySettingsForm() {
         </div>
       </div>
 
+      {/* Phone & Website */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-sm">Phone</Label>
@@ -245,6 +375,7 @@ function CompanySettingsForm() {
         </div>
       </div>
 
+      {/* Address */}
       <div className="space-y-1.5">
         <Label className="text-sm">Address</Label>
         <Input
@@ -260,6 +391,7 @@ function CompanySettingsForm() {
         />
       </div>
 
+      {/* City & Country */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-sm">City</Label>
@@ -279,12 +411,12 @@ function CompanySettingsForm() {
         </div>
       </div>
 
-      {/* ── Work schedule ── */}
       <Separator />
       <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
         Work schedule
       </p>
 
+      {/* Hours per day/week */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-sm">Std hours / day</Label>
@@ -317,6 +449,7 @@ function CompanySettingsForm() {
         </div>
       </div>
 
+      {/* Start time */}
       <div className="space-y-1.5">
         <Label className="text-sm">Standard start time</Label>
         <Input
@@ -331,8 +464,19 @@ function CompanySettingsForm() {
         )}
       </div>
 
+      {/* Working days with shortcut */}
       <div className="space-y-2">
-        <Label className="text-sm">Working days</Label>
+        <div className="flex items-center justify-between">
+          <Label className="text-sm">Working days</Label>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => set("working_days", [1, 2, 3, 4, 5])}
+          >
+            Set weekdays
+          </Button>
+        </div>
         <div className="flex gap-1.5">
           {DAY_LABELS.map((label, idx) => (
             <button
@@ -354,12 +498,12 @@ function CompanySettingsForm() {
         )}
       </div>
 
-      {/* ── Overtime ── */}
       <Separator />
       <p className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
         Overtime thresholds
       </p>
 
+      {/* Overtime */}
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-sm">Daily OT after (hrs)</Label>
@@ -389,18 +533,16 @@ function CompanySettingsForm() {
 
       <Button
         className="w-full"
-        disabled={update.isPending}
+        disabled={update.isPending || !isDirty}
         onClick={handleSave}
       >
         {update.isPending ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Saving…
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...
           </>
         ) : (
           <>
-            <Save className="mr-2 h-4 w-4" />
-            Save changes
+            <Save className="mr-2 h-4 w-4" /> Save changes
           </>
         )}
       </Button>
@@ -408,21 +550,73 @@ function CompanySettingsForm() {
   )
 }
 
-// ─── Notification settings ────────────────────────────────────────────────────
+// ─── Notification Settings ────────────────────────────────────────────────────
 
 function NotificationSettings() {
+  const { data: employee } = useCurrentEmployee()
+  const updatePrefs = useUpdateNotificationPrefs()
+
   const [prefs, setPrefs] = useState({
     timeoff_updates: true,
     profile_updates: true,
     correction_updates: true,
     new_employee: true,
+    course_assigned: true,
+    course_completed: true,
   })
 
-  const items = [
-    { key: "timeoff_updates" as const, label: "Time off approvals / denials" },
-    { key: "profile_updates" as const, label: "Profile change approvals" },
-    { key: "correction_updates" as const, label: "Clock correction decisions" },
-    { key: "new_employee" as const, label: "New team member joins" },
+  useEffect(() => {
+    if (employee?.notification_prefs) {
+      setPrefs((prev) => ({
+        ...prev,
+        ...(employee.notification_prefs as Record<string, boolean>),
+      }))
+    }
+  }, [employee])
+
+  const handleToggle = (key: keyof typeof prefs, value: boolean) => {
+    const newPrefs = { ...prefs, [key]: value }
+    setPrefs(newPrefs)
+    if (employee?.id) {
+      updatePrefs.mutate({ employeeId: employee.id, prefs: newPrefs })
+    }
+    toast.success("Preference saved")
+  }
+
+  const workItems = [
+    {
+      key: "timeoff_updates" as const,
+      label: "Time off approvals / denials",
+      icon: Clock,
+    },
+    {
+      key: "profile_updates" as const,
+      label: "Profile change approvals",
+      icon: Building2,
+    },
+    {
+      key: "correction_updates" as const,
+      label: "Clock correction decisions",
+      icon: Clock,
+    },
+    {
+      key: "new_employee" as const,
+      label: "New team member joins",
+      icon: Building2,
+    },
+  ]
+
+  const trainingItems = [
+    {
+      key: "course_assigned" as const,
+      label: "New course assignments",
+      icon: GraduationCap,
+    },
+    {
+      key: "course_completed" as const,
+      label: "Course completions",
+      icon: GraduationCap,
+    },
   ]
 
   return (
@@ -430,26 +624,53 @@ function NotificationSettings() {
       <p className="text-sm text-muted-foreground">
         Choose which events trigger in-app notifications.
       </p>
-      {items.map(({ key, label }) => (
-        <div key={key} className="flex items-center justify-between">
-          <Label htmlFor={key} className="cursor-pointer text-sm font-normal">
-            {label}
-          </Label>
-          <Switch
-            id={key}
-            checked={prefs[key]}
-            onCheckedChange={() => {
-              setPrefs((p) => ({ ...p, [key]: !p[key] }))
-              toast.success("Preference saved")
-            }}
-          />
-        </div>
-      ))}
+
+      <div className="space-y-3">
+        <p className="text-xs font-medium text-muted-foreground">Work</p>
+        {workItems.map(({ key, label, icon: Icon }) => (
+          <div key={key} className="flex items-center justify-between">
+            <Label
+              htmlFor={key}
+              className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+            >
+              <Icon className="h-4 w-4 text-muted-foreground" />
+              {label}
+            </Label>
+            <Switch
+              id={key}
+              checked={prefs[key]}
+              onCheckedChange={(v) => handleToggle(key, v)}
+            />
+          </div>
+        ))}
+      </div>
+
+      <Separator />
+
+      <div className="space-y-3">
+        <p className="text-xs font-medium text-muted-foreground">Training</p>
+        {trainingItems.map(({ key, label, icon: Icon }) => (
+          <div key={key} className="flex items-center justify-between">
+            <Label
+              htmlFor={key}
+              className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+            >
+              <Icon className="h-4 w-4 text-muted-foreground" />
+              {label}
+            </Label>
+            <Switch
+              id={key}
+              checked={prefs[key]}
+              onCheckedChange={(v) => handleToggle(key, v)}
+            />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
-// ─── System info ──────────────────────────────────────────────────────────────
+// ─── System Info ──────────────────────────────────────────────────────────────
 
 function SystemInfo({ correctTz }: { correctTz: boolean }) {
   return (

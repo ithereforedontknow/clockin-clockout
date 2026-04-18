@@ -105,7 +105,7 @@ export function LessonPlayer({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b p-6">
+      <div className="shrink-0 border-b p-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-semibold">{lesson.title}</h2>
@@ -128,7 +128,7 @@ export function LessonPlayer({
         )}
       </div>
 
-      <ScrollArea className="flex-1 p-6">
+      <ScrollArea className="min-h-0 flex-1 p-6">
         <div className="mx-auto max-w-3xl space-y-10">
           {/* Cloudflare Video */}
           {lesson.cf_stream_id && (

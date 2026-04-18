@@ -31,7 +31,7 @@ export type TabId =
   | "admin"
   | "training"
 
-export function Appshell() {
+export function AppShell() {
   const location = useLocation()
   const [activeTab, setActiveTab] = useState<TabId>(
     (location.state as any)?.tab ?? "home"

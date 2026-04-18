@@ -13,12 +13,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useCompanySettings } from "@/lib/queries"
 
 export function ForgotPasswordPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [sent, setSent] = useState(false)
+  const { data: settings } = useCompanySettings()
+  const companyName = settings?.company_name ?? "ClockIn/Out"
+  const logoUrl = settings?.logo_url
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -39,10 +43,18 @@ export function ForgotPasswordPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm space-y-6">
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="rounded-2xl bg-primary/10 p-4">
-            <AlarmClock className="h-8 w-8 text-primary" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight">ClockIn/Out</h1>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={companyName}
+              className="h-16 w-auto max-w-[200px] object-contain"
+            />
+          ) : (
+            <div className="rounded-2xl bg-primary/10 p-4">
+              <AlarmClock className="h-8 w-8 text-primary" />
+            </div>
+          )}
+          <h1 className="text-2xl font-bold tracking-tight">{companyName}</h1>
         </div>
 
         <button

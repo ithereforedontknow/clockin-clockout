@@ -125,86 +125,39 @@ $$;
 
 ALTER FUNCTION "public"."get_my_role"() OWNER TO "postgres";
 
-SET default_tablespace = '';
 
-SET default_table_access_method = "heap";
-
-
-CREATE TABLE IF NOT EXISTS "public"."certifications" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "employee_id" "uuid" NOT NULL,
-    "curriculum_id" "uuid" NOT NULL,
-    "issued_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
-ALTER TABLE "public"."certifications" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."curriculums" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "title" "text" NOT NULL,
-    "description" "text",
-    "thumbnail_url" "text",
-    "is_published" boolean DEFAULT false NOT NULL,
-    "created_by" "uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
-ALTER TABLE "public"."curriculums" OWNER TO "postgres";
-
-
-CREATE TABLE IF NOT EXISTS "public"."training_assignments" (
-    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
-    "employee_id" "uuid" NOT NULL,
-    "curriculum_id" "uuid" NOT NULL,
-    "due_date" "date" NOT NULL,
-    "assigned_by" "uuid",
-    "assigned_at" timestamp with time zone DEFAULT "now"() NOT NULL
-);
-
-
-ALTER TABLE "public"."training_assignments" OWNER TO "postgres";
-
-
-CREATE OR REPLACE VIEW "public"."training_record" AS
- SELECT "ta"."employee_id",
-    "ta"."curriculum_id",
-    "c"."title" AS "curriculum_title",
-    "c"."thumbnail_url",
-    "ta"."due_date",
-    "cert"."issued_at" AS "completed_at",
-        CASE
-            WHEN ("cert"."id" IS NOT NULL) THEN 'completed'::"text"
-            WHEN ("ta"."due_date" < CURRENT_DATE) THEN 'overdue'::"text"
-            WHEN ("ta"."due_date" <= (CURRENT_DATE + 7)) THEN 'due_soon'::"text"
-            ELSE 'pending'::"text"
-        END AS "status",
-    ("ta"."due_date" - CURRENT_DATE) AS "days_remaining"
-   FROM (("public"."training_assignments" "ta"
-     JOIN "public"."curriculums" "c" ON (("c"."id" = "ta"."curriculum_id")))
-     LEFT JOIN "public"."certifications" "cert" ON ((("cert"."employee_id" = "ta"."employee_id") AND ("cert"."curriculum_id" = "ta"."curriculum_id"))));
-
-
-ALTER VIEW "public"."training_record" OWNER TO "postgres";
-
-
-CREATE OR REPLACE FUNCTION "public"."get_my_training_record"() RETURNS SETOF "public"."training_record"
-    LANGUAGE "sql" SECURITY DEFINER
-    SET "search_path" TO 'public'
+CREATE OR REPLACE FUNCTION "public"."get_my_training_record"() RETURNS TABLE("curriculum_id" "uuid", "curriculum_title" "text", "thumbnail_url" "text", "assigned_at" timestamp with time zone, "due_date" "date", "status" "text", "completed_at" timestamp with time zone)
+    LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
-  SELECT * FROM public.training_record
-  WHERE employee_id = (SELECT id FROM employees WHERE user_id = auth.uid() LIMIT 1)
-  ORDER BY
-    CASE status
-      WHEN 'overdue'   THEN 1
-      WHEN 'due_soon'  THEN 2
-      WHEN 'pending'   THEN 3
-      ELSE 4
-    END,
-    due_date;
+DECLARE
+  emp_id uuid;
+BEGIN
+  -- Get the employee ID for the authenticated user
+  SELECT id INTO emp_id FROM employees WHERE user_id = auth.uid();
+  IF emp_id IS NULL THEN
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  SELECT 
+    ta.curriculum_id,
+    c.title AS curriculum_title,
+    c.thumbnail_url,
+    ta.assigned_at,
+    ta.due_date,
+    CASE
+      WHEN cert.id IS NOT NULL THEN 'completed'
+      WHEN ta.due_date < CURRENT_DATE THEN 'overdue'
+      WHEN ta.due_date <= CURRENT_DATE + INTERVAL '3 days' THEN 'due_soon'
+      ELSE 'pending'
+    END AS status,
+    cert.issued_at AS completed_at
+  FROM training_assignments ta
+  JOIN curriculums c ON ta.curriculum_id = c.id
+  LEFT JOIN certifications cert ON cert.employee_id = ta.employee_id 
+                               AND cert.curriculum_id = ta.curriculum_id
+  WHERE ta.employee_id = emp_id;
+END;
 $$;
 
 
@@ -264,6 +217,10 @@ $$;
 
 ALTER FUNCTION "public"."upsert_progress_batch"("events" "public"."heartbeat_event"[]) OWNER TO "postgres";
 
+SET default_tablespace = '';
+
+SET default_table_access_method = "heap";
+
 
 CREATE TABLE IF NOT EXISTS "public"."announcements" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
@@ -307,6 +264,17 @@ CREATE TABLE IF NOT EXISTS "public"."break_entries" (
 
 
 ALTER TABLE "public"."break_entries" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."certifications" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "employee_id" "uuid" NOT NULL,
+    "curriculum_id" "uuid" NOT NULL,
+    "issued_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."certifications" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."clock_corrections" (
@@ -383,6 +351,79 @@ CREATE TABLE IF NOT EXISTS "public"."company_settings" (
 ALTER TABLE "public"."company_settings" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."course_categories" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "name" "text" NOT NULL,
+    "description" "text",
+    "color" "text" DEFAULT '#6b7280'::"text",
+    "created_at" timestamp with time zone DEFAULT "now"(),
+    "updated_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."course_categories" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."course_tags" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "name" "text" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"()
+);
+
+
+ALTER TABLE "public"."course_tags" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."curriculum_tags" (
+    "curriculum_id" "uuid" NOT NULL,
+    "tag_id" "uuid" NOT NULL
+);
+
+
+ALTER TABLE "public"."curriculum_tags" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."curriculums" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "title" "text" NOT NULL,
+    "description" "text",
+    "thumbnail_url" "text",
+    "is_published" boolean DEFAULT false NOT NULL,
+    "created_by" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "category_id" "uuid"
+);
+
+
+ALTER TABLE "public"."curriculums" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."daily_payroll_analysis" WITH ("security_invoker"='on') AS
+ WITH "daily_sums" AS (
+         SELECT "clock_entries"."employee_id",
+            "clock_entries"."date",
+            "sum"(
+                CASE
+                    WHEN ("clock_entries"."clock_out" IS NOT NULL) THEN (EXTRACT(epoch FROM ("clock_entries"."clock_out" - "clock_entries"."clock_in")) / (60)::numeric)
+                    ELSE (0)::numeric
+                END) AS "total_minutes_worked",
+            "count"(*) FILTER (WHERE ("clock_entries"."clock_out" IS NULL)) AS "open_entries"
+           FROM "public"."clock_entries"
+          GROUP BY "clock_entries"."employee_id", "clock_entries"."date"
+        )
+ SELECT "employee_id",
+    "date",
+    ("total_minutes_worked" / 60.0) AS "total_hours",
+    (LEAST("total_minutes_worked", (480)::numeric) / 60.0) AS "reg_hours",
+    (GREATEST((0)::numeric, ("total_minutes_worked" - (480)::numeric)) / 60.0) AS "ot_hours",
+    "open_entries"
+   FROM "daily_sums";
+
+
+ALTER VIEW "public"."daily_payroll_analysis" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."departments" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "name" "text" NOT NULL,
@@ -424,6 +465,8 @@ CREATE TABLE IF NOT EXISTS "public"."employees" (
     "emergency_relation" "text",
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "hourly_rate" numeric DEFAULT 0,
+    "terminated_at" timestamp with time zone,
     CONSTRAINT "employees_employment_status_check" CHECK (("employment_status" = ANY (ARRAY['active'::"text", 'inactive'::"text", 'on_leave'::"text"]))),
     CONSTRAINT "employees_role_check" CHECK (("role" = ANY (ARRAY['employee'::"text", 'employer'::"text", 'admin'::"text"])))
 );
@@ -498,6 +541,24 @@ CREATE TABLE IF NOT EXISTS "public"."notifications" (
 ALTER TABLE "public"."notifications" OWNER TO "postgres";
 
 
+CREATE OR REPLACE VIEW "public"."payroll_daily_summary" WITH ("security_invoker"='on') AS
+ SELECT "employee_id",
+    "date",
+    "sum"(
+        CASE
+            WHEN ("clock_out" IS NOT NULL) THEN (EXTRACT(epoch FROM ("clock_out" - "clock_in")) / (3600)::numeric)
+            ELSE (0)::numeric
+        END) AS "total_hours",
+    LEAST("sum"((EXTRACT(epoch FROM ("clock_out" - "clock_in")) / (3600)::numeric)), (8)::numeric) AS "reg_hours",
+    GREATEST((0)::numeric, ("sum"((EXTRACT(epoch FROM ("clock_out" - "clock_in")) / (3600)::numeric)) - (8)::numeric)) AS "ot_hours",
+    "count"(*) FILTER (WHERE ("clock_out" IS NULL)) AS "missing_clock_outs"
+   FROM "public"."clock_entries"
+  GROUP BY "employee_id", "date";
+
+
+ALTER VIEW "public"."payroll_daily_summary" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."progress_records" (
     "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
     "employee_id" "uuid" NOT NULL,
@@ -559,6 +620,41 @@ CREATE TABLE IF NOT EXISTS "public"."time_off_requests" (
 ALTER TABLE "public"."time_off_requests" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."training_assignments" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "employee_id" "uuid" NOT NULL,
+    "curriculum_id" "uuid" NOT NULL,
+    "due_date" "date" NOT NULL,
+    "assigned_by" "uuid",
+    "assigned_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."training_assignments" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."training_record" WITH ("security_invoker"='on') AS
+ SELECT "ta"."employee_id",
+    "ta"."curriculum_id",
+    "c"."title" AS "curriculum_title",
+    "c"."thumbnail_url",
+    "ta"."due_date",
+    "cert"."issued_at" AS "completed_at",
+        CASE
+            WHEN ("cert"."id" IS NOT NULL) THEN 'completed'::"text"
+            WHEN ("ta"."due_date" < CURRENT_DATE) THEN 'overdue'::"text"
+            WHEN ("ta"."due_date" <= (CURRENT_DATE + 7)) THEN 'due_soon'::"text"
+            ELSE 'pending'::"text"
+        END AS "status",
+    ("ta"."due_date" - CURRENT_DATE) AS "days_remaining"
+   FROM (("public"."training_assignments" "ta"
+     JOIN "public"."curriculums" "c" ON (("c"."id" = "ta"."curriculum_id")))
+     LEFT JOIN "public"."certifications" "cert" ON ((("cert"."employee_id" = "ta"."employee_id") AND ("cert"."curriculum_id" = "ta"."curriculum_id"))));
+
+
+ALTER VIEW "public"."training_record" OWNER TO "postgres";
+
+
 ALTER TABLE ONLY "public"."announcements"
     ADD CONSTRAINT "announcements_pkey" PRIMARY KEY ("id");
 
@@ -606,6 +702,31 @@ ALTER TABLE ONLY "public"."company_holidays"
 
 ALTER TABLE ONLY "public"."company_settings"
     ADD CONSTRAINT "company_settings_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."course_categories"
+    ADD CONSTRAINT "course_categories_name_key" UNIQUE ("name");
+
+
+
+ALTER TABLE ONLY "public"."course_categories"
+    ADD CONSTRAINT "course_categories_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."course_tags"
+    ADD CONSTRAINT "course_tags_name_key" UNIQUE ("name");
+
+
+
+ALTER TABLE ONLY "public"."course_tags"
+    ADD CONSTRAINT "course_tags_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."curriculum_tags"
+    ADD CONSTRAINT "curriculum_tags_pkey" PRIMARY KEY ("curriculum_id", "tag_id");
 
 
 
@@ -703,6 +824,34 @@ CREATE INDEX "clock_entries_employee_id_date_idx" ON "public"."clock_entries" US
 
 
 CREATE INDEX "employees_user_id_idx" ON "public"."employees" USING "btree" ("user_id");
+
+
+
+CREATE INDEX "idx_certifications_employee_curriculum" ON "public"."certifications" USING "btree" ("employee_id", "curriculum_id");
+
+
+
+CREATE INDEX "idx_lessons_curriculum_id" ON "public"."lessons" USING "btree" ("curriculum_id");
+
+
+
+CREATE INDEX "idx_modules_curriculum_id" ON "public"."modules" USING "btree" ("curriculum_id");
+
+
+
+CREATE INDEX "idx_progress_records_employee_lesson" ON "public"."progress_records" USING "btree" ("employee_id", "lesson_id");
+
+
+
+CREATE INDEX "idx_training_assignments_curriculum_id" ON "public"."training_assignments" USING "btree" ("curriculum_id");
+
+
+
+CREATE INDEX "idx_training_assignments_due_date" ON "public"."training_assignments" USING "btree" ("due_date");
+
+
+
+CREATE INDEX "idx_training_assignments_employee_id" ON "public"."training_assignments" USING "btree" ("employee_id");
 
 
 
@@ -804,6 +953,21 @@ ALTER TABLE ONLY "public"."clock_entries"
 
 
 
+ALTER TABLE ONLY "public"."curriculum_tags"
+    ADD CONSTRAINT "curriculum_tags_curriculum_id_fkey" FOREIGN KEY ("curriculum_id") REFERENCES "public"."curriculums"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."curriculum_tags"
+    ADD CONSTRAINT "curriculum_tags_tag_id_fkey" FOREIGN KEY ("tag_id") REFERENCES "public"."course_tags"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."curriculums"
+    ADD CONSTRAINT "curriculums_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "public"."course_categories"("id") ON DELETE SET NULL;
+
+
+
 ALTER TABLE ONLY "public"."curriculums"
     ADD CONSTRAINT "curriculums_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."employees"("id") ON DELETE RESTRICT;
 
@@ -894,6 +1058,42 @@ ALTER TABLE ONLY "public"."training_assignments"
 
 
 
+CREATE POLICY "Employees view own assignments" ON "public"."training_assignments" FOR SELECT USING (("employee_id" = ( SELECT "employees"."id"
+   FROM "public"."employees"
+  WHERE ("employees"."user_id" = "auth"."uid"()))));
+
+
+
+CREATE POLICY "Manage categories" ON "public"."course_categories" USING ((EXISTS ( SELECT 1
+   FROM "public"."employees"
+  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['admin'::"text", 'employer'::"text"]))))));
+
+
+
+CREATE POLICY "Manage curriculum_tags" ON "public"."curriculum_tags" USING ((EXISTS ( SELECT 1
+   FROM "public"."employees"
+  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['admin'::"text", 'employer'::"text"]))))));
+
+
+
+CREATE POLICY "Manage tags" ON "public"."course_tags" USING ((EXISTS ( SELECT 1
+   FROM "public"."employees"
+  WHERE (("employees"."user_id" = "auth"."uid"()) AND ("employees"."role" = ANY (ARRAY['admin'::"text", 'employer'::"text"]))))));
+
+
+
+CREATE POLICY "View categories" ON "public"."course_categories" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "View curriculum_tags" ON "public"."curriculum_tags" FOR SELECT USING (true);
+
+
+
+CREATE POLICY "View tags" ON "public"."course_tags" FOR SELECT USING (true);
+
+
+
 ALTER TABLE "public"."announcements" ENABLE ROW LEVEL SECURITY;
 
 
@@ -978,6 +1178,15 @@ CREATE POLICY "corrections: read" ON "public"."clock_corrections" FOR SELECT TO 
 
 CREATE POLICY "corrections: update approver" ON "public"."clock_corrections" FOR UPDATE TO "authenticated" USING (("public"."get_my_role"() = ANY (ARRAY['employer'::"text", 'admin'::"text"])));
 
+
+
+ALTER TABLE "public"."course_categories" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."course_tags" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."curriculum_tags" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."curriculums" ENABLE ROW LEVEL SECURITY;
@@ -1161,30 +1370,6 @@ GRANT ALL ON FUNCTION "public"."get_my_role"() TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."certifications" TO "anon";
-GRANT ALL ON TABLE "public"."certifications" TO "authenticated";
-GRANT ALL ON TABLE "public"."certifications" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."curriculums" TO "anon";
-GRANT ALL ON TABLE "public"."curriculums" TO "authenticated";
-GRANT ALL ON TABLE "public"."curriculums" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."training_assignments" TO "anon";
-GRANT ALL ON TABLE "public"."training_assignments" TO "authenticated";
-GRANT ALL ON TABLE "public"."training_assignments" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."training_record" TO "anon";
-GRANT ALL ON TABLE "public"."training_record" TO "authenticated";
-GRANT ALL ON TABLE "public"."training_record" TO "service_role";
-
-
-
 GRANT ALL ON FUNCTION "public"."get_my_training_record"() TO "anon";
 GRANT ALL ON FUNCTION "public"."get_my_training_record"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."get_my_training_record"() TO "service_role";
@@ -1227,6 +1412,12 @@ GRANT ALL ON TABLE "public"."break_entries" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."certifications" TO "anon";
+GRANT ALL ON TABLE "public"."certifications" TO "authenticated";
+GRANT ALL ON TABLE "public"."certifications" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."clock_corrections" TO "anon";
 GRANT ALL ON TABLE "public"."clock_corrections" TO "authenticated";
 GRANT ALL ON TABLE "public"."clock_corrections" TO "service_role";
@@ -1248,6 +1439,36 @@ GRANT ALL ON TABLE "public"."company_holidays" TO "service_role";
 GRANT ALL ON TABLE "public"."company_settings" TO "anon";
 GRANT ALL ON TABLE "public"."company_settings" TO "authenticated";
 GRANT ALL ON TABLE "public"."company_settings" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."course_categories" TO "anon";
+GRANT ALL ON TABLE "public"."course_categories" TO "authenticated";
+GRANT ALL ON TABLE "public"."course_categories" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."course_tags" TO "anon";
+GRANT ALL ON TABLE "public"."course_tags" TO "authenticated";
+GRANT ALL ON TABLE "public"."course_tags" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."curriculum_tags" TO "anon";
+GRANT ALL ON TABLE "public"."curriculum_tags" TO "authenticated";
+GRANT ALL ON TABLE "public"."curriculum_tags" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."curriculums" TO "anon";
+GRANT ALL ON TABLE "public"."curriculums" TO "authenticated";
+GRANT ALL ON TABLE "public"."curriculums" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."daily_payroll_analysis" TO "anon";
+GRANT ALL ON TABLE "public"."daily_payroll_analysis" TO "authenticated";
+GRANT ALL ON TABLE "public"."daily_payroll_analysis" TO "service_role";
 
 
 
@@ -1287,6 +1508,12 @@ GRANT ALL ON TABLE "public"."notifications" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."payroll_daily_summary" TO "anon";
+GRANT ALL ON TABLE "public"."payroll_daily_summary" TO "authenticated";
+GRANT ALL ON TABLE "public"."payroll_daily_summary" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."progress_records" TO "anon";
 GRANT ALL ON TABLE "public"."progress_records" TO "authenticated";
 GRANT ALL ON TABLE "public"."progress_records" TO "service_role";
@@ -1308,6 +1535,18 @@ GRANT ALL ON TABLE "public"."time_off_categories" TO "service_role";
 GRANT ALL ON TABLE "public"."time_off_requests" TO "anon";
 GRANT ALL ON TABLE "public"."time_off_requests" TO "authenticated";
 GRANT ALL ON TABLE "public"."time_off_requests" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."training_assignments" TO "anon";
+GRANT ALL ON TABLE "public"."training_assignments" TO "authenticated";
+GRANT ALL ON TABLE "public"."training_assignments" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."training_record" TO "anon";
+GRANT ALL ON TABLE "public"."training_record" TO "authenticated";
+GRANT ALL ON TABLE "public"."training_record" TO "service_role";
 
 
 

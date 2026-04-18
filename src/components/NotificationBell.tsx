@@ -4,7 +4,7 @@ import {
   CheckCheck,
   Calendar,
   User,
-  Clock,
+  Timer,
   AlertCircle,
   UserPlus,
   Loader2,
@@ -25,7 +25,7 @@ import {
   useMarkAllRead,
 } from "@/lib/queries"
 import type { AppNotification, NotificationType } from "@/lib/supabase"
-import type { TabId } from "@/components/Appshell"
+import type { TabId } from "@/components/AppShell"
 
 interface Props {
   employeeId: string
@@ -37,23 +37,24 @@ const NOTIF_ICON: Record<NotificationType, typeof Bell> = {
   timeoff_denied: Calendar,
   info_change_approved: User,
   info_change_denied: User,
-  correction_approved: Clock,
-  correction_denied: Clock,
+  correction_approved: Timer,
+  correction_denied: Timer,
   late_clock_in: AlertCircle,
   new_employee: UserPlus,
   course_completed: Award,
+  course_assigned: Bell,
 }
-
 const NOTIF_COLOR: Record<NotificationType, string> = {
-  timeoff_approved: "text-green-600 bg-green-50",
-  timeoff_denied: "text-red-600 bg-red-50",
-  info_change_approved: "text-green-600 bg-green-50",
-  info_change_denied: "text-red-600 bg-red-50",
-  correction_approved: "text-green-600 bg-green-50",
-  correction_denied: "text-red-600 bg-red-50",
-  late_clock_in: "text-amber-600 bg-amber-50",
-  new_employee: "text-blue-600 bg-blue-50",
-  course_completed: "text-green-600 bg-green-50",
+  timeoff_approved: "text-green-600 bg-green-50 dark:bg-green-950",
+  timeoff_denied: "text-destructive bg-destructive/10",
+  info_change_approved: "text-green-600 bg-green-50 dark:bg-green-950",
+  info_change_denied: "text-destructive bg-destructive/10",
+  correction_approved: "text-green-600 bg-green-50 dark:bg-green-950",
+  correction_denied: "text-destructive bg-destructive/10",
+  late_clock_in: "text-amber-600 bg-amber-50 dark:bg-amber-950",
+  new_employee: "text-blue-600 bg-blue-50 dark:bg-blue-950",
+  course_completed: "text-green-600 bg-green-50 dark:bg-green-950",
+  course_assigned: "text-blue-600 bg-blue-50 dark:bg-blue-950",
 }
 
 export function NotificationBell({ employeeId, onNavigate }: Props) {

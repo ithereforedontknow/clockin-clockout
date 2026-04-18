@@ -7,6 +7,7 @@ import { TimesheetTable } from "@/components/reports/TimesheetTable"
 import { PayrollExportPanel } from "@/components/reports/PayrollExportPanel"
 import { WorkforceOverview } from "@/components/reports/WorkforceOverview"
 import { useTimesheetData } from "@/components/reports/hooks/useTimesheetData"
+import { TrainingReportsTab } from "@/components/reports/TrainingReports"
 
 export function ReportsTab() {
   const { hasPermission } = usePermissions()
@@ -46,6 +47,10 @@ export function ReportsTab() {
             <Users className="h-4 w-4" />
             Workforce
           </TabsTrigger>
+          <TabsTrigger value="training" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Training
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="timesheets" className="mt-6">
@@ -71,6 +76,10 @@ export function ReportsTab() {
             employees={summaries.map((s) => s.employee)}
             isLoading={isLoading}
           />
+        </TabsContent>
+
+        <TabsContent value="training" className="mt-6">
+          <TrainingReportsTab />
         </TabsContent>
       </Tabs>
     </div>

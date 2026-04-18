@@ -232,7 +232,7 @@ export function CourseDetailPage() {
         </div>
 
         {/* Main player */}
-        <div className="flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-hidden">
           {allLessons.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
               <p className="text-lg font-medium">

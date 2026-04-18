@@ -116,17 +116,21 @@ export type MyInfoInput = z.infer<typeof myInfoSchema>
 // ─── Company settings ─────────────────────────────────────────────────────────
 
 export const companySettingsSchema = z.object({
-  company_name: requiredString("Company name"),
-  standard_hours_per_day: z.coerce.number().min(1).max(24),
-  standard_hours_per_week: z.coerce.number().min(1).max(168),
-  standard_start_time: z
-    .string()
-    .regex(timeRegex, "Enter a valid time (HH:MM)"),
-  working_days: z
-    .array(z.number().min(0).max(6))
-    .min(1, "Select at least one working day"),
-  overtime_threshold_daily: z.coerce.number().min(0).max(24),
-  overtime_threshold_weekly: z.coerce.number().min(0).max(168),
+  company_name: z.string().min(1, "Company name is required"),
+  standard_hours_per_day: z.number().min(1).max(24),
+  standard_hours_per_week: z.number().min(1).max(168),
+  standard_start_time: z.string().regex(/^\d{2}:\d{2}$/, "Invalid time format"),
+  working_days: z.array(z.number()).min(1, "At least one working day required"),
+  overtime_threshold_daily: z.number().min(0).max(24),
+  overtime_threshold_weekly: z.number().min(0).max(168),
+  industry: z.string().optional(),
+  phone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal("")),
+  website: z.string().url().optional().or(z.literal("")),
+  address_line1: z.string().optional(),
+  address_line2: z.string().optional(),
+  city: z.string().optional(),
+  country: z.string().optional(),
 })
 
 export type CompanySettingsInput = z.infer<typeof companySettingsSchema>

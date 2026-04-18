@@ -5,6 +5,7 @@ import {
   Building2,
   Calendar,
   ShieldCheck,
+  Tag,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -15,6 +16,7 @@ import { EmployeeManagement } from "@/components/admin/EmployeeManagement"
 import { DepartmentsPanel } from "@/components/admin/DepartmentsPanel"
 import { HolidaysPanel } from "@/components/admin/HolidaysPanel"
 import { AuditLogPanel } from "@/components/admin/AuditLogPanel"
+import { CourseCategoriesPanel } from "@/components/admin/CourseCategoriesPanel"
 
 export function AdminTab() {
   const { data: employees = [], isLoading } = useAllEmployees("", "", "", "")
@@ -75,6 +77,9 @@ export function AdminTab() {
           <TabsTrigger value="departments" className="gap-2">
             <Building2 className="h-4 w-4" /> Departments
           </TabsTrigger>
+          <TabsTrigger value="course-categories" className="gap-2">
+            <Tag className="h-4 w-4" /> Categories & Tags
+          </TabsTrigger>
           <TabsTrigger value="holidays" className="gap-2">
             <Calendar className="h-4 w-4" /> Holidays
           </TabsTrigger>
@@ -88,6 +93,9 @@ export function AdminTab() {
         </TabsContent>
         <TabsContent value="departments">
           <DepartmentsPanel />
+        </TabsContent>
+        <TabsContent value="course-categories" className="mt-4">
+          <CourseCategoriesPanel />
         </TabsContent>
         <TabsContent value="holidays">
           <HolidaysPanel />

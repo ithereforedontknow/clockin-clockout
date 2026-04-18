@@ -28,6 +28,7 @@ import {
   HelpCircle,
   GraduationCap,
   Award,
+  AlarmClock,
 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { cn } from "@/lib/utils"
@@ -64,7 +65,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import type { TabId } from "@/components/Appshell"
+import type { TabId } from "@/components/AppShell"
 import type {
   UserRole,
   AppNotification,
@@ -123,6 +124,7 @@ const NOTIF_ICON: Record<NotificationType, typeof Bell> = {
   late_clock_in: AlertCircle,
   new_employee: UserPlus,
   course_completed: Award,
+  course_assigned: Bell,
 }
 const NOTIF_COLOR: Record<NotificationType, string> = {
   timeoff_approved: "text-green-600 bg-green-50 dark:bg-green-950",
@@ -134,6 +136,7 @@ const NOTIF_COLOR: Record<NotificationType, string> = {
   late_clock_in: "text-amber-600 bg-amber-50 dark:bg-amber-950",
   new_employee: "text-blue-600 bg-blue-50 dark:bg-blue-950",
   course_completed: "text-green-600 bg-green-50 dark:bg-green-950",
+  course_assigned: "text-blue-600 bg-blue-50 dark:bg-blue-950",
 }
 
 // ─── Root layout ─────────────────────────────────────────────────────────────
@@ -224,9 +227,20 @@ export function AppSidebar({
               )}
             >
               <div className="flex items-center gap-2.5">
-                {/*<div className="shrink-0 rounded-lg bg-primary/10 p-1.5">
-                  <AlarmClock className="h-5 w-5 text-primary" />
-                </div>*/}
+                {settings?.logo_url ? (
+                  <img
+                    src={settings.logo_url}
+                    alt={companyName}
+                    className={cn(
+                      "object-contain",
+                      collapsed ? "h-6 w-6" : "h-8 w-auto max-w-[120px]"
+                    )}
+                  />
+                ) : (
+                  <div className="shrink-0 rounded-lg bg-primary/10 p-1.5">
+                    <AlarmClock className="h-5 w-5 text-primary" />
+                  </div>
+                )}
                 {!collapsed && (
                   <span className="text-xl font-bold tracking-tight text-sidebar-foreground">
                     {companyName}

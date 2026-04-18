@@ -19,6 +19,7 @@ import type {
   TrainingRecord,
   Certification,
   Lesson,
+  TrainingStatus,
 } from "./supabase"
 
 // ─── Query Keys ───────────────────────────────────────────────────────────────
@@ -1610,10 +1611,91 @@ export function useMyTrainingRecord() {
   return useQuery({
     queryKey: ["training-record"],
     queryFn: async (): Promise<TrainingRecord[]> => {
-      const { data, error } = await supabase.rpc("get_my_training_record")
-      if (error) throw error
-      return data ?? []
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return []
+
+      // 1. Get employee ID
+      const { data: emp, error: empError } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", user.id)
+        .single()
+
+      if (empError || !emp) {
+        console.warn("No employee record found for user", user.id)
+        return []
+      }
+
+      // 2. Fetch assignments with basic curriculum info
+      const { data: assignments, error: assignError } = await supabase
+        .from("training_assignments")
+        .select(
+          `
+          curriculum_id,
+          due_date,
+          assigned_at,
+          curriculum:curriculums!inner(
+            title,
+            thumbnail_url,
+            category_id,
+            category:course_categories(name)
+          )
+        `
+        )
+        .eq("employee_id", emp.id)
+
+      if (assignError) throw assignError
+      if (!assignments?.length) return []
+
+      // 3. Get curriculum IDs to fetch certifications in batch
+      const curriculumIds = assignments.map((a) => a.curriculum_id)
+
+      const { data: certs, error: certError } = await supabase
+        .from("certifications")
+        .select("curriculum_id, issued_at")
+        .eq("employee_id", emp.id)
+        .in("curriculum_id", curriculumIds)
+
+      if (certError) throw certError
+
+      // 4. Build a map of completed curriculum IDs
+      const completedMap = new Map(
+        (certs || []).map((c) => [c.curriculum_id, c.issued_at])
+      )
+
+      const today = new Date()
+
+      return assignments.map((row: any) => {
+        const completedAt = completedMap.get(row.curriculum_id) || null
+        const dueDate = new Date(row.due_date)
+        let status: TrainingStatus
+
+        if (completedAt) {
+          status = "completed"
+        } else if (dueDate < today) {
+          status = "overdue"
+        } else if (dueDate <= addDays(today, 3)) {
+          status = "due_soon"
+        } else {
+          status = "pending"
+        }
+
+        return {
+          curriculum_id: row.curriculum_id,
+          curriculum_title: row.curriculum?.title ?? "Untitled Course",
+          thumbnail_url: row.curriculum?.thumbnail_url ?? null,
+          category_id: row.curriculum?.category_id ?? undefined,
+          category_name: row.curriculum?.category?.name ?? undefined,
+          assigned_at: row.assigned_at,
+          due_date: row.due_date,
+          completed_at: completedAt,
+          status,
+        }
+      })
     },
+    staleTime: 1000 * 60 * 5,
   })
 }
 
@@ -1755,9 +1837,20 @@ export function useCreateCurriculum() {
       } = await supabase.auth.getUser()
       if (!user) throw new Error("Not authenticated")
 
+      // Get employee ID for the authenticated user
+      const { data: emp, error: empError } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", user.id)
+        .single()
+      if (empError || !emp) throw new Error("Employee record not found")
+
       const { data, error } = await supabase
         .from("curriculums")
-        .insert({ ...payload, created_by: user.id })
+        .insert({
+          ...payload,
+          created_by: emp.id, // correct employee UUID
+        })
         .select()
         .single()
       if (error) throw error
@@ -2047,7 +2140,7 @@ export function useAllTrainingRecords() {
           `
           *,
           employee:employees(id, first_name, last_name, avatar_url, department),
-          curriculum:curriculums(title, thumbnail_url)
+          curriculum:curriculums(title, thumbnail_url, category_id, category:course_categories(name))
         `
         )
         .order("due_date")
@@ -2154,7 +2247,22 @@ export function useAssignCourse() {
         )
       if (error) throw error
     },
-    onSuccess: () => {
+    onSuccess: async (_, input) => {
+      // Fetch course title for the message
+      const { data: course } = await supabase
+        .from("curriculums")
+        .select("title")
+        .eq("id", input.curriculum_id)
+        .single()
+
+      await createNotification({
+        employee_id: input.employee_id,
+        type: "course_assigned", // add this to NotificationType
+        title: "New Course Assigned",
+        message: `You've been assigned "${course?.title}" – due ${new Date(input.due_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`,
+        link_tab: "training",
+      })
+
       qc.invalidateQueries({ queryKey: ["training-records-all"] })
       qc.invalidateQueries({ queryKey: ["training-record"] })
     },
@@ -2213,5 +2321,234 @@ export function usePayrollDailySummary(startDate: Date, endDate: Date) {
     gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: false,
     retry: 2,
+  })
+}
+
+// course categories
+export function useCourseCategories() {
+  return useQuery({
+    queryKey: ["course-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("course_categories")
+        .select("*")
+        .order("name")
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function useCourseTags() {
+  return useQuery({
+    queryKey: ["course-tags"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("course_tags")
+        .select("*")
+        .order("name")
+      if (error) throw error
+      return data ?? []
+    },
+  })
+}
+
+export function useCurriculumTags(curriculumId: string) {
+  return useQuery({
+    queryKey: ["curriculum-tags", curriculumId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("curriculum_tags")
+        .select("tag_id, course_tags(name)")
+        .eq("curriculum_id", curriculumId)
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!curriculumId,
+  })
+}
+
+export function useUpdateCurriculumCategory() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      id,
+      categoryId,
+    }: {
+      id: string
+      categoryId: string | null
+    }) => {
+      const { error } = await supabase
+        .from("curriculums")
+        .update({ category_id: categoryId })
+        .eq("id", id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["curriculums"] })
+    },
+  })
+}
+
+export function useSetCurriculumTags() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      curriculumId,
+      tagIds,
+    }: {
+      curriculumId: string
+      tagIds: string[]
+    }) => {
+      // Delete existing
+      await supabase
+        .from("curriculum_tags")
+        .delete()
+        .eq("curriculum_id", curriculumId)
+      // Insert new
+      if (tagIds.length > 0) {
+        const inserts = tagIds.map((tagId) => ({
+          curriculum_id: curriculumId,
+          tag_id: tagId,
+        }))
+        const { error } = await supabase.from("curriculum_tags").insert(inserts)
+        if (error) throw error
+      }
+    },
+    onSuccess: (_, { curriculumId }) => {
+      qc.invalidateQueries({ queryKey: ["curriculum-tags", curriculumId] })
+      qc.invalidateQueries({ queryKey: ["curriculums"] })
+    },
+  })
+}
+
+export function useUnassignCourse() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      employeeId,
+      curriculumId,
+    }: {
+      employeeId: string
+      curriculumId: string
+    }) => {
+      const { error } = await supabase
+        .from("training_assignments")
+        .delete()
+        .eq("employee_id", employeeId)
+        .eq("curriculum_id", curriculumId)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["training-records-all"] })
+      qc.invalidateQueries({ queryKey: ["training-record"] })
+      toast.success("Course unassigned")
+    },
+    onError: (e: any) => toast.error(e.message),
+  })
+}
+
+export function useBulkUnassign() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      employeeIds,
+      curriculumId,
+    }: {
+      employeeIds: string[]
+      curriculumId?: string
+    }) => {
+      let query = supabase
+        .from("training_assignments")
+        .delete()
+        .in("employee_id", employeeIds)
+      if (curriculumId) query = query.eq("curriculum_id", curriculumId)
+      const { error } = await query
+      if (error) throw error
+    },
+    onSuccess: (_, { employeeIds }) => {
+      qc.invalidateQueries({ queryKey: ["training-records-all"] })
+      qc.invalidateQueries({ queryKey: ["training-record"] })
+      toast.success(`Unassigned from ${employeeIds.length} employee(s)`)
+    },
+    onError: (e: any) => toast.error(e.message),
+  })
+}
+
+export function useDuplicateCurriculum() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (curriculumId: string) => {
+      // 1. Get current employee ID
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) throw new Error("Not authenticated")
+
+      const { data: emp, error: empError } = await supabase
+        .from("employees")
+        .select("id")
+        .eq("user_id", user.id)
+        .single()
+      if (empError || !emp) throw new Error("Employee record not found")
+
+      // 2. Fetch original course with modules & lessons
+      const { data: original, error: fetchError } = await supabase
+        .from("curriculums")
+        .select("*, modules:modules(*, lessons:lessons(*))")
+        .eq("id", curriculumId)
+        .single()
+      if (fetchError) throw fetchError
+
+      // 3. Create new curriculum with employee ID
+      const { data: newCourse, error: createError } = await supabase
+        .from("curriculums")
+        .insert({
+          title: `${original.title} (Copy)`,
+          description: original.description,
+          thumbnail_url: original.thumbnail_url,
+          category_id: original.category_id,
+          is_published: false,
+          created_by: emp.id, // ✅ use employee.id, not user.id
+        })
+        .select()
+        .single()
+      if (createError) throw createError
+
+      // 4. Duplicate modules and lessons (same as before)
+      for (const mod of original.modules || []) {
+        const { data: newMod, error: modError } = await supabase
+          .from("modules")
+          .insert({
+            curriculum_id: newCourse.id,
+            title: mod.title,
+            description: mod.description,
+            order_index: mod.order_index,
+          })
+          .select()
+          .single()
+        if (modError) throw modError
+
+        for (const lesson of mod.lessons || []) {
+          const { error: lessonError } = await supabase.from("lessons").insert({
+            module_id: newMod.id,
+            curriculum_id: newCourse.id,
+            title: lesson.title,
+            description: lesson.description,
+            content_html: lesson.content_html,
+            cf_stream_id: lesson.cf_stream_id,
+            order_index: lesson.order_index,
+            quiz: lesson.quiz,
+          })
+          if (lessonError) throw lessonError
+        }
+      }
+
+      return newCourse
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["curriculums"] })
+      toast.success("Course duplicated")
+    },
   })
 }

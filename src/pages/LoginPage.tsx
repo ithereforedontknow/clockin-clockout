@@ -14,6 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useCompanySettings } from "@/lib/queries"
+
 type Stage = "form" | "sent"
 
 export function LoginPage() {
@@ -23,6 +25,9 @@ export function LoginPage() {
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [stage, setStage] = useState<Stage>("form")
+  const { data: settings } = useCompanySettings()
+  const companyName = settings?.company_name ?? "ClockIn/Out"
+  const logoUrl = settings?.logo_url
 
   // Already logged in — send to the app
   if (!sessionLoading && session) {
@@ -65,11 +70,19 @@ export function LoginPage() {
       <div className="w-full max-w-sm space-y-6">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3 text-center">
-          <div className="rounded-2xl bg-primary/10 p-4">
-            <AlarmClock className="h-8 w-8 text-primary" />
-          </div>
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={companyName}
+              className="h-16 w-auto max-w-[200px] object-contain"
+            />
+          ) : (
+            <div className="rounded-2xl bg-primary/10 p-4">
+              <AlarmClock className="h-8 w-8 text-primary" />
+            </div>
+          )}
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">ClockIn/Out</h1>
+            <h1 className="text-2xl font-bold tracking-tight">{companyName}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Employee time tracking
             </p>
