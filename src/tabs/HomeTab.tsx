@@ -43,7 +43,7 @@ import { usePermissions } from "@/lib/auth/permissions"
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
 import type { BreakEntry, Employee, ClockEntry } from "@/lib/supabase"
 import { RequestTimeOffDialog } from "@/components/RequestTimeOffDialog"
-import type { TabId } from "@/components/AppShell"
+import type { TabId } from "@/components/Appshell"
 import { AnnouncementsCard } from "@/components/AnnouncementsCard"
 interface Props {
   onNavigate?: (tab: TabId) => void

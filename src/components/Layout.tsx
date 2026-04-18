@@ -10,7 +10,7 @@ import {
   AlarmClock,
   ClipboardCheck,
 } from "lucide-react"
-import type { TabId } from "@/components/AppShell"
+import type { TabId } from "@/components/Appshell"
 import { cn } from "@/lib/utils"
 import type { UserRole } from "@/lib/supabase"
 import { useCurrentEmployee } from "@/lib/queries"
