@@ -53,7 +53,6 @@ async function getMyEmployeeId(): Promise<string> {
 }
 // ─── Current Employee ─────────────────────────────────────────────────────────
 
-// src/lib/queries.ts
 export function useCurrentEmployee() {
   return useQuery({
     queryKey: ["current-employee"],

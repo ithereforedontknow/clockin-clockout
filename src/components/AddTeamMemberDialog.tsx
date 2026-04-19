@@ -12,7 +12,6 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
 import {
   Select,
   SelectContent,
@@ -26,23 +25,24 @@ import { inviteEmployeeSchema } from "@/lib/schemas"
 interface Props {
   open: boolean
   onClose: () => void
-  managerId: string // current employer's employee id
+  managerId: string
+}
+
+const DEFAULT_FORM = {
+  first_name: "",
+  last_name: "",
+  email: "",
+  department: "",
+  job_title: "",
+  location: "",
+  standard_hours_per_day: 8,
+  standard_hours_per_week: 40,
 }
 
 export function AddTeamMemberDialog({ open, onClose, managerId }: Props) {
   const addMember = useAddTeamMember()
   const { data: departments = [] } = useDepartments()
-
-  const [form, setForm] = useState({
-    first_name: "",
-    last_name: "",
-    email: "",
-    department: "",
-    job_title: "",
-    location: "",
-    standard_hours_per_day: 8,
-    standard_hours_per_week: 40,
-  })
+  const [form, setForm] = useState(DEFAULT_FORM)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   function set<K extends keyof typeof form>(key: K, val: (typeof form)[K]) {
@@ -51,21 +51,11 @@ export function AddTeamMemberDialog({ open, onClose, managerId }: Props) {
   }
 
   function reset() {
-    setForm({
-      first_name: "",
-      last_name: "",
-      email: "",
-      department: "",
-      job_title: "",
-      location: "",
-      standard_hours_per_day: 8,
-      standard_hours_per_week: 40,
-    })
+    setForm(DEFAULT_FORM)
     setErrors({})
   }
 
   async function handleSubmit() {
-    // Validate with Zod (role is always "employee" for employer-added members)
     const result = inviteEmployeeSchema.safeParse({ ...form, role: "employee" })
     if (!result.success) {
       const errs: Record<string, string> = {}
@@ -76,14 +66,9 @@ export function AddTeamMemberDialog({ open, onClose, managerId }: Props) {
       toast.error("Please fix the errors below")
       return
     }
-
-    await addMember.mutateAsync({
-      ...result.data,
-      manager_id: managerId,
-    })
-
-    toast.success(`Employee record created for ${result.data.email}`, {
-      description: `${result.data.first_name} can sign in using their work email.`,
+    await addMember.mutateAsync({ ...result.data, manager_id: managerId })
+    toast.success(`${result.data.first_name} added`, {
+      description: `They can sign in using ${result.data.email}`,
     })
     reset()
     onClose()
@@ -102,65 +87,51 @@ export function AddTeamMemberDialog({ open, onClose, managerId }: Props) {
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <UserPlus className="h-5 w-5 text-primary" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+              <UserPlus className="h-4 w-4 text-primary" />
+            </div>
             Add Team Member
           </DialogTitle>
           <DialogDescription>
-            Creates an employee record under your team. They sign in via magic
-            link using their work email.
+            Creates an employee record. They sign in via magic link using their
+            work email.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-5 py-1">
+          {/* Name row */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm">
-                First name <span className="text-destructive">*</span>
-              </Label>
+            <Field label="First name" required error={errors.first_name}>
               <Input
                 placeholder="Jane"
                 value={form.first_name}
                 onChange={(e) => set("first_name", e.target.value)}
               />
-              {errors.first_name && (
-                <p className="text-xs text-destructive">{errors.first_name}</p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">
-                Last name <span className="text-destructive">*</span>
-              </Label>
+            </Field>
+            <Field label="Last name" required error={errors.last_name}>
               <Input
                 placeholder="Doe"
                 value={form.last_name}
                 onChange={(e) => set("last_name", e.target.value)}
               />
-              {errors.last_name && (
-                <p className="text-xs text-destructive">{errors.last_name}</p>
-              )}
-            </div>
+            </Field>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-sm">
-              Work email <span className="text-destructive">*</span>
-            </Label>
+          {/* Email */}
+          <Field label="Work email" required error={errors.email}>
             <Input
               type="email"
               placeholder="jane@company.com"
               value={form.email}
               onChange={(e) => set("email", e.target.value)}
             />
-            {errors.email && (
-              <p className="text-xs text-destructive">{errors.email}</p>
-            )}
-          </div>
+          </Field>
 
-          <Separator />
+          <div className="border-t" />
 
+          {/* Role/dept row */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Department</Label>
+            <Field label="Department">
               <Select
                 value={form.department || "none"}
                 onValueChange={(v) => set("department", v === "none" ? "" : v)}
@@ -177,29 +148,27 @@ export function AddTeamMemberDialog({ open, onClose, managerId }: Props) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Job title</Label>
+            </Field>
+            <Field label="Job title">
               <Input
                 placeholder="Software Engineer"
                 value={form.job_title}
                 onChange={(e) => set("job_title", e.target.value)}
               />
-            </div>
+            </Field>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-sm">Location</Label>
+          <Field label="Location">
             <Input
               placeholder="Manila"
               value={form.location}
               onChange={(e) => set("location", e.target.value)}
             />
-          </div>
+          </Field>
 
+          {/* Hours */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-sm">Std hours / day</Label>
+            <Field label="Hours / day">
               <Input
                 type="number"
                 min={1}
@@ -209,9 +178,8 @@ export function AddTeamMemberDialog({ open, onClose, managerId }: Props) {
                   set("standard_hours_per_day", Number(e.target.value))
                 }
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm">Std hours / week</Label>
+            </Field>
+            <Field label="Hours / week">
               <Input
                 type="number"
                 min={1}
@@ -221,7 +189,7 @@ export function AddTeamMemberDialog({ open, onClose, managerId }: Props) {
                   set("standard_hours_per_week", Number(e.target.value))
                 }
               />
-            </div>
+            </Field>
           </div>
         </div>
 
@@ -251,5 +219,28 @@ export function AddTeamMemberDialog({ open, onClose, managerId }: Props) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function Field({
+  label,
+  required,
+  error,
+  children,
+}: {
+  label: string
+  required?: boolean
+  error?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label className="text-sm font-medium">
+        {label}
+        {required && <span className="ml-1 text-destructive">*</span>}
+      </Label>
+      {children}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
   )
 }

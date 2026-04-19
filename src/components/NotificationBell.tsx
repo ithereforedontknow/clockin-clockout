@@ -1,6 +1,5 @@
 import { formatDistanceToNow } from "date-fns"
 import type { TabId } from "@/components/AppShell"
-
 import {
   Bell,
   CheckCheck,
@@ -45,16 +44,17 @@ const NOTIF_ICON: Record<NotificationType, typeof Bell> = {
   course_completed: Award,
   course_assigned: Bell,
 }
+
 const NOTIF_COLOR: Record<NotificationType, string> = {
-  timeoff_approved: "text-green-600 bg-green-50 dark:bg-green-950",
+  timeoff_approved: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950",
   timeoff_denied: "text-destructive bg-destructive/10",
-  info_change_approved: "text-green-600 bg-green-50 dark:bg-green-950",
+  info_change_approved: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950",
   info_change_denied: "text-destructive bg-destructive/10",
-  correction_approved: "text-green-600 bg-green-50 dark:bg-green-950",
+  correction_approved: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950",
   correction_denied: "text-destructive bg-destructive/10",
   late_clock_in: "text-amber-600 bg-amber-50 dark:bg-amber-950",
   new_employee: "text-blue-600 bg-blue-50 dark:bg-blue-950",
-  course_completed: "text-green-600 bg-green-50 dark:bg-green-950",
+  course_completed: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950",
   course_assigned: "text-blue-600 bg-blue-50 dark:bg-blue-950",
 }
 
@@ -62,17 +62,12 @@ export function NotificationBell({ employeeId, onNavigate }: Props) {
   const { data: notifications = [], isLoading } = useNotifications(employeeId)
   const markRead = useMarkNotificationRead()
   const markAllRead = useMarkAllRead()
-
   const unread = notifications.filter((n) => !n.read)
   const unreadCount = unread.length
 
   async function handleClick(n: AppNotification) {
-    if (!n.read) {
-      await markRead.mutateAsync({ id: n.id, employeeId })
-    }
-    if (n.link_tab) {
-      onNavigate(n.link_tab as TabId)
-    }
+    if (!n.read) await markRead.mutateAsync({ id: n.id, employeeId })
+    if (n.link_tab) onNavigate(n.link_tab as TabId)
   }
 
   return (
@@ -81,11 +76,11 @@ export function NotificationBell({ employeeId, onNavigate }: Props) {
         <Button
           variant="ghost"
           size="icon"
-          className="relative text-muted-foreground"
+          className="relative text-muted-foreground hover:text-foreground"
         >
-          <Bell className="h-5 w-5" />
+          <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
-            <Badge className="text-destructive-foreground absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center bg-destructive p-0 text-[10px]">
+            <Badge className="text-destructive-foreground absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center bg-destructive p-0 text-[10px]">
               {unreadCount > 9 ? "9+" : unreadCount}
             </Badge>
           )}
@@ -93,7 +88,6 @@ export function NotificationBell({ employeeId, onNavigate }: Props) {
       </DropdownMenuTrigger>
 
       <DropdownMenuContent align="end" className="w-80 p-0">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3">
           <p className="text-sm font-semibold">Notifications</p>
           {unreadCount > 0 && (
@@ -113,19 +107,17 @@ export function NotificationBell({ employeeId, onNavigate }: Props) {
             </Button>
           )}
         </div>
-
         <DropdownMenuSeparator className="m-0" />
 
-        {/* List */}
         <ScrollArea className="max-h-96">
           {isLoading ? (
-            <div className="flex items-center justify-center py-8">
+            <div className="flex items-center justify-center py-10">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
             </div>
           ) : notifications.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-10 text-muted-foreground">
-              <Bell className="h-8 w-8 opacity-30" />
-              <p className="text-sm">No notifications yet</p>
+            <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
+              <Bell className="h-7 w-7 opacity-25" />
+              <p className="text-sm">All caught up!</p>
             </div>
           ) : (
             <div>
@@ -136,42 +128,35 @@ export function NotificationBell({ employeeId, onNavigate }: Props) {
                 return (
                   <div key={n.id}>
                     <button
-                      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 ${
-                        !n.read ? "bg-primary/5" : ""
-                      }`}
+                      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50 ${!n.read ? "bg-primary/[0.04]" : ""}`}
                       onClick={() => handleClick(n)}
                     >
-                      {/* Icon */}
                       <div
                         className={`mt-0.5 shrink-0 rounded-full p-1.5 ${color}`}
                       >
                         <Icon className="h-3.5 w-3.5" />
                       </div>
-
-                      {/* Content */}
-                      <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="min-w-0 flex-1">
                         <p
-                          className={`text-sm leading-snug font-medium ${!n.read ? "" : "text-muted-foreground"}`}
+                          className={`text-sm leading-snug font-medium ${n.read ? "text-muted-foreground" : ""}`}
                         >
                           {n.title}
                         </p>
-                        <p className="text-xs leading-snug text-muted-foreground">
+                        <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
                           {n.message}
                         </p>
-                        <p className="text-[11px] text-muted-foreground/70">
+                        <p className="mt-1 text-[10px] text-muted-foreground/60">
                           {formatDistanceToNow(new Date(n.created_at), {
                             addSuffix: true,
                           })}
                         </p>
                       </div>
-
-                      {/* Unread dot */}
                       {!n.read && (
-                        <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                        <div className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                       )}
                     </button>
                     {idx < notifications.length - 1 && (
-                      <div className="mx-4 border-b border-border" />
+                      <div className="mx-4 border-b border-border/60" />
                     )}
                   </div>
                 )
@@ -183,13 +168,9 @@ export function NotificationBell({ employeeId, onNavigate }: Props) {
         {notifications.length > 0 && (
           <>
             <DropdownMenuSeparator className="m-0" />
-            <div className="px-4 py-2 text-center">
-              <p className="text-xs text-muted-foreground">
-                {unreadCount > 0
-                  ? `${unreadCount} unread notification${unreadCount > 1 ? "s" : ""}`
-                  : "All caught up!"}
-              </p>
-            </div>
+            <p className="py-2 text-center text-xs text-muted-foreground">
+              {unreadCount > 0 ? `${unreadCount} unread` : "All caught up!"}
+            </p>
           </>
         )}
       </DropdownMenuContent>

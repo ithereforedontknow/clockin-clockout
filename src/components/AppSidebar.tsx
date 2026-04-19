@@ -47,7 +47,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -72,7 +71,7 @@ import type {
   NotificationType,
 } from "@/lib/supabase"
 
-// ─── Sidebar context ──────────────────────────────────────────────────────────
+// ── Sidebar context ────────────────────────────────────────────────────────────
 interface SidebarCtx {
   collapsed: boolean
   toggle: () => void
@@ -85,7 +84,7 @@ export function useSidebar() {
   return useContext(SidebarContext)
 }
 
-// ─── Nav config ───────────────────────────────────────────────────────────────
+// ── Nav config ─────────────────────────────────────────────────────────────────
 type NavItem = {
   id: TabId
   label: string
@@ -127,19 +126,19 @@ const NOTIF_ICON: Record<NotificationType, typeof Bell> = {
   course_assigned: Bell,
 }
 const NOTIF_COLOR: Record<NotificationType, string> = {
-  timeoff_approved: "text-green-600 bg-green-50 dark:bg-green-950",
+  timeoff_approved: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950",
   timeoff_denied: "text-destructive bg-destructive/10",
-  info_change_approved: "text-green-600 bg-green-50 dark:bg-green-950",
+  info_change_approved: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950",
   info_change_denied: "text-destructive bg-destructive/10",
-  correction_approved: "text-green-600 bg-green-50 dark:bg-green-950",
+  correction_approved: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950",
   correction_denied: "text-destructive bg-destructive/10",
   late_clock_in: "text-amber-600 bg-amber-50 dark:bg-amber-950",
   new_employee: "text-blue-600 bg-blue-50 dark:bg-blue-950",
-  course_completed: "text-green-600 bg-green-50 dark:bg-green-950",
+  course_completed: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950",
   course_assigned: "text-blue-600 bg-blue-50 dark:bg-blue-950",
 }
 
-// ─── Root layout ─────────────────────────────────────────────────────────────
+// ── Root layout ────────────────────────────────────────────────────────────────
 interface AppSidebarProps {
   activeTab: TabId
   onTabChange: (tab: TabId) => void
@@ -167,6 +166,7 @@ export function AppSidebar({
   const { hasPermission } = usePermissions()
   const { data: settings } = useCompanySettings()
   const companyName = settings?.company_name ?? "Company"
+
   useEffect(() => {
     if (settings?.company_name) document.title = settings.company_name
   }, [settings?.company_name])
@@ -195,130 +195,96 @@ export function AppSidebar({
     <SidebarContext.Provider value={{ collapsed, toggle }}>
       <TooltipProvider delayDuration={0}>
         <div className="flex h-screen overflow-hidden bg-background">
-          {/* ── Desktop sidebar ── */}
+          {/* Desktop sidebar */}
           <aside
             className={cn(
-              "relative hidden h-full flex-col border-r border-sidebar-border bg-sidebar md:flex",
-              "shrink-0 transition-[width] duration-200 ease-in-out",
+              "relative hidden h-full flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ease-in-out md:flex",
               collapsed ? "w-14" : "w-60"
             )}
           >
-            {/* Floating collapse toggle — top right edge */}
+            {/* Collapse toggle */}
             <button
               onClick={toggle}
-              className={cn(
-                "absolute top-6 -right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border bg-background text-foreground shadow-sm transition-colors hover:bg-muted",
-                "transition-colors"
-              )}
+              className="absolute top-6 -right-3 z-10 flex h-6 w-6 items-center justify-center rounded-full border bg-background shadow-sm transition-colors hover:bg-muted"
               aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               {collapsed ? (
-                <ChevronsRight className="h-3 w-3" />
+                <ChevronsRight className="h-3 w-3 text-muted-foreground" />
               ) : (
-                <ChevronsLeft className="h-3 w-3" />
+                <ChevronsLeft className="h-3 w-3 text-muted-foreground" />
               )}
             </button>
 
             {/* Logo */}
             <div
               className={cn(
-                "flex h-14 shrink-0 items-center border-b border-sidebar-border px-4",
+                "flex h-14 items-center gap-3 border-b border-sidebar-border px-4",
                 collapsed && "justify-center px-0"
               )}
             >
-              <div className="flex items-center gap-2.5">
-                {settings?.logo_url ? (
-                  <img
-                    src={settings.logo_url}
-                    alt={companyName}
-                    className={cn(
-                      "object-contain",
-                      collapsed ? "h-6 w-6" : "h-8 w-auto max-w-[120px]"
-                    )}
-                  />
-                ) : (
-                  <div className="shrink-0 rounded-lg bg-primary/10 p-1.5">
-                    <AlarmClock className="h-5 w-5 text-primary" />
-                  </div>
-                )}
-                {!collapsed && (
-                  <span className="text-xl font-bold tracking-tight text-sidebar-foreground">
-                    {companyName}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Nav — scrollable if many items */}
-            <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-              {!collapsed && (
-                <p className="mb-1 px-2 text-[11px] font-semibold tracking-widest text-sidebar-foreground/40 uppercase">
-                  Menu
-                </p>
+              {settings?.logo_url && (
+                <img
+                  src={settings.logo_url}
+                  alt={companyName}
+                  className={collapsed ? "h-6 w-6" : "h-8 w-auto max-w-[110px]"}
+                />
               )}
 
-              {/* ⌘K search button */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={onOpenPalette}
-                    className={cn(
-                      "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
-                      "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                      collapsed && "justify-center px-0"
-                    )}
-                  >
-                    <Search className="h-4 w-4 shrink-0" />
-                    {!collapsed && (
-                      <>
-                        <span className="flex-1 text-left">Search</span>
-                        <kbd className="rounded border border-sidebar-border bg-sidebar-accent/30 px-1.5 py-0.5 text-[10px] text-sidebar-foreground/40">
-                          ⌘K
-                        </kbd>
-                      </>
-                    )}
-                  </button>
-                </TooltipTrigger>
-                {collapsed && (
-                  <TooltipContent side="right">Search (⌘K)</TooltipContent>
-                )}
-              </Tooltip>
+              {!collapsed && (
+                <span className="text-lg font-semibold tracking-tight text-sidebar-foreground">
+                  {companyName}
+                </span>
+              )}
 
-              <div className="my-1 border-t border-sidebar-border/50" />
-
+              {!settings?.logo_url && !collapsed && (
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+                  <AlarmClock className="h-4 w-4 text-primary" />
+                </div>
+              )}
+            </div>
+            {/* Nav */}
+            <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
+              {/* Search */}
+              <NavBtn
+                icon={Search}
+                label="Search"
+                sublabel="⌘K"
+                collapsed={collapsed}
+                onClick={onOpenPalette}
+                tooltip="Search (⌘K)"
+              />
+              <div className="my-1.5 border-t border-sidebar-border/50" />
               {visibleNav.map(({ id, label, icon: Icon }) => (
-                <NavButton
+                <NavBtn
                   key={id}
-                  id={id}
-                  label={label}
                   icon={Icon}
-                  active={activeTab === id}
+                  label={label}
                   collapsed={collapsed}
+                  active={activeTab === id}
                   onClick={() => onTabChange(id)}
+                  tooltip={label}
                 />
               ))}
             </nav>
 
-            <Separator className="shrink-0" />
-
-            {/* Footer — user + notifications + collapse */}
-            <SidebarFooter
-              collapsed={collapsed}
-              onNavigate={onTabChange}
-              onOpenSettings={onOpenSettings}
-              onOpenHelp={onOpenHelp}
-            />
+            {/* Footer */}
+            <div className="border-t border-sidebar-border/50">
+              <SidebarFooter
+                collapsed={collapsed}
+                onNavigate={onTabChange}
+                onOpenSettings={onOpenSettings}
+                onOpenHelp={onOpenHelp}
+              />
+            </div>
           </aside>
 
-          {/* ── Main content — only this scrolls ── */}
+          {/* Content */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             <main className="flex-1 overflow-y-auto overscroll-contain">
-              <div className="pb-safe mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-6">
+              <div className="pb-safe mx-auto max-w-5xl px-4 py-5 sm:px-6">
                 {children}
               </div>
             </main>
-
-            {/* ── Mobile bottom nav ── */}
             <MobileNav
               items={visibleNav}
               activeTab={activeTab}
@@ -331,20 +297,23 @@ export function AppSidebar({
   )
 }
 
-// ─── Nav button ───────────────────────────────────────────────────────────────
-function NavButton({
-  label,
+// ── Nav button ─────────────────────────────────────────────────────────────────
+function NavBtn({
   icon: Icon,
+  label,
+  sublabel,
   active,
   collapsed,
   onClick,
+  tooltip,
 }: {
-  id: TabId
-  label: string
   icon: typeof Home
-  active: boolean
+  label: string
+  sublabel?: string
+  active?: boolean
   collapsed: boolean
   onClick: () => void
+  tooltip?: string
 }) {
   const btn = (
     <button
@@ -353,12 +322,21 @@ function NavButton({
         "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm font-medium transition-colors",
         active
           ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+          : "text-sidebar-foreground/65 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
         collapsed && "justify-center px-0"
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      {!collapsed && <span>{label}</span>}
+      {!collapsed && (
+        <>
+          <span className="flex-1 text-left">{label}</span>
+          {sublabel && (
+            <span className="text-[10px] text-sidebar-foreground/35">
+              {sublabel}
+            </span>
+          )}
+        </>
+      )}
     </button>
   )
 
@@ -366,12 +344,12 @@ function NavButton({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{btn}</TooltipTrigger>
-      <TooltipContent side="right">{label}</TooltipContent>
+      <TooltipContent side="right">{tooltip ?? label}</TooltipContent>
     </Tooltip>
   )
 }
 
-// ─── Sidebar footer ───────────────────────────────────────────────────────────
+// ── Sidebar footer ─────────────────────────────────────────────────────────────
 function SidebarFooter({
   collapsed,
   onNavigate,
@@ -385,7 +363,6 @@ function SidebarFooter({
 }) {
   const { data: employee, isLoading } = useCurrentEmployee()
   const { role } = usePermissions()
-
   const employeeId = employee?.id ?? ""
   const { data: notifications = [] } = useNotifications(employeeId)
   const markRead = useMarkNotificationRead()
@@ -400,10 +377,16 @@ function SidebarFooter({
     if (n.link_tab) onNavigate(n.link_tab as TabId)
   }
 
+  const footerBtnCls = cn(
+    "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm",
+    "text-sidebar-foreground/65 transition-colors hover:bg-sidebar-accent/40 hover:text-sidebar-foreground",
+    collapsed && "justify-center px-0"
+  )
+
   return (
     <div
       className={cn(
-        "shrink-0 space-y-0.5 p-2",
+        "space-y-0.5 p-2",
         collapsed && "flex flex-col items-center"
       )}
     >
@@ -412,15 +395,11 @@ function SidebarFooter({
         <Tooltip>
           <TooltipTrigger asChild>
             <PopoverTrigger asChild>
-              <button
-                className={cn(
-                  "relative flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm",
-                  "text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                  collapsed && "justify-center px-0"
-                )}
-              >
+              <button className={cn(footerBtnCls, "relative")}>
                 <Bell className="h-4 w-4 shrink-0" />
-                {!collapsed && <span>Notifications</span>}
+                {!collapsed && (
+                  <span className="flex-1 text-left">Notifications</span>
+                )}
                 {unreadCount > 0 && (
                   <Badge
                     className={cn(
@@ -445,13 +424,13 @@ function SidebarFooter({
           sideOffset={8}
           className="w-80 p-0"
         >
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div className="flex items-center justify-between border-b px-4 py-3">
             <p className="text-sm font-semibold">Notifications</p>
             {unreadCount > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 gap-1 text-xs text-muted-foreground"
+                className="h-7 gap-1.5 text-xs text-muted-foreground"
                 disabled={markAllRead.isPending}
                 onClick={() => markAllRead.mutate(employeeId)}
               >
@@ -466,8 +445,8 @@ function SidebarFooter({
           </div>
           <ScrollArea className="max-h-80">
             {notifications.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
-                <Bell className="h-7 w-7 opacity-30" />
+              <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
+                <Bell className="h-7 w-7 opacity-25" />
                 <p className="text-sm">All caught up!</p>
               </div>
             ) : (
@@ -479,7 +458,7 @@ function SidebarFooter({
                     <button
                       className={cn(
                         "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/50",
-                        !n.read && "bg-primary/5"
+                        !n.read && "bg-primary/[0.04]"
                       )}
                       onClick={() => handleNotifClick(n)}
                     >
@@ -491,7 +470,7 @@ function SidebarFooter({
                       >
                         <Icon className="h-3.5 w-3.5" />
                       </div>
-                      <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="min-w-0 flex-1">
                         <p
                           className={cn(
                             "text-sm leading-snug font-medium",
@@ -500,21 +479,21 @@ function SidebarFooter({
                         >
                           {n.title}
                         </p>
-                        <p className="text-xs leading-snug text-muted-foreground">
+                        <p className="mt-0.5 text-xs leading-snug text-muted-foreground">
                           {n.message}
                         </p>
-                        <p className="text-[11px] text-muted-foreground/60">
+                        <p className="mt-1 text-[10px] text-muted-foreground/60">
                           {formatDistanceToNow(new Date(n.created_at), {
                             addSuffix: true,
                           })}
                         </p>
                       </div>
                       {!n.read && (
-                        <div className="mt-2 h-2 w-2 shrink-0 rounded-full bg-primary" />
+                        <div className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
                       )}
                     </button>
                     {idx < notifications.length - 1 && (
-                      <div className="mx-4 border-b border-border" />
+                      <div className="mx-4 border-b border-border/60" />
                     )}
                   </div>
                 )
@@ -523,35 +502,24 @@ function SidebarFooter({
           </ScrollArea>
         </PopoverContent>
       </Popover>
-      {/* Help Button */}
+
+      {/* Help */}
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
-            onClick={onOpenHelp}
-            className={cn(
-              "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm",
-              "text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-              collapsed && "justify-center px-0"
-            )}
-          >
+          <button onClick={onOpenHelp} className={footerBtnCls}>
             <HelpCircle className="h-4 w-4 shrink-0" />
             {!collapsed && <span>Help</span>}
           </button>
         </TooltipTrigger>
         {collapsed && <TooltipContent side="right">Help Center</TooltipContent>}
       </Tooltip>
+
       {/* User menu */}
       <DropdownMenu>
         <Tooltip>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
-              <button
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-sm",
-                  "text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                  collapsed && "justify-center px-0"
-                )}
-              >
+              <button className={footerBtnCls}>
                 {isLoading ? (
                   <Skeleton className="h-6 w-6 shrink-0 rounded-full" />
                 ) : (
@@ -572,7 +540,7 @@ function SidebarFooter({
                           {employee?.preferred_name ?? employee?.first_name}{" "}
                           {employee?.last_name}
                         </p>
-                        <p className="text-xs text-sidebar-foreground/50 capitalize">
+                        <p className="text-[10px] text-sidebar-foreground/45 capitalize">
                           {role}
                         </p>
                       </>
@@ -631,7 +599,7 @@ function SidebarFooter({
   )
 }
 
-// ─── Mobile bottom nav ────────────────────────────────────────────────────────
+// ── Mobile bottom nav ──────────────────────────────────────────────────────────
 function MobileNav({
   items,
   activeTab,
@@ -641,23 +609,19 @@ function MobileNav({
   activeTab: TabId
   onTabChange: (tab: TabId) => void
 }) {
-  // Show max 5 items — prioritise the most common ones
-  const mobileItems = items.slice(0, 5)
   return (
     <nav
-      className="flex shrink-0 border-t border-border bg-background/95 backdrop-blur-sm md:hidden"
+      className="flex shrink-0 border-t bg-background/95 backdrop-blur-sm md:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      {mobileItems.map(({ id, icon: Icon, label }) => {
+      {items.slice(0, 5).map(({ id, icon: Icon, label }) => {
         const isActive = activeTab === id
         return (
           <button
             key={id}
             onClick={() => onTabChange(id)}
             className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-0.5",
-              "min-h-[56px] px-1 py-2 transition-colors",
-              "active:scale-95 active:bg-accent/50",
+              "flex min-h-[52px] flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 transition-colors active:scale-95",
               isActive
                 ? "text-primary"
                 : "text-muted-foreground hover:text-foreground"
@@ -669,11 +633,11 @@ function MobileNav({
                 isActive && "bg-primary/10"
               )}
             >
-              <Icon className="h-5 w-5" />
+              <Icon className="h-[18px] w-[18px]" />
             </div>
             <span
               className={cn(
-                "max-w-full truncate px-0.5 text-[10px] font-medium",
+                "truncate px-0.5 text-[9px] font-medium",
                 isActive && "text-primary"
               )}
             >

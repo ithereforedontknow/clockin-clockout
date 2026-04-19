@@ -45,8 +45,6 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
   const [note, setNote] = useState("")
 
   const selectedBalance = balances.find((b) => b.category_id === categoryId)
-
-  // ✅ Uses countWeekdays — Saturday and Sunday are never counted
   const weekdayCount =
     startDate && endDate ? countWeekdays(startDate, endDate) : 0
   const unit = selectedBalance?.category?.unit ?? "days"
@@ -71,17 +69,16 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
       return
     }
     if (weekdayCount === 0) {
-      toast.error("Selected range has no weekdays", {
+      toast.error("No weekdays in selected range", {
         description: "Please choose dates that include at least one weekday.",
       })
       return
     }
     if (available !== null && weekdayCount > available) {
       toast.warning("Insufficient balance", {
-        description: `You have ${available} ${unit} available but requested ${weekdayCount}.`,
+        description: `${available} ${unit} available, ${weekdayCount} requested.`,
       })
     }
-
     await requestTimeOff.mutateAsync({
       employee_id: employeeId,
       category_id: categoryId,
@@ -90,11 +87,9 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
       amount: weekdayCount,
       note: note || null,
     })
-
-    toast.success("Time off request submitted!", {
-      description: "Your employer will be notified to review your request.",
+    toast.success("Request submitted", {
+      description: "Your manager will be notified to review.",
     })
-
     reset()
     onOpenChange(false)
   }
@@ -110,31 +105,33 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+              <CalendarDays className="h-4 w-4 text-primary" />
+            </div>
             Request Time Off
           </DialogTitle>
           <DialogDescription>
-            Weekends are excluded automatically from the day count.
+            Weekends are excluded from the day count automatically.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          {/* Category */}
+        <div className="space-y-4 pt-1">
+          {/* Type */}
           <div className="space-y-1.5">
             <Label>
-              Time Off Type <span className="text-destructive">*</span>
+              Type <span className="text-destructive">*</span>
             </Label>
             <Select value={categoryId} onValueChange={setCategoryId}>
               <SelectTrigger>
-                <SelectValue placeholder="Select type…" />
+                <SelectValue placeholder="Select leave type…" />
               </SelectTrigger>
               <SelectContent>
                 {balances.map((b) => (
                   <SelectItem key={b.category_id} value={b.category_id}>
-                    {b.category?.name}
+                    <span>{b.category?.name}</span>
                     <span className="ml-2 text-xs text-muted-foreground">
                       ({(b.balance - b.scheduled).toFixed(1)} {b.category?.unit}{" "}
-                      available)
+                      left)
                     </span>
                   </SelectItem>
                 ))}
@@ -146,7 +143,7 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>
-                Start Date <span className="text-destructive">*</span>
+                Start <span className="text-destructive">*</span>
               </Label>
               <Input
                 type="date"
@@ -160,7 +157,7 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
             </div>
             <div className="space-y-1.5">
               <Label>
-                End Date <span className="text-destructive">*</span>
+                End <span className="text-destructive">*</span>
               </Label>
               <Input
                 type="date"
@@ -173,14 +170,16 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
 
           {/* Summary */}
           {categoryId && startDate && endDate && (
-            <div className="flex items-center justify-between rounded-lg border border-primary/10 bg-primary/5 px-4 py-3 text-sm">
-              <span className="text-muted-foreground">Weekdays requested</span>
-              <span className="font-semibold text-primary">
+            <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+              <span className="text-sm text-muted-foreground">
+                Weekdays requested
+              </span>
+              <span
+                className={`text-sm font-semibold tabular-nums ${weekdayCount === 0 ? "text-destructive" : "text-primary"}`}
+              >
                 {weekdayCount} {unit}
                 {weekdayCount === 0 && (
-                  <span className="ml-2 text-xs font-normal text-destructive">
-                    (no weekdays selected)
-                  </span>
+                  <span className="ml-1 text-xs font-normal">(none)</span>
                 )}
               </span>
             </div>

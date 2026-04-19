@@ -1,4 +1,3 @@
-// src/components/SettingsModal.tsx
 import { useState, useEffect, useRef } from "react"
 import {
   Loader2,

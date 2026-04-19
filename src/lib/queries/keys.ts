@@ -1,4 +1,3 @@
-// src/lib/queries/keys.ts
 export const keys = {
   // Employee
   currentEmployee: () => ["current-employee"] as const,

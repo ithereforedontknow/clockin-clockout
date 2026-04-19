@@ -9,6 +9,7 @@ import {
   Users,
   Pin,
   PinOff,
+  MoreHorizontal,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -34,24 +35,41 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   useAnnouncements,
   useCreateAnnouncement,
   useDeleteAnnouncement,
   usePinAnnouncement,
 } from "@/lib/queries"
 import { usePermissions } from "@/lib/auth/permissions"
-import type { Employee, Announcement } from "@/lib/supabase"
+import type { Employee } from "@/lib/supabase"
+import { ScrollArea } from "../ui/scroll-area"
+
+const BADGE_STYLE = {
+  all: "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/20 dark:text-blue-400",
+  team: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400",
+}
 
 interface Props {
   currentEmployee: Employee
 }
+interface PostPayload {
+  title: string
+  body: string
+  posted_by: string
+  target: "all" | "employer_team"
+  target_employer_id: string | null
+}
 
 export function AnnouncementsCard({ currentEmployee }: Props) {
   const { hasPermission, isEmployer } = usePermissions()
-  const canPost = hasPermission("manage_employees") // or create a new "post_announcements" permission later
-
+  const canPost = hasPermission("manage_employees")
   const employerId = isEmployer ? currentEmployee.id : undefined
-
   const { data: announcements = [], isLoading } = useAnnouncements(
     currentEmployee.id,
     employerId
@@ -60,13 +78,13 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
   const createAnnouncement = useCreateAnnouncement()
   const deleteAnnouncement = useDeleteAnnouncement()
   const pinAnnouncement = usePinAnnouncement()
-
   const [postOpen, setPostOpen] = useState(false)
+
   return (
     <>
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle className="flex items-center gap-2 text-base font-semibold">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
             <Megaphone className="h-4 w-4 text-primary" />
             Announcements
           </CardTitle>
@@ -74,49 +92,66 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
             <Button
               size="sm"
               variant="outline"
+              className="h-7 gap-1.5 text-xs"
               onClick={() => setPostOpen(true)}
             >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              <Plus className="h-3 w-3" />
               Post
             </Button>
           )}
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-3">
-              {Array(2)
-                .fill(0)
-                .map((_, i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
-            </div>
-          ) : announcements.length === 0 ? (
-            <p className="py-4 text-center text-sm text-muted-foreground">
-              No announcements yet
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {announcements.map((a) => (
-                <AnnouncementItem
-                  key={a.id}
-                  announcement={a}
-                  currentEmployee={currentEmployee}
-                  onDelete={() => {
-                    deleteAnnouncement.mutate(a.id, {
-                      onSuccess: () => toast.success("Announcement deleted"),
-                    })
-                  }}
-                  onPin={() => {
-                    pinAnnouncement.mutate(
-                      { id: a.id, pinned: !a.pinned },
-                      {
-                        onSuccess: () =>
-                          toast.success(a.pinned ? "Unpinned" : "Pinned"),
+        <CardContent className="p-0">
+          <div className="border-t">
+            <ScrollArea className="h-[450px]">
+              {" "}
+              {/* Fixed height for scalability */}
+              <div className="divide-y">
+                {isLoading ? (
+                  <div className="space-y-3 p-4">
+                    <Skeleton className="h-20 w-full rounded-lg" />
+                    <Skeleton className="h-20 w-full rounded-lg" />
+                    <Skeleton className="h-20 w-full rounded-lg" />
+                  </div>
+                ) : announcements.length === 0 ? (
+                  <p className="py-12 text-center text-sm text-muted-foreground italic">
+                    No announcements yet
+                  </p>
+                ) : (
+                  announcements.map((a) => (
+                    <AnnouncementItem
+                      key={a.id}
+                      announcement={a}
+                      currentEmployee={currentEmployee}
+                      onDelete={() =>
+                        deleteAnnouncement.mutate(a.id, {
+                          onSuccess: () =>
+                            toast.success("Announcement deleted"),
+                        })
                       }
-                    )
-                  }}
-                />
-              ))}
+                      onPin={() =>
+                        pinAnnouncement.mutate(
+                          { id: a.id, pinned: !a.pinned },
+                          {
+                            onSuccess: () =>
+                              toast.success(a.pinned ? "Unpinned" : "Pinned"),
+                          }
+                        )
+                      }
+                    />
+                  ))
+                )}
+              </div>
+            </ScrollArea>{" "}
+          </div>
+
+          {announcements.length > 0 && (
+            <div className="border-t bg-muted/10 p-2 text-center">
+              <button
+                onClick={() => toast.info("Archive feature coming soon")}
+                className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase transition-colors hover:text-primary"
+              >
+                View History
+              </button>
             </div>
           )}
         </CardContent>
@@ -126,7 +161,7 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
         open={postOpen}
         onClose={() => setPostOpen(false)}
         currentEmployee={currentEmployee}
-        onCreate={async (payload) => {
+        onCreate={async (payload: PostPayload) => {
           await createAnnouncement.mutateAsync(payload)
           toast.success("Announcement posted")
           setPostOpen(false)
@@ -137,25 +172,12 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
   )
 }
 
-// ─── Single announcement row ──────────────────────────────────────────────────
-
 function AnnouncementItem({
   announcement: a,
   currentEmployee,
   onDelete,
   onPin,
-}: {
-  announcement: Announcement & {
-    author?: {
-      first_name: string
-      last_name: string
-      avatar_url: string | null
-    }
-  }
-  currentEmployee: Employee
-  onDelete: () => void
-  onPin: () => void
-}) {
+}: any) {
   const author = a.author
   const canDelete =
     a.posted_by === currentEmployee.id || currentEmployee.role === "admin"
@@ -164,79 +186,84 @@ function AnnouncementItem({
 
   return (
     <div
-      className={`flex items-start gap-3 rounded-lg border p-3 ${
-        a.pinned
-          ? "border-primary/20 bg-primary/5"
-          : "border-border bg-muted/20"
-      }`}
+      className={`flex items-start gap-3 p-4 transition-colors ${a.pinned ? "bg-primary/[0.03]" : "hover:bg-muted/30"}`}
     >
-      <Avatar className="h-7 w-7 shrink-0">
+      <Avatar className="mt-0.5 h-8 w-8 shrink-0 border">
         <AvatarImage src={author?.avatar_url ?? undefined} />
-        <AvatarFallback className="bg-primary/10 text-[10px] font-semibold text-primary">
+        <AvatarFallback className="bg-primary/10 text-xs font-semibold text-primary">
           {author?.first_name?.[0]}
           {author?.last_name?.[0]}
         </AvatarFallback>
       </Avatar>
+
       <div className="min-w-0 flex-1 space-y-1">
-        <div className="flex flex-wrap items-center gap-2">
-          {a.pinned && <Pin className="h-3 w-3 shrink-0 text-primary" />}
-          <p className="text-sm font-medium">{a.title}</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {a.pinned && (
+            <Pin
+              className="h-3 w-3 shrink-0 text-primary"
+              fill="currentColor"
+            />
+          )}
+          <p className="text-sm leading-none font-medium">{a.title}</p>
           <Badge
             variant="outline"
-            className={`gap-1 text-[10px] ${
-              a.target === "all"
-                ? "border-blue-200 bg-blue-50 text-blue-700"
-                : "border-amber-200 bg-amber-50 text-amber-700"
-            }`}
+            className={`gap-1 text-[10px] font-medium capitalize ${a.target === "all" ? BADGE_STYLE.all : BADGE_STYLE.team}`}
           >
             {a.target === "all" ? (
-              <>
-                <Globe className="h-2.5 w-2.5" />
-                Company
-              </>
+              <Globe className="h-2.5 w-2.5" />
             ) : (
-              <>
-                <Users className="h-2.5 w-2.5" />
-                Team
-              </>
+              <Users className="h-2.5 w-2.5" />
             )}
+            {a.target === "all" ? "Company" : "Team"}
           </Badge>
         </div>
-        <p className="text-xs leading-relaxed text-foreground/80">{a.body}</p>
-        <p className="text-[10px] text-muted-foreground">
-          {author?.first_name} {author?.last_name}
-          {" · "}
+        <p className="text-xs leading-normal text-muted-foreground">{a.body}</p>
+        <p className="pt-0.5 text-[10px] text-muted-foreground">
+          {author?.first_name} {author?.last_name} ·{" "}
           {format(new Date(a.created_at), "MMM d 'at' h:mm a")}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {canPin && (
-          <button
-            onClick={onPin}
-            className="text-muted-foreground transition-colors hover:text-primary"
-            title={a.pinned ? "Unpin" : "Pin to top"}
-          >
-            {a.pinned ? (
-              <PinOff className="h-3.5 w-3.5" />
-            ) : (
-              <Pin className="h-3.5 w-3.5" />
+
+      {(canPin || canDelete) && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Actions</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            {canPin && (
+              <DropdownMenuItem onClick={onPin}>
+                {a.pinned ? (
+                  <>
+                    <PinOff className="mr-2 h-4 w-4" /> Unpin
+                  </>
+                ) : (
+                  <>
+                    <Pin className="mr-2 h-4 w-4" /> Pin to top
+                  </>
+                )}
+              </DropdownMenuItem>
             )}
-          </button>
-        )}
-        {canDelete && (
-          <button
-            onClick={onDelete}
-            className="text-muted-foreground transition-colors hover:text-destructive"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+            {canDelete && (
+              <DropdownMenuItem
+                onClick={onDelete}
+                className="text-destructive focus:text-destructive"
+              >
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   )
 }
-
-// ─── Post dialog ──────────────────────────────────────────────────────────────
 
 function PostAnnouncementDialog({
   open,
@@ -244,19 +271,7 @@ function PostAnnouncementDialog({
   currentEmployee,
   onCreate,
   isPending,
-}: {
-  open: boolean
-  onClose: () => void
-  currentEmployee: Employee
-  onCreate: (payload: {
-    title: string
-    body: string
-    posted_by: string
-    target: "all" | "employer_team"
-    target_employer_id: string | null
-  }) => Promise<void>
-  isPending: boolean
-}) {
+}: any) {
   const isAdmin = currentEmployee.role === "admin"
   const [title, setTitle] = useState("")
   const [body, setBody] = useState("")
@@ -271,14 +286,8 @@ function PostAnnouncementDialog({
   }
 
   async function handlePost() {
-    if (!title.trim()) {
-      toast.error("Title is required")
-      return
-    }
-    if (!body.trim()) {
-      toast.error("Message is required")
-      return
-    }
+    if (!title.trim() || !body.trim())
+      return toast.error("Required fields missing")
     await onCreate({
       title: title.trim(),
       body: body.trim(),
@@ -302,13 +311,10 @@ function PostAnnouncementDialog({
     >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Megaphone className="h-5 w-5 text-primary" />
-            Post Announcement
-          </DialogTitle>
+          <DialogTitle>Post Announcement</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 pt-1">
           <div className="space-y-1.5">
             <Label>
               Title <span className="text-destructive">*</span>
@@ -343,25 +349,15 @@ function PostAnnouncementDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">
-                    <div className="flex items-center gap-2">
-                      <Globe className="h-3.5 w-3.5" />
-                      Everyone in the company
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="employer_team">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-3.5 w-3.5" />
-                      My team only
-                    </div>
-                  </SelectItem>
+                  <SelectItem value="all">Everyone in the company</SelectItem>
+                  <SelectItem value="employer_team">My team only</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="pt-2">
           <Button
             variant="outline"
             onClick={() => {
@@ -373,16 +369,11 @@ function PostAnnouncementDialog({
           </Button>
           <Button disabled={isPending} onClick={handlePost}>
             {isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Posting…
-              </>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
-              <>
-                <Megaphone className="mr-2 h-4 w-4" />
-                Post
-              </>
+              <Megaphone className="mr-2 h-4 w-4" />
             )}
+            Post
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,16 +1,9 @@
 import { useState } from "react"
-import { Plus, Trash2, Pencil } from "lucide-react"
+import { Plus, Trash2, Pencil, Tag, Layers } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -31,7 +24,7 @@ export function CourseCategoriesPanel() {
   const [editingCategory, setEditingCategory] = useState<any>(null)
   const [editingTag, setEditingTag] = useState<any>(null)
 
-  const createCategory = async () => {
+  async function createCategory() {
     if (!newCategory.trim()) return
     const { error } = await supabase
       .from("course_categories")
@@ -44,7 +37,7 @@ export function CourseCategoriesPanel() {
     }
   }
 
-  const updateCategory = async () => {
+  async function updateCategory() {
     if (!editingCategory?.name.trim()) return
     const { error } = await supabase
       .from("course_categories")
@@ -58,7 +51,7 @@ export function CourseCategoriesPanel() {
     }
   }
 
-  const deleteCategory = async (id: string) => {
+  async function deleteCategory(id: string) {
     const { error } = await supabase
       .from("course_categories")
       .delete()
@@ -70,7 +63,7 @@ export function CourseCategoriesPanel() {
     }
   }
 
-  const createTag = async () => {
+  async function createTag() {
     if (!newTag.trim()) return
     const { error } = await supabase
       .from("course_tags")
@@ -83,7 +76,7 @@ export function CourseCategoriesPanel() {
     }
   }
 
-  const updateTag = async () => {
+  async function updateTag() {
     if (!editingTag?.name.trim()) return
     const { error } = await supabase
       .from("course_tags")
@@ -97,7 +90,7 @@ export function CourseCategoriesPanel() {
     }
   }
 
-  const deleteTag = async (id: string) => {
+  async function deleteTag(id: string) {
     const { error } = await supabase.from("course_tags").delete().eq("id", id)
     if (error) toast.error(error.message)
     else {
@@ -107,159 +100,195 @@ export function CourseCategoriesPanel() {
   }
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
+    <div className="grid gap-5 md:grid-cols-2">
       {/* Categories */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Course Categories</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="New category name"
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createCategory()}
-            />
-            <Button size="sm" onClick={createCategory}>
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead className="w-20">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {categories.map((cat) => (
-                <TableRow key={cat.id}>
-                  <TableCell>{cat.name}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditingCategory(cat)}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteCategory(cat.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <TaxonomyCard
+        title="Course Categories"
+        icon={Layers}
+        count={categories.length}
+        inputValue={newCategory}
+        onInputChange={setNewCategory}
+        onAdd={createCategory}
+        placeholder="New category name…"
+        items={categories}
+        onEdit={setEditingCategory}
+        onDelete={(id) => deleteCategory(id)}
+        emptyText="No categories yet"
+      />
 
       {/* Tags */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Course Tags</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="New tag name"
-              value={newTag}
-              onChange={(e) => setNewTag(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && createTag()}
-            />
-            <Button size="sm" onClick={createTag}>
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead className="w-20">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tags.map((tag) => (
-                <TableRow key={tag.id}>
-                  <TableCell>{tag.name}</TableCell>
-                  <TableCell>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditingTag(tag)}
-                      >
-                        <Pencil className="h-3 w-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteTag(tag.id)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <TaxonomyCard
+        title="Course Tags"
+        icon={Tag}
+        count={tags.length}
+        inputValue={newTag}
+        onInputChange={setNewTag}
+        onAdd={createTag}
+        placeholder="New tag name…"
+        items={tags}
+        onEdit={setEditingTag}
+        onDelete={(id) => deleteTag(id)}
+        emptyText="No tags yet"
+      />
 
-      {/* Edit Category Dialog */}
-      <Dialog
+      {/* Edit Category */}
+      <EditDialog
         open={!!editingCategory}
-        onOpenChange={() => setEditingCategory(null)}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Category</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={editingCategory?.name || ""}
-            onChange={(e) =>
-              setEditingCategory({ ...editingCategory, name: e.target.value })
-            }
-            onKeyDown={(e) => e.key === "Enter" && updateCategory()}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingCategory(null)}>
-              Cancel
-            </Button>
-            <Button onClick={updateCategory}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onClose={() => setEditingCategory(null)}
+        title="Edit Category"
+        value={editingCategory?.name ?? ""}
+        onChange={(v) => setEditingCategory({ ...editingCategory, name: v })}
+        onSave={updateCategory}
+      />
 
-      {/* Edit Tag Dialog */}
-      <Dialog open={!!editingTag} onOpenChange={() => setEditingTag(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Tag</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={editingTag?.name || ""}
-            onChange={(e) =>
-              setEditingTag({ ...editingTag, name: e.target.value })
-            }
-            onKeyDown={(e) => e.key === "Enter" && updateTag()}
-          />
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingTag(null)}>
-              Cancel
-            </Button>
-            <Button onClick={updateTag}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Edit Tag */}
+      <EditDialog
+        open={!!editingTag}
+        onClose={() => setEditingTag(null)}
+        title="Edit Tag"
+        value={editingTag?.name ?? ""}
+        onChange={(v) => setEditingTag({ ...editingTag, name: v })}
+        onSave={updateTag}
+      />
     </div>
+  )
+}
+
+function TaxonomyCard({
+  title,
+  icon: Icon,
+  count,
+  inputValue,
+  onInputChange,
+  onAdd,
+  placeholder,
+  items,
+  onEdit,
+  onDelete,
+  emptyText,
+}: {
+  title: string
+  icon: typeof Tag
+  count: number
+  inputValue: string
+  onInputChange: (v: string) => void
+  onAdd: () => void
+  placeholder: string
+  items: { id: string; name: string }[]
+  onEdit: (item: any) => void
+  onDelete: (id: string) => void
+  emptyText: string
+}) {
+  return (
+    <Card>
+      <CardHeader className="border-b pb-4">
+        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          {title}
+          <Badge
+            variant="secondary"
+            className="ml-auto font-normal tabular-nums"
+          >
+            {count}
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4 pt-4">
+        {/* Input */}
+        <div className="flex gap-2">
+          <Input
+            placeholder={placeholder}
+            value={inputValue}
+            onChange={(e) => onInputChange(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onAdd()}
+            className="h-8 text-sm"
+          />
+          <Button
+            size="sm"
+            className="h-8 px-3"
+            onClick={onAdd}
+            disabled={!inputValue.trim()}
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+
+        {/* List */}
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            {emptyText}
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="group flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-muted/50"
+              >
+                <span className="text-sm">{item.name}</span>
+                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                    onClick={() => onEdit(item)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                    onClick={() => onDelete(item.id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
+function EditDialog({
+  open,
+  onClose,
+  title,
+  value,
+  onChange,
+  onSave,
+}: {
+  open: boolean
+  onClose: () => void
+  title: string
+  value: string
+  onChange: (v: string) => void
+  onSave: () => void
+}) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-xs">
+        <DialogHeader>
+          <DialogTitle className="text-base">{title}</DialogTitle>
+        </DialogHeader>
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onSave()}
+          autoFocus
+        />
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={onSave}>
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

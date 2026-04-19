@@ -12,7 +12,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
-import { Clock, HelpCircle, Mail } from "lucide-react"
+import { HelpCircle, Mail, BookOpen } from "lucide-react"
 import { WelcomeTutorialDialog } from "./WelcomeTutorialDialog"
 
 interface Props {
@@ -21,91 +21,90 @@ interface Props {
   employeeId: string
 }
 
+const FAQS = [
+  {
+    value: "clock",
+    q: "How do I clock in and out?",
+    a: "Use the large button on the Home or Timesheet tab. You can also clock in from the command palette (⌘K).",
+  },
+  {
+    value: "timeoff",
+    q: "How do I request time off?",
+    a: 'Go to the Time Off tab and click "Request Time Off". Your manager will be notified to review.',
+  },
+  {
+    value: "profile",
+    q: "Why do some changes need approval?",
+    a: "Job title, department, and location changes go through a manager review before taking effect.",
+  },
+  {
+    value: "notifications",
+    q: "How do notifications work?",
+    a: "In-app notifications appear in the bell icon. You can manage which events notify you in Settings.",
+  },
+]
+
 export function HelpCenterDialog({ open, onClose, employeeId }: Props) {
   const [showTutorial, setShowTutorial] = useState(false)
 
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[420px]">
-          <DialogHeader className="pb-4">
-            <div className="mb-2 flex justify-center">
-              <HelpCircle className="h-9 w-9 text-primary" />
+        <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[400px]">
+          <DialogHeader className="shrink-0">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <HelpCircle className="h-5 w-5 text-primary" />
             </div>
-            <DialogTitle className="text-center">Help Center</DialogTitle>
+            <DialogTitle>Help Center</DialogTitle>
           </DialogHeader>
 
-          <div className="-mr-1 flex-1 overflow-y-auto pr-1">
-            <div className="space-y-5">
-              {/* Quick Tutorial Button */}
-              <Button
-                variant="outline"
-                className="h-12 w-full justify-start gap-3"
-                onClick={() => setShowTutorial(true)}
-              >
-                <Clock className="h-5 w-5" />
-                Watch Onboarding Tutorial
-              </Button>
-
-              {/* FAQs - Accordion (much more compact) */}
-              <div>
-                <p className="mb-3 text-xs tracking-widest text-muted-foreground uppercase">
-                  Common Questions
-                </p>
-                <Accordion type="single" collapsible className="w-full">
-                  <AccordionItem value="clock">
-                    <AccordionTrigger>How do I clock in/out?</AccordionTrigger>
-                    <AccordionContent>
-                      Use the big button on Home or Timesheet tab.
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  <AccordionItem value="timeoff">
-                    <AccordionTrigger>
-                      How do I request time off?
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Go to Time Off tab → Request Time Off. Manager approval
-                      required.
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  <AccordionItem value="profile">
-                    <AccordionTrigger>
-                      Why do some fields need approval?
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Job title, department, and location changes need manager
-                      review.
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  <AccordionItem value="notifications">
-                    <AccordionTrigger>
-                      How do notifications work?
-                    </AccordionTrigger>
-                    <AccordionContent>
-                      Check the bell icon in the top right.
-                    </AccordionContent>
-                  </AccordionItem>
-                </Accordion>
+          <div className="flex-1 space-y-5 overflow-y-auto">
+            {/* Tutorial */}
+            <button
+              className="flex w-full items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3 text-left transition-colors hover:bg-muted/60"
+              onClick={() => setShowTutorial(true)}
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                <BookOpen className="h-4 w-4 text-primary" />
               </div>
+              <div>
+                <p className="text-sm font-medium">Watch onboarding tutorial</p>
+                <p className="text-xs text-muted-foreground">
+                  A quick walkthrough of all features
+                </p>
+              </div>
+            </button>
+
+            {/* FAQs */}
+            <div>
+              <p className="mb-2 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                Common Questions
+              </p>
+              <Accordion type="single" collapsible className="w-full">
+                {FAQS.map(({ value, q, a }) => (
+                  <AccordionItem key={value} value={value}>
+                    <AccordionTrigger className="text-sm">{q}</AccordionTrigger>
+                    <AccordionContent className="text-sm text-muted-foreground">
+                      {a}
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
             </div>
-            <div className="mt-auto border-t pt-4">
-              {/* Contact HR */}
-              <div className="flex gap-3 rounded-lg border p-4">
-                <Mail className="mt-0.5 h-5 w-5 text-muted-foreground" />
-                <div className="text-sm">
-                  <p className="font-medium">Need more help?</p>
-                  <p className="text-muted-foreground">
-                    Contact your HR administrator for assistance.
-                  </p>
-                </div>
+
+            {/* Contact */}
+            <div className="flex gap-3 rounded-lg border bg-muted/20 p-4">
+              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Need more help?</p>
+                <p className="text-xs text-muted-foreground">
+                  Contact your HR administrator for assistance.
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="mt-auto border-t pt-4">
+          <div className="shrink-0 border-t pt-4">
             <Button variant="outline" className="w-full" onClick={onClose}>
               Close
             </Button>
@@ -113,7 +112,6 @@ export function HelpCenterDialog({ open, onClose, employeeId }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* Tutorial Modal */}
       <WelcomeTutorialDialog
         open={showTutorial}
         onClose={() => setShowTutorial(false)}

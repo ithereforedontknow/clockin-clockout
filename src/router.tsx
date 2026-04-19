@@ -1,6 +1,5 @@
 import { createBrowserRouter, Navigate } from "react-router-dom"
 import { AppShell } from "@/components/AppShell"
-
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LoginPage } from "@/pages/LoginPage"
 import { CourseEditor } from "@/components/training/CourseEditor"
@@ -9,33 +8,23 @@ import { EmployeeTrainingPage } from "@/pages/EmployeeTrainingPage"
 import { InstructorRoute } from "@/components/InstructorRoute"
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage"
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage"
+
 export const router = createBrowserRouter([
-  // ── Public ────────────────────────────────────────────────────────────────
-  {
-    path: "/login",
-    element: <LoginPage />,
-  },
+  // Public routes
+  { path: "/login", element: <LoginPage /> },
+  { path: "/forgot-password", element: <ForgotPasswordPage /> },
+  { path: "/reset-password", element: <ResetPasswordPage /> },
 
-  // ── Catch removed auth routes — redirect to login ─────────────────────────
-  {
-    path: "/forgot-password",
-    element: <ForgotPasswordPage />,
-  },
-  {
-    path: "/reset-password",
-    element: <ResetPasswordPage />,
-  },
-
-  // ── Protected ─────────────────────────────────────────────────────────────
+  // Protected routes - with optional tab parameter
   {
     element: <ProtectedRoute />,
     children: [
-      {
-        path: "/",
-        element: <AppShell />,
-      },
-      { path: "/training/courses/:courseId", element: <CourseDetailPage /> },
+      // Root routes with optional tab
+      { path: "/", element: <AppShell /> },
+      { path: "/:tab", element: <AppShell /> },
 
+      // Training routes
+      { path: "/training/courses/:courseId", element: <CourseDetailPage /> },
       {
         path: "/admin/courses/:courseId/edit",
         element: (
@@ -51,9 +40,6 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // ── Fallback ──────────────────────────────────────────────────────────────
-  {
-    path: "*",
-    element: <Navigate to="/" replace />,
-  },
+  // Fallback
+  { path: "*", element: <Navigate to="/" replace /> },
 ])

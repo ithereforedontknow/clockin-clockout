@@ -1,4 +1,3 @@
-// src/components/reports/utils/reportUtils.ts
 import { format } from "date-fns"
 import type { Employee } from "@/lib/supabase"
 import type { EmployeeWeekSummary } from "@/components/reports/hooks/useTimesheetData"

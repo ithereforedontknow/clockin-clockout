@@ -7,12 +7,11 @@ import {
   ShieldCheck,
   Tag,
 } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAllEmployees } from "@/lib/queries"
 import { usePermissions } from "@/lib/auth/permissions"
-import { EmployeeManagement } from "@/components/admin/EmployeeManagement"
+import { EmployeeManagement } from "@/components/admin/employees/EmployeeManagement"
 import { DepartmentsPanel } from "@/components/admin/DepartmentsPanel"
 import { HolidaysPanel } from "@/components/admin/HolidaysPanel"
 import { AuditLogPanel } from "@/components/admin/AuditLogPanel"
@@ -21,46 +20,48 @@ import { CourseCategoriesPanel } from "@/components/admin/CourseCategoriesPanel"
 export function AdminTab() {
   const { data: employees = [], isLoading } = useAllEmployees("", "", "", "")
   const { isAdmin } = usePermissions()
+
+  if (!isAdmin) {
+    return (
+      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+        Access restricted to admins only.
+      </div>
+    )
+  }
+
   const activeCount = employees.filter(
     (e) => e.employment_status === "active"
   ).length
   const inactiveCount = employees.filter(
     (e) => e.employment_status === "inactive"
   ).length
-  if (!isAdmin) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">
-        Access restricted to admins only.
-      </div>
-    )
-  }
+
   return (
-    <div className="max-w-6xl space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Admin</h1>
-          <p className="mt-1 text-muted-foreground">
-            Manage employees, departments, and access
-          </p>
-        </div>
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Manage employees, departments, and system access
+        </p>
       </div>
 
       {/* KPI strip */}
       <div className="grid grid-cols-3 gap-3">
-        <KPICard
+        <KpiCard
           label="Total Employees"
           value={employees.length}
           icon={Shield}
           isLoading={isLoading}
         />
-        <KPICard
+        <KpiCard
           label="Active"
           value={activeCount}
           icon={UserCheck}
           isLoading={isLoading}
           highlight="green"
         />
-        <KPICard
+        <KpiCard
           label="Inactive"
           value={inactiveCount}
           icon={UserX}
@@ -69,38 +70,44 @@ export function AdminTab() {
         />
       </div>
 
-      <Tabs defaultValue="employees">
-        <TabsList>
-          <TabsTrigger value="employees" className="gap-2">
-            <Shield className="h-4 w-4" /> Employees
-          </TabsTrigger>
-          <TabsTrigger value="departments" className="gap-2">
-            <Building2 className="h-4 w-4" /> Departments
-          </TabsTrigger>
-          <TabsTrigger value="course-categories" className="gap-2">
-            <Tag className="h-4 w-4" /> Categories & Tags
-          </TabsTrigger>
-          <TabsTrigger value="holidays" className="gap-2">
-            <Calendar className="h-4 w-4" /> Holidays
-          </TabsTrigger>
-          <TabsTrigger value="audit" className="gap-2">
-            <ShieldCheck className="h-4 w-4" /> Audit Log
-          </TabsTrigger>
+      {/* Tabs */}
+      <Tabs defaultValue="employees" className="space-y-5">
+        <TabsList className="h-10 rounded-lg bg-muted/60 p-1">
+          {[
+            { value: "employees", label: "Employees", icon: Shield },
+            { value: "departments", label: "Departments", icon: Building2 },
+            {
+              value: "course-categories",
+              label: "Categories & Tags",
+              icon: Tag,
+            },
+            { value: "holidays", label: "Holidays", icon: Calendar },
+            { value: "audit", label: "Audit Log", icon: ShieldCheck },
+          ].map(({ value, label, icon: Icon }) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="flex items-center gap-2 rounded-md px-3 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="employees" className="mt-4">
+        <TabsContent value="employees">
           <EmployeeManagement />
         </TabsContent>
-        <TabsContent value="departments">
+        <TabsContent value="departments" className="mt-5">
           <DepartmentsPanel />
         </TabsContent>
-        <TabsContent value="course-categories" className="mt-4">
+        <TabsContent value="course-categories" className="mt-5">
           <CourseCategoriesPanel />
         </TabsContent>
-        <TabsContent value="holidays">
+        <TabsContent value="holidays" className="mt-5">
           <HolidaysPanel />
         </TabsContent>
-        <TabsContent value="audit" className="mt-4">
+        <TabsContent value="audit" className="mt-5">
           <AuditLogPanel />
         </TabsContent>
       </Tabs>
@@ -108,8 +115,7 @@ export function AdminTab() {
   )
 }
 
-// KPICard stays here since it's only used by AdminTab
-function KPICard({
+function KpiCard({
   label,
   value,
   icon: Icon,
@@ -122,27 +128,28 @@ function KPICard({
   isLoading: boolean
   highlight?: "green" | "red"
 }) {
-  const color =
+  const valueColor =
     highlight === "green"
-      ? "text-green-600"
+      ? "text-emerald-600 dark:text-emerald-400"
       : highlight === "red" && value > 0
-        ? "text-red-600"
-        : ""
+        ? "text-red-600 dark:text-red-400"
+        : "text-foreground"
+
   return (
-    <Card>
-      <CardContent className="flex items-center gap-3 pt-4 pb-4">
-        <div className="shrink-0 rounded-lg bg-primary/10 p-2">
-          <Icon className="h-4 w-4 text-primary" />
+    <div className="rounded-xl border bg-card px-4 py-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-muted-foreground">{label}</p>
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+          <Icon className="h-3.5 w-3.5 text-primary" />
         </div>
-        <div>
-          <p className="text-xs text-muted-foreground">{label}</p>
-          {isLoading ? (
-            <Skeleton className="mt-1 h-6 w-10" />
-          ) : (
-            <p className={`text-2xl font-bold ${color}`}>{value}</p>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+      </div>
+      {isLoading ? (
+        <Skeleton className="mt-2 h-8 w-12" />
+      ) : (
+        <p className={`mt-1 text-3xl font-semibold tabular-nums ${valueColor}`}>
+          {value}
+        </p>
+      )}
+    </div>
   )
 }

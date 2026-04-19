@@ -142,8 +142,8 @@ export function ApprovalsTab() {
     <div className="max-w-4xl space-y-4">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold">Approvals</h1>
-        <p className="mt-1 text-muted-foreground">
+        <h1 className="text-3xl font-semibold tracking-tight">Approvals</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
           {totalPending > 0
             ? `${totalPending} request${totalPending > 1 ? "s" : ""} awaiting your review`
             : "No pending requests"}

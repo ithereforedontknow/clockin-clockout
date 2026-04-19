@@ -1,6 +1,5 @@
 import { useEffect, useState, useRef } from "react"
 import type { TabId } from "@/components/AppShell"
-
 import {
   Home,
   Timer,
@@ -76,7 +75,11 @@ export function CommandPalette({
       )
     : (clockEntry?.total_minutes ?? 0)
 
-  // ── Static command items ──────────────────────────────────────────────────
+  function go(tab: TabId) {
+    onNavigate(tab)
+    onClose()
+  }
+
   const navItems: CommandItem[] = [
     {
       id: "nav-home",
@@ -151,11 +154,10 @@ export function CommandPalette({
         ]
       : []),
   ]
-  // AFTER
-  const isClocked0utForDay = !!clockEntry?.clock_out // has an entry AND it's finished
 
-  const clockItems: CommandItem[] = isClocked0utForDay
-    ? [] // already done for the day — show nothing
+  const isClockDone = !!clockEntry?.clock_out
+  const clockItems: CommandItem[] = isClockDone
+    ? []
     : !isClockedIn
       ? [
           {
@@ -164,7 +166,7 @@ export function CommandPalette({
             sublabel: "Start your shift",
             icon: Play,
             group: "Clock",
-            keywords: ["start", "begin", "work"],
+            keywords: ["start", "begin"],
             action: async () => {
               if (!employee) return
               await clockIn.mutateAsync(employee.id)
@@ -180,7 +182,7 @@ export function CommandPalette({
             sublabel: `${formatMinutes(workedMins)} worked today`,
             icon: Square,
             group: "Clock",
-            keywords: ["stop", "end", "finish"],
+            keywords: ["stop", "end"],
             action: async () => {
               if (!employee || !clockEntry) return
               await clockOut.mutateAsync({
@@ -197,10 +199,10 @@ export function CommandPalette({
   const actionItems: CommandItem[] = [
     {
       id: "action-settings",
-      label: "Open Settings",
+      label: "Settings",
       icon: Settings,
       group: "Actions",
-      keywords: ["preferences", "config"],
+      keywords: ["preferences"],
       action: () => {
         onOpenSettings()
         onClose()
@@ -211,18 +213,15 @@ export function CommandPalette({
       label: "Request Time Off",
       icon: Calendar,
       group: "Actions",
-      keywords: ["leave", "vacation", "sick"],
-      action: () => {
-        go("timeoff")
-      },
+      keywords: ["leave", "vacation"],
+      action: () => go("timeoff"),
     },
   ]
 
-  // ── Employee search items ─────────────────────────────────────────────────
   const employeeItems: CommandItem[] = employees.map((emp) => ({
     id: `emp-${emp.id}`,
     label: `${emp.first_name} ${emp.last_name}`,
-    sublabel: `${emp.job_title} · ${emp.department}`,
+    sublabel: [emp.job_title, emp.department].filter(Boolean).join(" · "),
     icon: User,
     group: "People",
     keywords: [emp.email, emp.department, emp.job_title],
@@ -232,14 +231,12 @@ export function CommandPalette({
     },
   }))
 
-  // ── Filter all items by query ─────────────────────────────────────────────
   const allItems = [
     ...navItems,
     ...clockItems,
     ...actionItems,
     ...employeeItems,
   ]
-
   const filtered =
     query.trim() === ""
       ? [...clockItems, ...navItems, ...actionItems]
@@ -248,11 +245,10 @@ export function CommandPalette({
           return (
             item.label.toLowerCase().includes(q) ||
             item.sublabel?.toLowerCase().includes(q) ||
-            item.keywords?.some((k) => k.toLowerCase().includes(q))
+            item.keywords?.some((k) => k?.toLowerCase().includes(q))
           )
         })
 
-  // Group filtered items
   const grouped = filtered.reduce<Record<string, CommandItem[]>>(
     (acc, item) => {
       if (!acc[item.group]) acc[item.group] = []
@@ -264,12 +260,6 @@ export function CommandPalette({
 
   const flatFiltered = Object.values(grouped).flat()
 
-  function go(tab: TabId) {
-    onNavigate(tab)
-    onClose()
-  }
-
-  // Reset on open
   useEffect(() => {
     if (open) {
       setQuery("")
@@ -278,7 +268,6 @@ export function CommandPalette({
     }
   }, [open])
 
-  // Keyboard navigation
   useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
@@ -291,15 +280,12 @@ export function CommandPalette({
       } else if (e.key === "Enter") {
         e.preventDefault()
         flatFiltered[selected]?.action()
-      } else if (e.key === "Escape") {
-        onClose()
-      }
+      } else if (e.key === "Escape") onClose()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [open, flatFiltered, selected, onClose])
 
-  // Reset selected when query changes
   useEffect(() => {
     setSelected(0)
   }, [query])
@@ -310,17 +296,15 @@ export function CommandPalette({
 
   return (
     <>
-      {/* Backdrop */}
       <div
-        className="fixed inset-0 z-50 animate-in bg-black/10 fade-in-0"
+        className="fixed inset-0 z-50 animate-in bg-black/20 backdrop-blur-sm fade-in-0"
         onClick={onClose}
       />
 
-      {/* Palette */}
-      <div className="fixed top-[20vh] left-1/2 z-50 w-full max-w-md -translate-x-1/2">
-        <div className="overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
-          {/* Search input */}
-          <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+      <div className="fixed top-[18vh] left-1/2 z-50 w-full max-w-[480px] -translate-x-1/2 px-4">
+        <div className="overflow-hidden rounded-xl border border-border bg-background shadow-2xl ring-1 ring-black/5">
+          {/* Search */}
+          <div className="flex items-center gap-3 border-b px-4 py-3">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
               ref={inputRef}
@@ -329,22 +313,27 @@ export function CommandPalette({
               placeholder="Search tabs, actions, employees…"
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
-            <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-              ESC
-            </kbd>
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                className="text-xs text-muted-foreground hover:text-foreground"
+              >
+                Clear
+              </button>
+            )}
           </div>
 
           {/* Results */}
-          <div className="max-h-80 overflow-y-auto py-2">
+          <div className="max-h-72 overflow-y-auto py-1.5">
             {flatFiltered.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
-                <AlarmClock className="h-7 w-7 opacity-30" />
+              <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
+                <AlarmClock className="h-7 w-7 opacity-25" />
                 <p className="text-sm">No results for "{query}"</p>
               </div>
             ) : (
               Object.entries(grouped).map(([group, items]) => (
                 <div key={group}>
-                  <p className="px-4 py-1.5 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
+                  <p className="px-4 pt-2 pb-1 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
                     {group}
                   </p>
                   {items.map((item) => {
@@ -354,7 +343,7 @@ export function CommandPalette({
                       <button
                         key={item.id}
                         className={cn(
-                          "flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors",
+                          "flex w-full items-center gap-3 px-4 py-2 text-left transition-colors",
                           isSelected
                             ? "bg-accent text-accent-foreground"
                             : "hover:bg-accent/50"
@@ -398,26 +387,20 @@ export function CommandPalette({
             )}
           </div>
 
-          {/* Footer hint */}
-          <div className="flex items-center gap-3 border-t border-border px-4 py-2 text-[10px] text-muted-foreground">
-            <span>
-              <kbd className="rounded border border-border bg-muted px-1 py-0.5">
-                ↑↓
-              </kbd>{" "}
-              navigate
-            </span>
-            <span>
-              <kbd className="rounded border border-border bg-muted px-1 py-0.5">
-                ↵
-              </kbd>{" "}
-              select
-            </span>
-            <span>
-              <kbd className="rounded border border-border bg-muted px-1 py-0.5">
-                ESC
-              </kbd>{" "}
-              close
-            </span>
+          {/* Footer */}
+          <div className="flex items-center gap-4 border-t px-4 py-2 text-[10px] text-muted-foreground">
+            {[
+              ["↑↓", "navigate"],
+              ["↵", "select"],
+              ["ESC", "close"],
+            ].map(([key, label]) => (
+              <span key={label} className="flex items-center gap-1">
+                <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono">
+                  {key}
+                </kbd>
+                {label}
+              </span>
+            ))}
           </div>
         </div>
       </div>

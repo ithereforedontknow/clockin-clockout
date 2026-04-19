@@ -1,4 +1,3 @@
-// src/lib/queries/utils.ts
 import { supabase } from "@/lib/supabase"
 
 export async function getMyEmployeeId(): Promise<string> {

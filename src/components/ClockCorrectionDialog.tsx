@@ -14,7 +14,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Separator } from "@/components/ui/separator"
 import { useSubmitCorrection } from "@/lib/queries"
 import type { ClockEntry, BreakEntry } from "@/lib/supabase"
 
@@ -75,9 +74,10 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
     const inMs = new Date(clockIn).getTime()
     const outMs = new Date(clockOut).getTime()
     if (isNaN(inMs) || isNaN(outMs) || outMs <= inMs) return null
-    const diff =
+    return Math.max(
+      0,
       Math.floor((outMs - inMs) / 60000) - (parseInt(breakMinutes) || 0)
-    return Math.max(0, diff)
+    )
   })()
 
   async function handleSubmit() {
@@ -93,7 +93,6 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
       toast.error("Clock out must be after clock in")
       return
     }
-
     await submitCorrection.mutateAsync({
       clock_entry_id: entry?.id ?? "",
       employee_id: employeeId,
@@ -104,7 +103,6 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
       requested_notes: notes !== (entry?.notes ?? "") ? notes : null,
       reason: reason.trim(),
     })
-
     toast.success("Correction request submitted", {
       description: "Your manager will review it shortly.",
     })
@@ -116,7 +114,9 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <ClipboardEdit className="h-5 w-5 text-primary" />
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
+              <ClipboardEdit className="h-4 w-4 text-primary" />
+            </div>
             Request Time Correction
           </DialogTitle>
           <DialogDescription>
@@ -126,41 +126,44 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
         </DialogHeader>
 
         <div className="space-y-4 py-1">
-          {/* Original values reference */}
-          <div className="space-y-1 rounded-lg bg-muted/50 px-4 py-3 text-xs text-muted-foreground">
-            <p className="mb-1 flex items-center gap-1.5 font-medium text-foreground">
-              <Info className="h-3.5 w-3.5" /> Original Entry
+          {/* Original entry */}
+          <div className="rounded-lg border bg-muted/40 px-4 py-3">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-foreground">
+              <Info className="h-3.5 w-3.5 text-muted-foreground" />
+              Original Entry
             </p>
-            <p>
-              Clock In:{" "}
-              <span className="text-foreground">
-                {format(new Date(entry.clock_in), "h:mm a")}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span>
+                Clock In:{" "}
+                <span className="font-medium text-foreground">
+                  {format(new Date(entry.clock_in), "h:mm a")}
+                </span>
               </span>
-            </p>
-            {entry.clock_out && (
-              <p>
-                Clock Out:{" "}
-                <span className="text-foreground">
-                  {format(new Date(entry.clock_out), "h:mm a")}
+              {entry.clock_out && (
+                <span>
+                  Clock Out:{" "}
+                  <span className="font-medium text-foreground">
+                    {format(new Date(entry.clock_out), "h:mm a")}
+                  </span>
                 </span>
-              </p>
-            )}
-            <p>
-              Break:{" "}
-              <span className="text-foreground">{originalBreakMins} min</span>
-            </p>
-            {entry.total_minutes && (
-              <p>
-                Worked:{" "}
-                <span className="text-foreground">
-                  {Math.floor(entry.total_minutes / 60)}h{" "}
-                  {entry.total_minutes % 60}m
+              )}
+              <span>
+                Break:{" "}
+                <span className="font-medium text-foreground">
+                  {originalBreakMins} min
                 </span>
-              </p>
-            )}
+              </span>
+              {entry.total_minutes && (
+                <span>
+                  Worked:{" "}
+                  <span className="font-medium text-foreground">
+                    {Math.floor(entry.total_minutes / 60)}h{" "}
+                    {entry.total_minutes % 60}m
+                  </span>
+                </span>
+              )}
+            </div>
           </div>
-
-          <Separator />
 
           {/* Editable fields */}
           <div className="grid grid-cols-2 gap-3">
@@ -184,7 +187,7 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-sm">Break Duration (minutes)</Label>
+            <Label className="text-sm">Break duration (minutes)</Label>
             <Input
               type="number"
               min={0}
@@ -205,15 +208,17 @@ export function ClockCorrectionDialog({ entry, employeeId, onClose }: Props) {
           </div>
 
           {previewWorked !== null && (
-            <div className="flex items-center justify-between rounded-lg border border-primary/10 bg-primary/5 px-4 py-3 text-sm">
-              <span className="text-muted-foreground">Corrected total</span>
-              <span className="font-semibold text-primary">
+            <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+              <span className="text-sm text-muted-foreground">
+                Corrected total
+              </span>
+              <span className="text-sm font-semibold text-primary tabular-nums">
                 {Math.floor(previewWorked / 60)}h {previewWorked % 60}m
               </span>
             </div>
           )}
 
-          <Separator />
+          <div className="border-t pt-1" />
 
           <div className="space-y-1.5">
             <Label className="text-sm">
