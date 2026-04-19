@@ -2,14 +2,8 @@ import { Camera, Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import type { Employee } from "@/lib/supabase"
 
-interface IdentityCardProps {
-  user: Employee
-  uploading: boolean
-}
-
-export function IdentityCard({ user, uploading }: IdentityCardProps) {
+export function IdentityCard({ user, uploading }: any) {
   return (
     <Card className="overflow-hidden border-none bg-muted/20 shadow-none">
       <CardContent className="flex flex-col items-center pt-10 pb-8 text-center">
@@ -20,8 +14,8 @@ export function IdentityCard({ user, uploading }: IdentityCardProps) {
           <Avatar className="h-32 w-32 border-4 border-background shadow-2xl transition-transform group-hover:scale-[1.02]">
             <AvatarImage src={user.avatar_url} />
             <AvatarFallback className="bg-primary/10 text-3xl font-black text-primary">
-              {user.first_name?.[0] || ""}
-              {user.last_name?.[0] || ""}
+              {user.first_name[0]}
+              {user.last_name[0]}
             </AvatarFallback>
           </Avatar>
 

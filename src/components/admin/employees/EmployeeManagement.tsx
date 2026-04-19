@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react"
 import { UserPlus, ChevronLeft, ChevronRight } from "lucide-react"
-import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   useAllEmployees,
@@ -44,10 +43,21 @@ export function EmployeeManagement() {
 
   const departments = useMemo(() => depts.map((d) => d.name), [depts])
 
-  const totalPages = Math.ceil(employees.length / PAGE_SIZE)
+  // Pagination Logic
+  const filtered = useMemo(() => {
+    return employees.filter(
+      (e) =>
+        `${e.first_name} ${e.last_name}`
+          .toLowerCase()
+          .includes(search.toLowerCase()) ||
+        e.email.toLowerCase().includes(search.toLowerCase())
+    )
+  }, [employees, search])
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const paginated = useMemo(
-    () => employees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [employees, page]
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page]
   )
 
   return (
@@ -106,7 +116,7 @@ export function EmployeeManagement() {
       />
 
       {/* Pagination Footer */}
-      <div className="flex items-center justify-between px-2 pt-2">
+      <div className="flex items-center justify-between border-t px-2 pt-2">
         <p className="text-[11px] font-bold tracking-tight text-muted-foreground uppercase">
           Page {page} of {totalPages || 1} — {filtered.length} total results
         </p>
@@ -149,16 +159,12 @@ export function EmployeeManagement() {
           target={confirmTarget}
           onClose={() => setConfirmTarget(null)}
           onConfirm={async () => {
-            try {
-              await setStatus.mutateAsync({
-                id: confirmTarget.employee.id,
-                status:
-                  confirmTarget.action === "deactivate" ? "inactive" : "active",
-              })
-              setConfirmTarget(null)
-            } catch (err: any) {
-              toast.error(`Failed to update status: ${err.message}`)
-            }
+            await setStatus.mutateAsync({
+              id: confirmTarget.employee.id,
+              status:
+                confirmTarget.action === "deactivate" ? "inactive" : "active",
+            })
+            setConfirmTarget(null)
           }}
           isPending={setStatus.isPending}
         />

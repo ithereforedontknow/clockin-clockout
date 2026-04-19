@@ -28,7 +28,7 @@ const STATUS_STYLE: Record<string, string> = {
 interface EmployeeTableProps {
   employees: Employee[]
   isLoading: boolean
-  selected?: Set<string>
+  selected: Set<string>
   onToggleAll: () => void
   onToggleOne: (id: string) => void
   onEdit: (emp: Employee) => void
