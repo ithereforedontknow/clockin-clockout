@@ -4,8 +4,34 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+import type { Employee } from "@/lib/supabase"
 
-export function RequestCard({ item, type, onReview, isSelf, isHistory }: any) {
+interface RequestItem {
+  employee: Employee
+  id?: string
+  start_date?: string
+  end_date?: string
+  field_name?: string
+  created_at: string
+  clock_entry?: any
+  status: string
+}
+
+interface RequestCardProps {
+  item: RequestItem
+  type: string
+  onReview: (item: RequestItem, action: "approved" | "denied") => void
+  isSelf: boolean
+  isHistory?: boolean
+}
+
+export function RequestCard({
+  item,
+  type,
+  onReview,
+  isSelf,
+  isHistory,
+}: RequestCardProps) {
   const emp = item.employee
 
   return (
@@ -18,8 +44,8 @@ export function RequestCard({ item, type, onReview, isSelf, isHistory }: any) {
             <Avatar className="h-9 w-9 border shadow-sm">
               <AvatarImage src={emp?.avatar_url} />
               <AvatarFallback className="bg-primary/5 text-[10px] font-bold text-primary">
-                {emp?.first_name[0]}
-                {emp?.last_name[0]}
+                {emp?.first_name?.[0] || ""}
+                {emp?.last_name?.[0] || ""}
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
@@ -70,7 +96,7 @@ export function RequestCard({ item, type, onReview, isSelf, isHistory }: any) {
             )}
             {type === "infochange" && (
               <p className="capitalize">
-                Changed: {item.field_name.replace(/_/g, " ")}
+                Changed: {item.field_name?.replace(/_/g, " ") || "Unknown"}
               </p>
             )}
             <p>

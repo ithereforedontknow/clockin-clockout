@@ -42,7 +42,7 @@ export function TimesheetReportTable({ summaries }: any) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {summaries.map((s: any) => (
+            {(summaries || []).map((s: any) => (
               <TableRow
                 key={s.employee.id}
                 className="group cursor-pointer transition-colors hover:bg-primary/[0.02]"
@@ -53,7 +53,9 @@ export function TimesheetReportTable({ summaries }: any) {
                     <Avatar className="h-8 w-8 border shadow-sm">
                       <AvatarImage src={s.employee.avatar_url} />
                       <AvatarFallback className="text-[10px] font-bold">
-                        {s.employee.first_name[0]}
+                        {s.employee.first_name?.trim()?.[0] ||
+                          s.employee.last_name?.trim()?.[0] ||
+                          "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div>

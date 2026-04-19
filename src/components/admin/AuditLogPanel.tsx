@@ -87,7 +87,7 @@ export function AuditLogPanel() {
                         variant="outline"
                         className="w-fit border-slate-200 bg-slate-50 text-[9px] font-black tracking-tighter text-slate-600 uppercase"
                       >
-                        {e.action.replace(/_/g, " ")}
+                        {e.action?.replace(/_/g, " ") || ""}
                       </Badge>
                       <span className="line-clamp-1 text-xs font-medium text-muted-foreground italic">
                         "{e.note || "System log"}"
@@ -98,7 +98,7 @@ export function AuditLogPanel() {
                     <div className="flex items-center gap-2">
                       <Terminal className="h-3 w-3 text-muted-foreground/40" />
                       <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] font-bold text-blue-600 uppercase">
-                        {e.target_table}
+                        {e.target_table ?? "-"}
                       </code>
                     </div>
                   </TableCell>
@@ -114,7 +114,7 @@ export function AuditLogPanel() {
 
       <div className="flex items-center justify-between px-2">
         <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-          Entries {(page - 1) * PAGE_SIZE + 1} to{" "}
+          Entries {entries.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1} to{" "}
           {Math.min(page * PAGE_SIZE, entries.length)}
         </p>
         <div className="flex items-center gap-2">

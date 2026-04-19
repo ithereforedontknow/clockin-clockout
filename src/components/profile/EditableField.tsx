@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Pencil, Check, X, Loader2, Clock } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,12 @@ export function EditableField({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft(value)
+    }
+  }, [value, editing])
 
   async function handleSave() {
     if (draft === value) {
@@ -100,7 +106,17 @@ export function EditableField({
       ) : (
         <div
           className={`flex h-9 items-center justify-between rounded-lg border border-transparent px-3 transition-all ${isPending ? "cursor-not-allowed bg-muted/30 opacity-60" : "cursor-pointer hover:border-border hover:bg-muted/50"}`}
+          tabIndex={isPending ? -1 : 0}
+          role="button"
+          aria-disabled={isPending}
           onClick={() => !isPending && setEditing(true)}
+          onKeyDown={(e) => {
+            if (isPending) return
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              setEditing(true)
+            }
+          }}
         >
           <span className="truncate text-sm font-medium tabular-nums">
             {value || (

@@ -29,6 +29,9 @@ export function DepartmentsPanel() {
         setName("")
         toast.success("Department created")
       },
+      onError: (err: any) => {
+        toast.error(`Failed to create department: ${err.message}`)
+      },
     })
   }
 
@@ -115,6 +118,10 @@ export function DepartmentsPanel() {
                         e.stopPropagation()
                         deleteDept.mutate(dept.id, {
                           onSuccess: () => toast.success("Department removed"),
+                          onError: (err: any) =>
+                            toast.error(
+                              `Failed to delete department: ${err.message}`
+                            ),
                         })
                       }}
                     >
@@ -142,8 +149,8 @@ export function DepartmentsPanel() {
                             <Avatar className="h-7 w-7 shrink-0 border shadow-sm">
                               <AvatarImage src={emp.avatar_url} />
                               <AvatarFallback className="text-[9px] font-bold uppercase">
-                                {emp.first_name[0]}
-                                {emp.last_name[0]}
+                                {emp.first_name?.[0] || ""}
+                                {emp.last_name?.[0] || ""}
                               </AvatarFallback>
                             </Avatar>
                             <div className="min-w-0 flex-1">

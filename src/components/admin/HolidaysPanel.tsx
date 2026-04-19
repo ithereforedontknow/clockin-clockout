@@ -166,10 +166,14 @@ export function HolidaysPanel() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 rounded-full text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
-                        onClick={() => deleteHoliday.mutate(h.id)}
-                        disabled={deleteHoliday.isPending}
+                        onClick={() => deleteHoliday.mutate({ id: h.id })}
+                        disabled={
+                          deleteHoliday.isPending &&
+                          deleteHoliday.variables?.id === h.id
+                        }
                       >
-                        {deleteHoliday.isPending ? (
+                        {deleteHoliday.isPending &&
+                        deleteHoliday.variables?.id === h.id ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         ) : (
                           <Trash2 className="h-3.5 w-3.5" />

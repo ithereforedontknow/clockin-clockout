@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Check, X, Loader2, Clock, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -36,6 +36,12 @@ export function EditableSelectField({
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!editing) {
+      setDraft(value)
+    }
+  }, [value, editing])
 
   const displayValue = options.find((o) => o.value === value)?.label || value
 
@@ -101,9 +107,11 @@ export function EditableSelectField({
             variant="ghost"
             className="h-9 w-9 shrink-0 text-destructive hover:bg-red-50"
             onClick={() => {
+              if (saving) return
               setDraft(value)
               setEditing(false)
             }}
+            disabled={saving}
           >
             <X className="h-4 w-4" />
           </Button>
@@ -111,7 +119,17 @@ export function EditableSelectField({
       ) : (
         <div
           className={`flex h-9 items-center justify-between rounded-lg border border-transparent px-3 transition-all ${isPending ? "cursor-not-allowed bg-muted/30 opacity-60" : "cursor-pointer hover:border-border hover:bg-muted/50"}`}
+          tabIndex={isPending ? -1 : 0}
+          role="button"
+          aria-disabled={isPending}
           onClick={() => !isPending && setEditing(true)}
+          onKeyDown={(e) => {
+            if (isPending) return
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault()
+              setEditing(true)
+            }
+          }}
         >
           <span className="truncate text-sm font-medium tabular-nums">
             {displayValue || (

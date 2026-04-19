@@ -14,7 +14,7 @@ export function LeaveBalancesCard({
   return (
     <Card>
       <CardHeader className="border-b pb-3">
-        <CardTitle className="flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
+        <CardTitle className="flex items-center justify-between text-xs font-bold tracking-widest text-muted-foreground uppercase">
           <div className="flex items-center gap-2">
             <TrendingUp className="h-3.5 w-3.5 text-primary" /> Leave Balances
           </div>
@@ -34,19 +34,19 @@ export function LeaveBalancesCard({
                 key={b.id}
                 className="space-y-1 border-l-2 border-muted pl-3"
               >
-                <p className="truncate text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                <p className="truncate text-xs font-bold tracking-wider text-muted-foreground uppercase">
                   {b.category?.name}
                 </p>
                 <div className="flex items-baseline gap-1">
                   <span className="text-xl font-bold tracking-tight tabular-nums">
                     {b.balance}
                   </span>
-                  <span className="text-[10px] font-medium text-muted-foreground uppercase">
+                  <span className="text-xs font-medium text-muted-foreground uppercase">
                     {b.category?.unit}
                   </span>
                 </div>
                 {b.scheduled > 0 && (
-                  <p className="text-[10px] font-medium text-amber-600">
+                  <p className="text-xs font-medium text-amber-600">
                     −{b.scheduled} scheduled
                   </p>
                 )}

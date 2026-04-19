@@ -1,3 +1,4 @@
+import { useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -14,8 +15,14 @@ import { DiffViewer } from "./DiffViewer"
 import { format } from "date-fns"
 
 export function ReviewDialog({ target, onClose, onConfirm, isPending }: any) {
+  const [comment, setComment] = useState("")
   if (!target) return null
   const { kind, item, decision } = target
+
+  const handleConfirm = () => {
+    if (decision === "denied" && comment.trim() === "") return
+    onConfirm(comment)
+  }
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -44,8 +51,11 @@ export function ReviewDialog({ target, onClose, onConfirm, isPending }: any) {
                 </p>
                 <p className="text-sm font-bold">{item.category?.name}</p>
                 <p className="text-xs text-muted-foreground">
-                  {format(new Date(item.start_date), "PPP")} –{" "}
-                  {format(new Date(item.end_date), "PPP")}
+                  {item.start_date
+                    ? format(new Date(item.start_date), "PPP")
+                    : "—"}{" "}
+                  –{" "}
+                  {item.end_date ? format(new Date(item.end_date), "PPP") : "—"}
                 </p>
                 <p className="mt-2 text-xs font-bold text-primary">
                   {item.amount} {item.category?.unit} total
@@ -66,7 +76,11 @@ export function ReviewDialog({ target, onClose, onConfirm, isPending }: any) {
                 {item.requested_clock_in && (
                   <DiffViewer
                     label="Clock In"
-                    oldValue={format(new Date(item.clock_entry?.clock_in), "p")}
+                    oldValue={
+                      item.clock_entry?.clock_in
+                        ? format(new Date(item.clock_entry.clock_in), "p")
+                        : ""
+                    }
                     newValue={format(new Date(item.requested_clock_in), "p")}
                   />
                 )}
@@ -103,7 +117,8 @@ export function ReviewDialog({ target, onClose, onConfirm, isPending }: any) {
                   : "Add an optional note..."
               }
               className="h-20 resize-none text-sm"
-              id="review-comment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
             />
           </div>
         </div>
@@ -114,13 +129,10 @@ export function ReviewDialog({ target, onClose, onConfirm, isPending }: any) {
           </Button>
           <Button
             variant={decision === "denied" ? "destructive" : "default"}
-            disabled={isPending}
-            onClick={() => {
-              const comment = (
-                document.getElementById("review-comment") as HTMLTextAreaElement
-              )?.value
-              onConfirm(comment)
-            }}
+            disabled={
+              isPending || (decision === "denied" && comment.trim() === "")
+            }
+            onClick={handleConfirm}
           >
             {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Confirm Decision

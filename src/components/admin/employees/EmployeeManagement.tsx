@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react"
 import { UserPlus, ChevronLeft, ChevronRight } from "lucide-react"
+import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   useAllEmployees,
@@ -43,21 +44,10 @@ export function EmployeeManagement() {
 
   const departments = useMemo(() => depts.map((d) => d.name), [depts])
 
-  // Pagination Logic
-  const filtered = useMemo(() => {
-    return employees.filter(
-      (e) =>
-        `${e.first_name} ${e.last_name}`
-          .toLowerCase()
-          .includes(search.toLowerCase()) ||
-        e.email.toLowerCase().includes(search.toLowerCase())
-    )
-  }, [employees, search])
-
-  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const totalPages = Math.ceil(employees.length / PAGE_SIZE)
   const paginated = useMemo(
-    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-    [filtered, page]
+    () => employees.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [employees, page]
   )
 
   return (
@@ -159,12 +149,16 @@ export function EmployeeManagement() {
           target={confirmTarget}
           onClose={() => setConfirmTarget(null)}
           onConfirm={async () => {
-            await setStatus.mutateAsync({
-              id: confirmTarget.employee.id,
-              status:
-                confirmTarget.action === "deactivate" ? "inactive" : "active",
-            })
-            setConfirmTarget(null)
+            try {
+              await setStatus.mutateAsync({
+                id: confirmTarget.employee.id,
+                status:
+                  confirmTarget.action === "deactivate" ? "inactive" : "active",
+              })
+              setConfirmTarget(null)
+            } catch (err: any) {
+              toast.error(`Failed to update status: ${err.message}`)
+            }
           }}
           isPending={setStatus.isPending}
         />

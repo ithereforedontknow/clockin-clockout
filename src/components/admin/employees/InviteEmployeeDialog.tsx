@@ -39,7 +39,7 @@ export function InviteEmployeeDialog({
   const { data: allEmps = [] } = useAllEmployees("", "", "", "")
   const employers = allEmps.filter((e: any) => e.role === "employer")
 
-  const [form, setForm] = useState({
+  const initialForm = {
     email: "",
     first_name: "",
     last_name: "",
@@ -52,14 +52,19 @@ export function InviteEmployeeDialog({
     standard_start_time: "09:00",
     standard_hours_per_day: 8,
     standard_hours_per_week: 40,
-  })
+  }
+
+  const [form, setForm] = useState(initialForm)
+
+  const resetForm = () => setForm(initialForm)
 
   const handleSubmit = async () => {
     if (!form.email || !form.first_name)
       return toast.error("Email and Name are required")
     try {
-      await invite.mutateAsync(form as any)
+      await invite.mutateAsync(form)
       toast.success("Employee invited")
+      resetForm()
       onClose()
     } catch (err: any) {
       toast.error(err.message)
@@ -67,7 +72,15 @@ export function InviteEmployeeDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) {
+          resetForm()
+          onClose()
+        }
+      }}
+    >
       {/* flex-col + max-h forces the modal to respect screen size */}
       <DialogContent className="flex max-h-[95vh] flex-col p-0 sm:max-w-[550px]">
         <DialogHeader className="shrink-0 p-6 pb-2">
@@ -231,12 +244,14 @@ export function InviteEmployeeDialog({
                   <Input
                     type="number"
                     value={form.standard_hours_per_day}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const val = e.target.value
                       setForm({
                         ...form,
-                        standard_hours_per_day: parseInt(e.target.value),
+                        standard_hours_per_day:
+                          val === "" ? 0 : parseInt(val, 10) || 0,
                       })
-                    }
+                    }}
                     className="h-9"
                   />
                 </div>
@@ -245,12 +260,14 @@ export function InviteEmployeeDialog({
                   <Input
                     type="number"
                     value={form.standard_hours_per_week}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const val = e.target.value
                       setForm({
                         ...form,
-                        standard_hours_per_week: parseInt(e.target.value),
+                        standard_hours_per_week:
+                          val === "" ? 0 : parseInt(val, 10) || 0,
                       })
-                    }
+                    }}
                     className="h-9"
                   />
                 </div>
@@ -261,7 +278,14 @@ export function InviteEmployeeDialog({
 
         {/* shrink-0 keeps footer sticky at bottom */}
         <DialogFooter className="shrink-0 border-t bg-muted/20 p-6">
-          <Button variant="ghost" onClick={onClose} className="font-bold">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              resetForm()
+              onClose()
+            }}
+            className="font-bold"
+          >
             Cancel
           </Button>
           <Button

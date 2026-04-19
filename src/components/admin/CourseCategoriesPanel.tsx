@@ -42,7 +42,10 @@ function TaxonomySection({ title, icon: Icon, items, table, onUpdate }: any) {
       setVal("")
       onUpdate()
       toast.success("Added to system")
+    } else {
+      toast.error(`Failed to add: ${error.message}`)
     }
+  }
   }
 
   return (
@@ -89,10 +92,19 @@ function TaxonomySection({ title, icon: Icon, items, table, onUpdate }: any) {
                 {item.name}
               </span>
               <button
+                type="button"
+                aria-label={`Delete category ${item.name || item.id}`}
                 className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
                 onClick={async () => {
-                  await supabase.from(table).delete().eq("id", item.id)
-                  onUpdate()
+                  if (!window.confirm(`Delete "${item.name}"?`)) return
+                  try {
+                    const { error } = await supabase.from(table).delete().eq("id", item.id)
+                    if (error) throw error
+                    onUpdate()
+                    toast.success("Category deleted")
+                  } catch (err: any) {
+                    toast.error(`Failed to delete: ${err.message}`)
+                  }
                 }}
               >
                 <Trash2 className="h-3.5 w-3.5" />

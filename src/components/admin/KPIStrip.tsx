@@ -1,20 +1,24 @@
 import { Shield, UserCheck, UserX } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import type { Employee } from "@/lib/supabase"
 
-export function AdminKpiStrip({ employees, isLoading }: any) {
-  const active = employees.filter(
-    (e: any) => e.employment_status === "active"
-  ).length
-  const inactive = employees.filter(
-    (e: any) => e.employment_status === "inactive"
-  ).length
+export function AdminKpiStrip({
+  employees,
+  isLoading,
+}: {
+  employees: Employee[] | undefined
+  isLoading: boolean
+}) {
+  const list = employees || []
+  const active = list.filter((e) => e.employment_status === "active").length
+  const inactive = list.filter((e) => e.employment_status === "inactive").length
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <StatCard
         label="Database Total"
-        value={employees.length}
+        value={list.length}
         icon={Shield}
         isLoading={isLoading}
       />

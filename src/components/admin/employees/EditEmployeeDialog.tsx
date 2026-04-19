@@ -273,10 +273,12 @@ export function EditEmployeeDialog({
               <div className="grid grid-cols-2 gap-4">
                 {uniqueBalances.map((b: any) => (
                   <div key={b.category_id} className="space-y-1.5">
-                    <Label className="text-xs">{b.category?.name}</Label>
+                    <Label className="text-xs">
+                      {b.category?.name || "Unknown"}
+                    </Label>
                     <Input
                       type="number"
-                      defaultValue={b.balance}
+                      value={balanceEdits[b.category_id] ?? String(b.balance)}
                       onChange={(e) =>
                         setBalanceEdits((prev) => ({
                           ...prev,

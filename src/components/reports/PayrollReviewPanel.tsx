@@ -21,13 +21,16 @@ export function PayrollReviewPanel({ payrollSummary, onExport }: any) {
 
   const handleExportClick = async () => {
     setIsExporting(true)
-    const promise = onExport() // Assume this is the CSV generator
-    toast.promise(promise, {
-      loading: "Compiling financial data...",
-      success: "Payroll CSV exported successfully",
-      error: "Failed to generate export",
-    })
-    setIsExporting(false)
+    try {
+      const promise = onExport() // Assume this is the CSV generator
+      await toast.promise(promise, {
+        loading: "Compiling financial data...",
+        success: "Payroll CSV exported successfully",
+        error: "Failed to generate export",
+      })
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   return (
@@ -88,7 +91,7 @@ export function PayrollReviewPanel({ payrollSummary, onExport }: any) {
                   {emp.name}
                 </TableCell>
                 <TableCell className="text-right font-black tabular-nums">
-                  ₱{emp.grossPay.toLocaleString()}
+                  ₱{(emp.grossPay ?? 0).toLocaleString()}
                 </TableCell>
                 <TableCell className="pr-6 text-right">
                   {emp.missingOuts > 0 ? (

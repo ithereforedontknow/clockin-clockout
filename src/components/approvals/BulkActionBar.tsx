@@ -15,7 +15,9 @@ export function BulkActionBar({
         <span className="text-[10px] font-black tracking-widest text-slate-400 uppercase">
           Selected
         </span>
-        <span className="text-xs font-bold">{count} Requests</span>
+        <span className="text-xs font-bold">
+          {count} Request{count === 1 ? "" : "s"}
+        </span>
       </div>
       <div className="h-6 w-[1px] bg-slate-700" />
       <div className="flex items-center gap-3">

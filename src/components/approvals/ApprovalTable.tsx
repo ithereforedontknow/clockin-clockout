@@ -68,7 +68,7 @@ export function ApprovalTable({
           {data.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={5}
+                colSpan={isHistory ? 4 : 5}
                 className="h-32 text-center text-sm text-muted-foreground italic"
               >
                 No {isHistory ? "processed" : "pending"} requests found.
@@ -99,8 +99,8 @@ export function ApprovalTable({
                       <Avatar className="h-8 w-8 border shadow-sm">
                         <AvatarImage src={emp?.avatar_url ?? undefined} />
                         <AvatarFallback className="bg-primary/5 text-[10px] font-bold text-primary uppercase">
-                          {emp?.first_name[0]}
-                          {emp?.last_name[0]}
+                          {emp?.first_name?.[0] || ""}
+                          {emp?.last_name?.[0] || ""}
                         </AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
@@ -139,10 +139,12 @@ export function ApprovalTable({
                           <Clock className="h-3 w-3 text-muted-foreground" />
                           <span>
                             Correction for{" "}
-                            {format(
-                              new Date(item.clock_entry?.date),
-                              "MMM d, yyyy"
-                            )}
+                            {item.clock_entry?.date
+                              ? format(
+                                  new Date(item.clock_entry.date),
+                                  "MMM d, yyyy"
+                                )
+                              : "-"}
                           </span>
                         </div>
                       )}
@@ -173,12 +175,13 @@ export function ApprovalTable({
                         {item.status}
                       </Badge>
                     ) : (
-                      <div className="flex justify-end gap-1 opacity-0 transition-all group-hover:opacity-100">
+                      <div className="flex justify-end gap-1 opacity-0 transition-all group-focus-within:opacity-100 group-hover:opacity-100">
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 rounded-full text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
                           onClick={() => onReview(item, "approved")}
+                          aria-label="Approve"
                         >
                           <Check className="h-4 w-4" />
                         </Button>
@@ -187,6 +190,7 @@ export function ApprovalTable({
                           size="icon"
                           className="h-8 w-8 rounded-full text-destructive hover:bg-red-50 hover:text-red-700"
                           onClick={() => onReview(item, "denied")}
+                          aria-label="Deny"
                         >
                           <X className="h-4 w-4" />
                         </Button>

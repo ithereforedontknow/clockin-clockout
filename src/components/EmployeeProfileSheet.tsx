@@ -15,6 +15,7 @@ import {
   ChevronUp,
   UserCircle,
 } from "lucide-react"
+import { toast } from "sonner"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -77,8 +78,8 @@ export function EmployeeProfileSheet({
               <Avatar className="h-16 w-16 border-2 border-background shadow-lg">
                 <AvatarImage src={emp.avatar_url ?? undefined} />
                 <AvatarFallback className="bg-primary/5 text-lg font-bold text-primary">
-                  {emp.first_name[0]}
-                  {emp.last_name[0]}
+                  {emp.first_name?.[0] || ""}
+                  {emp.last_name?.[0] || ""}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0 flex-1">
@@ -273,6 +274,15 @@ export function EmployeeProfileSheet({
 }
 
 function InfoItem({ icon: Icon, label, value, isCopyable }: any) {
+  const handleCopy = async () => {
+    if (!isCopyable) return
+    try {
+      await navigator.clipboard.writeText(value)
+      toast.success(`${label} copied to clipboard`)
+    } catch (err) {
+      toast.error("Failed to copy to clipboard")
+    }
+  }
   if (!value) return null
   return (
     <div className="group flex items-start gap-3">
@@ -285,6 +295,7 @@ function InfoItem({ icon: Icon, label, value, isCopyable }: any) {
         </p>
         <p
           className={`truncate text-xs font-semibold tabular-nums ${isCopyable ? "cursor-pointer text-primary hover:underline" : "text-foreground/90"}`}
+          onClick={isCopyable ? handleCopy : undefined}
         >
           {value}
         </p>

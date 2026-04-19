@@ -32,9 +32,9 @@ export function EmployeeFilters({
   onDeptFilterChange,
   departments,
 }: Props) {
-  const activeFilterCount = [statusFilter, roleFilter, deptFilter].filter(
-    Boolean
-  ).length
+  const activeFilterCount =
+    [statusFilter, roleFilter, deptFilter].filter(Boolean).length +
+    (search ? 1 : 0)
 
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">

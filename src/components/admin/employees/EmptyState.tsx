@@ -1,7 +1,17 @@
 import { Users, Search, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-export function EmptyState({ hasFilters, onClearFilters, onAddEmployee }: any) {
+interface EmptyStateProps {
+  hasFilters: boolean
+  onClearFilters: () => void
+  onAddEmployee: () => void
+}
+
+export function EmptyState({
+  hasFilters,
+  onClearFilters,
+  onAddEmployee,
+}: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed bg-muted/5 py-20">
       <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted">
