@@ -1,0 +1,6 @@
+export * from "./KPIStrip"
+export * from "./employees/EmployeeManagement"
+export * from "./DepartmentsPanel"
+export * from "./CourseCategoriesPanel"
+export * from "./HolidaysPanel"
+export * from "./AuditLogPanel"

@@ -1,160 +1,147 @@
 import { useState } from "react"
-import { Plus, Trash2 } from "lucide-react"
+import { Plus, Trash2, CheckCircle2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 
-interface Question {
-  question: string
-  options: string[]
-  correct_index: number
-}
+export function QuizBuilder({ quiz, onSave }: any) {
+  const [questions, setQuestions] = useState(quiz?.questions ?? [])
 
-interface QuizBuilderProps {
-  quiz: { questions: Question[] } | null
-  onSave: (quiz: { questions: Question[] }) => void
-}
-
-const emptyQuestion = (): Question => ({
-  question: "",
-  options: ["", ""],
-  correct_index: 0,
-})
-
-export function QuizBuilder({ quiz, onSave }: QuizBuilderProps) {
-  const [questions, setQuestions] = useState<Question[]>(quiz?.questions ?? [])
-
-  const update = (updated: Question[]) => {
+  const update = (updated: any[]) => {
     setQuestions(updated)
     onSave({ questions: updated })
   }
-
-  const addQuestion = () => update([...questions, emptyQuestion()])
+  const addQuestion = () =>
+    update([
+      ...questions,
+      { question: "", options: ["", ""], correct_index: 0 },
+    ])
   const removeQuestion = (qi: number) =>
-    update(questions.filter((_, i) => i !== qi))
+    update(questions.filter((_: any, i: number) => i !== qi))
+
   const setQuestionText = (qi: number, text: string) =>
-    update(questions.map((q, i) => (i === qi ? { ...q, question: text } : q)))
+    update(
+      questions.map((x: any, i: number) =>
+        i === qi ? { ...x, question: text } : x
+      )
+    )
+
   const setOption = (qi: number, oi: number, text: string) =>
     update(
-      questions.map((q, i) =>
-        i === qi
-          ? { ...q, options: q.options.map((o, j) => (j === oi ? text : o)) }
-          : q
-      )
-    )
-  const addOption = (qi: number) =>
-    update(
-      questions.map((q, i) =>
-        i === qi ? { ...q, options: [...q.options, ""] } : q
-      )
-    )
-  const removeOption = (qi: number, oi: number) =>
-    update(
-      questions.map((q, i) =>
+      questions.map((x: any, i: number) =>
         i === qi
           ? {
-              ...q,
-              options: q.options.filter((_, j) => j !== oi),
-              correct_index:
-                q.correct_index >= oi
-                  ? Math.max(0, q.correct_index - 1)
-                  : q.correct_index,
+              ...x,
+              options: x.options.map((o: any, j: number) =>
+                j === oi ? text : o
+              ),
             }
-          : q
+          : x
       )
     )
+
+  const addOption = (qi: number) =>
+    update(
+      questions.map((x: any, i: number) =>
+        i === qi ? { ...x, options: [...x.options, ""] } : x
+      )
+    )
+
+  const removeOption = (qi: number, oi: number) =>
+    update(
+      questions.map((x: any, i: number) =>
+        i === qi
+          ? {
+              ...x,
+              options: x.options.filter((_: any, j: number) => j !== oi),
+              correct_index:
+                x.correct_index >= oi
+                  ? Math.max(0, x.correct_index - 1)
+                  : x.correct_index,
+            }
+          : x
+      )
+    )
+
   const setCorrect = (qi: number, oi: number) =>
     update(
-      questions.map((q, i) => (i === qi ? { ...q, correct_index: oi } : q))
+      questions.map((x: any, i: number) =>
+        i === qi ? { ...x, correct_index: oi } : x
+      )
     )
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium">Quiz Questions</label>
-          {questions.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {questions.length}
-            </Badge>
-          )}
-        </div>
-        <Button size="sm" variant="outline" onClick={addQuestion}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Add Question
+        <label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+          Evaluation Quiz
+        </label>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs font-bold"
+          onClick={addQuestion}
+        >
+          <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Question
         </Button>
       </div>
 
       {questions.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            No quiz questions yet.
+        <div className="rounded-xl border border-dashed bg-background/50 p-8 text-center">
+          <p className="text-xs font-medium text-muted-foreground italic">
+            No quiz attached to this lesson.
           </p>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-2"
-            onClick={addQuestion}
-          >
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Add your first question
-          </Button>
         </div>
       ) : (
-        <div className="space-y-3">
-          {questions.map((q, qi) => (
-            <div key={qi} className="rounded-xl border bg-card p-4 shadow-sm">
-              {/* Question header */}
-              <div className="mb-3 flex items-center gap-2">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+        <div className="space-y-4">
+          {questions.map((q: any, qi: number) => (
+            <div
+              key={qi}
+              className="overflow-hidden rounded-xl border bg-background shadow-sm"
+            >
+              <div className="flex items-center gap-3 border-b bg-muted/30 p-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-black text-muted-foreground">
                   {qi + 1}
                 </span>
                 <Input
-                  placeholder="Enter your question…"
+                  placeholder="Enter the question..."
                   value={q.question}
                   onChange={(e) => setQuestionText(qi, e.target.value)}
-                  className="flex-1 border-0 bg-transparent p-0 text-sm font-medium shadow-none focus-visible:ring-0"
+                  className="flex-1 border-none bg-transparent px-0 font-bold shadow-none focus-visible:ring-0"
                 />
                 <Button
                   size="icon"
                   variant="ghost"
-                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                  className="h-7 w-7 text-muted-foreground hover:text-destructive"
                   onClick={() => removeQuestion(qi)}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
-
-              {/* Options */}
-              <div className="space-y-2 pl-8">
-                <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
-                  Options — select the correct answer
-                </p>
-                {q.options.map((opt, oi) => (
-                  <div key={oi} className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name={`correct-${qi}`}
-                      checked={q.correct_index === oi}
-                      onChange={() => setCorrect(qi, oi)}
-                      className="accent-primary"
-                      title="Mark as correct"
-                    />
+              <div className="space-y-2 p-4">
+                {q.options.map((opt: string, oi: number) => (
+                  <div
+                    key={oi}
+                    className={`flex items-center gap-3 rounded-lg border p-2 transition-colors ${q.correct_index === oi ? "border-emerald-200 bg-emerald-50/50" : "bg-muted/10"}`}
+                  >
+                    <button
+                      onClick={() => setCorrect(qi, oi)}
+                      className={`flex h-5 w-5 items-center justify-center rounded-full border-2 transition-colors ${q.correct_index === oi ? "border-emerald-500 bg-emerald-500 text-white" : "border-muted-foreground/30"}`}
+                    >
+                      {q.correct_index === oi && (
+                        <CheckCircle2 className="h-3 w-3" />
+                      )}
+                    </button>
                     <Input
                       placeholder={`Option ${oi + 1}`}
                       value={opt}
                       onChange={(e) => setOption(qi, oi, e.target.value)}
-                      className={`flex-1 text-sm ${
-                        q.correct_index === oi
-                          ? "border-emerald-300 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-900/10"
-                          : ""
-                      }`}
+                      className="h-8 flex-1 border-none bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
                     />
                     {q.options.length > 2 && (
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                        className="h-6 w-6 text-muted-foreground/50 hover:text-destructive"
                         onClick={() => removeOption(qi, oi)}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -165,11 +152,10 @@ export function QuizBuilder({ quiz, onSave }: QuizBuilderProps) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="mt-1 h-7 text-xs text-muted-foreground"
+                  className="mt-2 h-7 text-[10px] font-bold tracking-widest text-muted-foreground uppercase"
                   onClick={() => addOption(qi)}
                 >
-                  <Plus className="mr-1 h-3 w-3" />
-                  Add option
+                  <Plus className="mr-1.5 h-3 w-3" /> Add Option
                 </Button>
               </div>
             </div>

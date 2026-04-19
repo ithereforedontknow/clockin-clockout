@@ -13,10 +13,11 @@ export function LeaveBalancesCard({
 }: LeaveBalancesCardProps) {
   return (
     <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          Leave Balances
+      <CardHeader className="border-b pb-3">
+        <CardTitle className="flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-3.5 w-3.5 text-primary" /> Leave Balances
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">

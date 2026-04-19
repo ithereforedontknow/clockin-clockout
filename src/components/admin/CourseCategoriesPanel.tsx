@@ -1,294 +1,106 @@
 import { useState } from "react"
-import { Plus, Trash2, Pencil, Tag, Layers } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { Tag, Layers, Plus, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
-import { useCourseCategories, useCourseTags } from "@/lib/queries"
-import { supabase } from "@/lib/supabase"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
+import { useCourseCategories, useCourseTags } from "@/lib/queries"
 
 export function CourseCategoriesPanel() {
-  const { data: categories = [], refetch: refetchCategories } =
-    useCourseCategories()
+  const { data: categories = [], refetch: refetchCats } = useCourseCategories()
   const { data: tags = [], refetch: refetchTags } = useCourseTags()
-  const [newCategory, setNewCategory] = useState("")
-  const [newTag, setNewTag] = useState("")
-  const [editingCategory, setEditingCategory] = useState<any>(null)
-  const [editingTag, setEditingTag] = useState<any>(null)
-
-  async function createCategory() {
-    if (!newCategory.trim()) return
-    const { error } = await supabase
-      .from("course_categories")
-      .insert({ name: newCategory.trim() })
-    if (error) toast.error(error.message)
-    else {
-      toast.success("Category created")
-      setNewCategory("")
-      refetchCategories()
-    }
-  }
-
-  async function updateCategory() {
-    if (!editingCategory?.name.trim()) return
-    const { error } = await supabase
-      .from("course_categories")
-      .update({ name: editingCategory.name.trim() })
-      .eq("id", editingCategory.id)
-    if (error) toast.error(error.message)
-    else {
-      toast.success("Category updated")
-      setEditingCategory(null)
-      refetchCategories()
-    }
-  }
-
-  async function deleteCategory(id: string) {
-    const { error } = await supabase
-      .from("course_categories")
-      .delete()
-      .eq("id", id)
-    if (error) toast.error(error.message)
-    else {
-      toast.success("Category deleted")
-      refetchCategories()
-    }
-  }
-
-  async function createTag() {
-    if (!newTag.trim()) return
-    const { error } = await supabase
-      .from("course_tags")
-      .insert({ name: newTag.trim() })
-    if (error) toast.error(error.message)
-    else {
-      toast.success("Tag created")
-      setNewTag("")
-      refetchTags()
-    }
-  }
-
-  async function updateTag() {
-    if (!editingTag?.name.trim()) return
-    const { error } = await supabase
-      .from("course_tags")
-      .update({ name: editingTag.name.trim() })
-      .eq("id", editingTag.id)
-    if (error) toast.error(error.message)
-    else {
-      toast.success("Tag updated")
-      setEditingTag(null)
-      refetchTags()
-    }
-  }
-
-  async function deleteTag(id: string) {
-    const { error } = await supabase.from("course_tags").delete().eq("id", id)
-    if (error) toast.error(error.message)
-    else {
-      toast.success("Tag deleted")
-      refetchTags()
-    }
-  }
 
   return (
-    <div className="grid gap-5 md:grid-cols-2">
-      {/* Categories */}
-      <TaxonomyCard
-        title="Course Categories"
+    <div className="grid animate-in grid-cols-1 gap-6 duration-500 fade-in md:grid-cols-2">
+      <TaxonomySection
+        title="Content Categories"
         icon={Layers}
-        count={categories.length}
-        inputValue={newCategory}
-        onInputChange={setNewCategory}
-        onAdd={createCategory}
-        placeholder="New category name…"
         items={categories}
-        onEdit={setEditingCategory}
-        onDelete={(id) => deleteCategory(id)}
-        emptyText="No categories yet"
+        table="course_categories"
+        onUpdate={refetchCats}
       />
-
-      {/* Tags */}
-      <TaxonomyCard
-        title="Course Tags"
+      <TaxonomySection
+        title="Searchable Tags"
         icon={Tag}
-        count={tags.length}
-        inputValue={newTag}
-        onInputChange={setNewTag}
-        onAdd={createTag}
-        placeholder="New tag name…"
         items={tags}
-        onEdit={setEditingTag}
-        onDelete={(id) => deleteTag(id)}
-        emptyText="No tags yet"
-      />
-
-      {/* Edit Category */}
-      <EditDialog
-        open={!!editingCategory}
-        onClose={() => setEditingCategory(null)}
-        title="Edit Category"
-        value={editingCategory?.name ?? ""}
-        onChange={(v) => setEditingCategory({ ...editingCategory, name: v })}
-        onSave={updateCategory}
-      />
-
-      {/* Edit Tag */}
-      <EditDialog
-        open={!!editingTag}
-        onClose={() => setEditingTag(null)}
-        title="Edit Tag"
-        value={editingTag?.name ?? ""}
-        onChange={(v) => setEditingTag({ ...editingTag, name: v })}
-        onSave={updateTag}
+        table="course_tags"
+        onUpdate={refetchTags}
       />
     </div>
   )
 }
 
-function TaxonomyCard({
-  title,
-  icon: Icon,
-  count,
-  inputValue,
-  onInputChange,
-  onAdd,
-  placeholder,
-  items,
-  onEdit,
-  onDelete,
-  emptyText,
-}: {
-  title: string
-  icon: typeof Tag
-  count: number
-  inputValue: string
-  onInputChange: (v: string) => void
-  onAdd: () => void
-  placeholder: string
-  items: { id: string; name: string }[]
-  onEdit: (item: any) => void
-  onDelete: (id: string) => void
-  emptyText: string
-}) {
+function TaxonomySection({ title, icon: Icon, items, table, onUpdate }: any) {
+  const [val, setVal] = useState("")
+
+  const handleAdd = async () => {
+    if (!val.trim()) return
+    const { error } = await supabase.from(table).insert({ name: val.trim() })
+    if (!error) {
+      setVal("")
+      onUpdate()
+      toast.success("Added to system")
+    }
+  }
+
   return (
-    <Card>
-      <CardHeader className="border-b pb-4">
-        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-          <Icon className="h-4 w-4 text-muted-foreground" />
-          {title}
+    <Card className="overflow-hidden border-none bg-card shadow-none ring-1 ring-border">
+      <CardHeader className="border-b bg-muted/20 pb-4">
+        <CardTitle className="flex items-center justify-between text-xs font-black tracking-[0.2em] text-muted-foreground uppercase">
+          <div className="flex items-center gap-2">
+            <Icon className="h-3.5 w-3.5" />
+            {title}
+          </div>
           <Badge
             variant="secondary"
-            className="ml-auto font-normal tabular-nums"
+            className="text-[10px] font-bold tabular-nums"
           >
-            {count}
+            {items.length}
           </Badge>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 pt-4">
-        {/* Input */}
-        <div className="flex gap-2">
+      <CardContent className="p-0">
+        <div className="flex gap-2 border-b bg-muted/5 p-4">
           <Input
-            placeholder={placeholder}
-            value={inputValue}
-            onChange={(e) => onInputChange(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && onAdd()}
-            className="h-8 text-sm"
+            placeholder="Enter new label..."
+            className="h-8 text-xs font-medium"
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
           />
           <Button
             size="sm"
-            className="h-8 px-3"
-            onClick={onAdd}
-            disabled={!inputValue.trim()}
+            className="h-8 w-8 p-0"
+            onClick={handleAdd}
+            disabled={!val.trim()}
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" />
           </Button>
         </div>
-
-        {/* List */}
-        {items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            {emptyText}
-          </p>
-        ) : (
-          <div className="space-y-1">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="group flex items-center justify-between rounded-lg px-3 py-2 transition-colors hover:bg-muted/50"
+        <div className="max-h-[350px] divide-y overflow-x-hidden overflow-y-auto">
+          {items.map((item: any) => (
+            <div
+              key={item.id}
+              className="group flex items-center justify-between px-6 py-2.5 transition-colors hover:bg-primary/[0.02]"
+            >
+              <span className="text-xs font-bold tracking-tight text-foreground/70">
+                {item.name}
+              </span>
+              <button
+                className="rounded-md p-1.5 text-muted-foreground opacity-0 transition-all group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
+                onClick={async () => {
+                  await supabase.from(table).delete().eq("id", item.id)
+                  onUpdate()
+                }}
               >
-                <span className="text-sm">{item.name}</span>
-                <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                    onClick={() => onEdit(item)}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    onClick={() => onDelete(item.id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
-  )
-}
-
-function EditDialog({
-  open,
-  onClose,
-  title,
-  value,
-  onChange,
-  onSave,
-}: {
-  open: boolean
-  onClose: () => void
-  title: string
-  value: string
-  onChange: (v: string) => void
-  onSave: () => void
-}) {
-  return (
-    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="sm:max-w-xs">
-        <DialogHeader>
-          <DialogTitle className="text-base">{title}</DialogTitle>
-        </DialogHeader>
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onSave()}
-          autoFocus
-        />
-        <DialogFooter>
-          <Button variant="outline" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button size="sm" onClick={onSave}>
-            Save
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   )
 }

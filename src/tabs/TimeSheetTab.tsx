@@ -77,14 +77,12 @@ export function TimeSheetTab({
   ).length
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 pb-10">
+    <div className="mx-auto max-w-7xl animate-in space-y-8 pb-12 duration-500 fade-in">
       {/* Header Section */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            My Timesheet
-          </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <h1 className="text-3xl font-bold tracking-tight">My Timesheet</h1>
+          <p className="mt-1 text-sm font-medium text-muted-foreground">
             Manage your work hours and correction requests.
           </p>
         </div>

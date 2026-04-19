@@ -20,7 +20,7 @@ export function DashboardHeader({
   return (
     <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
       <div className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="text-3xl font-bold tracking-tight">
           {isLoading ? "Loading..." : `Welcome, ${employeeName}`} 👋
         </h1>
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -33,8 +33,8 @@ export function DashboardHeader({
           )}
         </div>
       </div>
-      <Button onClick={onRequestPto} size="sm" className="h-9 px-4 font-bold">
-        <Plus className="mr-2 h-4 w-4" /> Request Leave
+      <Button onClick={onRequestPto} size="sm" className="shadow-sm">
+        <Plus className="mr-2 h-4 w-4" /> Request Time Off
       </Button>
     </div>
   )

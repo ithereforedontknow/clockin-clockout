@@ -1,182 +1,218 @@
-import { useState } from "react"
-import { Search } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { useState, useMemo } from "react"
+import { Search, Filter, ChevronLeft, ChevronRight, Users } from "lucide-react"
+import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useEmployees, useCurrentEmployee, useMyTeam } from "@/lib/queries"
-import { usePermissions } from "@/lib/auth/permissions"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+
+import { useEmployees } from "@/lib/queries"
 import { EmployeeProfileSheet } from "@/components/EmployeeProfileSheet"
 import type { Employee } from "@/lib/supabase"
 
 const ROLE_STYLE: Record<string, string> = {
-  employee: "bg-slate-100 text-slate-600",
-  employer: "bg-blue-50 text-blue-700",
-  admin: "bg-purple-50 text-purple-700",
+  employee: "border-slate-200 bg-slate-50 text-slate-600",
+  employer: "border-blue-200 bg-blue-50 text-blue-700",
+  admin: "border-purple-200 bg-purple-50 text-purple-700",
 }
 
 export function PeopleTab() {
+  const { data: employees = [], isLoading } = useEmployees()
+
   const [search, setSearch] = useState("")
-  const [selected, setSelected] = useState<Employee | null>(null)
+  const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 15
 
-  const { hasPermission, isAdmin, isEmployer } = usePermissions()
-  const { data: currentEmployee } = useCurrentEmployee()
+  const filtered = useMemo(() => {
+    return employees.filter((e) => {
+      const q = search.toLowerCase()
+      return (
+        `${e.first_name} ${e.last_name}`.toLowerCase().includes(q) ||
+        e.job_title?.toLowerCase().includes(q) ||
+        e.department?.toLowerCase().includes(q)
+      )
+    })
+  }, [employees, search])
 
-  const canViewAll = hasPermission("view_all_employees")
-
-  const { data: allEmployees = [], isLoading: allLoading } = useEmployees()
-  const { data: myTeam = [], isLoading: teamLoading } = useMyTeam(
-    canViewAll ? (currentEmployee?.id ?? "") : ""
+  const paginated = filtered.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
   )
-
-  const employees = canViewAll ? allEmployees : myTeam
-  const isLoading = isEmployer ? teamLoading : allLoading
-
-  const filtered: Employee[] = employees.filter((e: Employee) => {
-    const q = search.toLowerCase()
-    return (
-      `${e.first_name} ${e.last_name}`.toLowerCase().includes(q) ||
-      e.department.toLowerCase().includes(q) ||
-      e.job_title.toLowerCase().includes(q) ||
-      e.role.toLowerCase().includes(q)
-    )
-  })
-
-  const grouped: Record<string, Employee[]> = isAdmin
-    ? {
-        Employers: filtered.filter((e) => e.role === "employer"),
-        Employees: filtered.filter((e) => e.role === "employee"),
-        Admins: filtered.filter((e) => e.role === "admin"),
-      }
-    : { "Team Members": filtered }
+  const totalPages = Math.ceil(filtered.length / pageSize)
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
+    <div className="mx-auto max-w-7xl animate-in space-y-8 pb-12 duration-500 fade-in">
+      {/* Header */}
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">People</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            {isEmployer
-              ? `Your team · ${employees.length} member${employees.length !== 1 ? "s" : ""}`
-              : `${employees.length} active employee${employees.length !== 1 ? "s" : ""}`}
-          </p>
-        </div>
-      </div>
-
-      <div className="relative">
-        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Search by name, role, department…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      {isLoading ? (
-        /* skeleton stays the same */
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array(6)
-            .fill(0)
-            .map((_, i) => (
-              <Card key={i}>
-                <CardContent className="pt-5">
-                  <div className="flex items-center gap-3">
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                    <div className="flex-1">
-                      <Skeleton className="mb-2 h-4 w-28" />
-                      <Skeleton className="h-3 w-20" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="py-16 text-center text-sm text-muted-foreground">
-          {search ? `No results for "${search}"` : "No team members yet"}
-        </div>
-      ) : (
-        Object.entries(grouped).map(([group, members]) => {
-          if (!members.length) return null
-          return (
-            <div key={group} className="space-y-3">
-              {isAdmin && (
-                <p className="text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-                  {group} · {members.length}
-                </p>
-              )}
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {members.map((emp) => (
-                  <EmployeeCard
-                    key={emp.id}
-                    employee={emp}
-                    onClick={() => setSelected(emp)}
-                  />
-                ))}
-              </div>
-            </div>
-          )
-        })
-      )}
-
-      <EmployeeProfileSheet
-        employee={selected}
-        onClose={() => setSelected(null)}
-      />
-    </div>
-  )
-}
-
-// EmployeeCard stays exactly the same
-function EmployeeCard({
-  employee: emp,
-  onClick,
-}: {
-  employee: Employee
-  onClick: () => void
-}) {
-  const initials = `${emp.first_name[0]}${emp.last_name[0]}`
-  return (
-    <Card
-      className="group cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md"
-      onClick={onClick}
-    >
-      <CardContent className="pt-5 pb-5">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={emp.avatar_url ?? undefined} />
-            <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-medium transition-colors group-hover:text-primary">
-              {emp.preferred_name ?? emp.first_name} {emp.last_name}
-            </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {emp.job_title || emp.department || "—"}
+          <h1 className="text-3xl font-bold tracking-tight">People</h1>
+          <div className="mt-1 flex items-center gap-2">
+            <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            <p className="text-sm font-medium text-muted-foreground">
+              {employees.length} active members
             </p>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
-          <Badge
-            variant="secondary"
-            className={`text-xs capitalize ${ROLE_STYLE[emp.role] ?? ""}`}
-          >
-            {emp.role}
-          </Badge>
-          {emp.department && (
-            <Badge variant="secondary" className="text-xs">
-              {emp.department}
-            </Badge>
-          )}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-3">
+        <div className="relative max-w-md flex-1">
+          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
+          <Input
+            placeholder="Search by name, title, or department..."
+            className="h-10 pl-10"
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setCurrentPage(1)
+            }}
+          />
         </div>
-        <p className="mt-2 truncate text-xs text-muted-foreground">
-          {emp.email}
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button variant="outline" size="icon" className="h-10 w-10">
+              <Filter className="h-4 w-4" />
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Filters</SheetTitle>
+            </SheetHeader>
+            <div className="py-8 text-center text-xs tracking-widest text-muted-foreground uppercase italic">
+              Filter logic matches directory...
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+
+      {/* Table */}
+      <Card className="overflow-hidden border-none shadow-none ring-1 ring-border">
+        <Table>
+          <TableHeader>
+            <TableRow className="">
+              <TableHead className="pl-6 text-[10px] font-bold tracking-widest uppercase">
+                Member
+              </TableHead>
+              <TableHead className="text-[10px] font-bold tracking-widest uppercase">
+                Position
+              </TableHead>
+              <TableHead className="hidden text-[10px] font-bold tracking-widest uppercase md:table-cell">
+                Department
+              </TableHead>
+              <TableHead className="text-[10px] font-bold tracking-widest uppercase">
+                Access Role
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  className="h-32 animate-pulse text-center"
+                >
+                  Loading directory...
+                </TableCell>
+              </TableRow>
+            ) : (
+              paginated.map((emp) => (
+                <TableRow
+                  key={emp.id}
+                  className="group cursor-pointer transition-colors hover:bg-primary/[0.02]"
+                  onClick={() => setSelectedEmp(emp)}
+                >
+                  <TableCell className="py-4 pl-6">
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9 border shadow-sm">
+                        <AvatarImage src={emp.avatar_url ?? undefined} />
+                        <AvatarFallback className="bg-primary/5 text-[10px] font-bold text-primary">
+                          {emp.first_name[0]}
+                          {emp.last_name[0]}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold transition-colors group-hover:text-primary">
+                          {emp.first_name} {emp.last_name}
+                        </p>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {emp.email}
+                        </p>
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-sm font-medium text-foreground/80">
+                      {emp.job_title || "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="hidden md:table-cell">
+                    <span className="text-sm text-muted-foreground">
+                      {emp.department || "—"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={`text-[9px] font-bold uppercase ${ROLE_STYLE[emp.role]}`}
+                    >
+                      {emp.role}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between px-2">
+        <p className="text-[11px] font-bold tracking-tight text-muted-foreground uppercase">
+          Page {currentPage} of {totalPages || 1}
         </p>
-      </CardContent>
-    </Card>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs font-bold"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((p) => p - 1)}
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" /> Previous
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs font-bold"
+            disabled={currentPage === totalPages || totalPages === 0}
+            onClick={() => setCurrentPage((p) => p + 1)}
+          >
+            Next <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+
+      <EmployeeProfileSheet
+        employee={selectedEmp}
+        onClose={() => setSelectedEmp(null)}
+      />
+    </div>
   )
 }

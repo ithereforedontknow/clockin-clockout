@@ -15,10 +15,10 @@ export function LiveClockedInCard({ liveEntries }: { liveEntries: any[] }) {
 
   return (
     <Card className="flex h-[400px] flex-col">
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between text-sm font-semibold">
+      <CardHeader className="">
+        <CardTitle className="flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
           <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-emerald-500" /> Active Now
+            <Activity className="h-3.5 w-3.5 text-emerald-500" /> Active Now
           </div>
           <span className="tabular-nums">{liveEntries.length}</span>
         </CardTitle>

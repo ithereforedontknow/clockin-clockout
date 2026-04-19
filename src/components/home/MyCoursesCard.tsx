@@ -12,17 +12,19 @@ interface Props {
 export function MyCoursesCard({ trainingRecords, onNavigate }: Props) {
   return (
     <Card className="flex h-[500px] flex-col">
-      <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-          <GraduationCap className="h-4 w-4 text-primary" />
-          My Training Path
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
+          <div className="flex items-center gap-2">
+            <GraduationCap className="h-3.5 w-3.5 text-primary" /> My Training
+            Path
+          </div>
+          <button
+            onClick={() => onNavigate?.("training")}
+            className="text-[10px] font-bold text-primary hover:underline"
+          >
+            View Full Curriculum
+          </button>
         </CardTitle>
-        <button
-          onClick={() => onNavigate?.("training")}
-          className="text-[10px] font-bold text-primary hover:underline"
-        >
-          View Full Curriculum
-        </button>
       </CardHeader>
       <CardContent className="flex-1 overflow-hidden p-0">
         <ScrollArea className="h-full border-t">

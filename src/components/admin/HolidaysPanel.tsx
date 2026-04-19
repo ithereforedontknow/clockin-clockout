@@ -1,28 +1,13 @@
 import { useState } from "react"
-import { CalendarDays, Trash2, Loader2, Plus } from "lucide-react"
 import { format } from "date-fns"
-import { toast } from "sonner"
-import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Badge } from "@/components/ui/badge"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from "@/components/ui/dialog"
+  Plus,
+  Trash2,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  CalendarDays,
+} from "lucide-react"
 import {
   Table,
   TableBody,
@@ -31,205 +16,241 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog"
 import { useHolidays, useCreateHoliday, useDeleteHoliday } from "@/lib/queries"
-import type { CompanyHoliday } from "@/lib/supabase"
-
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+import { toast } from "sonner"
 
 export function HolidaysPanel() {
   const [year, setYear] = useState(new Date().getFullYear())
-  const [addOpen, setAddOpen] = useState(false)
-  const [name, setName] = useState("")
-  const [date, setDate] = useState("")
+  const [isAddOpen, setIsAddOpen] = useState(false)
+
+  // Form State
+  const [newName, setNewName] = useState("")
+  const [newDate, setNewDate] = useState("")
 
   const { data: holidays = [], isLoading } = useHolidays(year)
   const createHoliday = useCreateHoliday()
   const deleteHoliday = useDeleteHoliday()
 
-  const yearOptions = Array.from(
-    { length: 5 },
-    (_, i) => new Date().getFullYear() - 1 + i
-  )
-
-  function resetForm() {
-    setName("")
-    setDate("")
-    setAddOpen(false)
-  }
-
-  async function handleAdd() {
-    if (!name.trim() || !date) {
-      toast.error("Please provide a name and date")
-      return
+  const handleCreate = async () => {
+    if (!newName.trim() || !newDate) {
+      return toast.error("Please provide both a name and a date.")
     }
-    const [, m, d] = date.split("-").map(Number)
-    try {
-      await createHoliday.mutateAsync({ name: name.trim(), month: m, day: d })
-      toast.success(`"${name.trim()}" added`)
-      resetForm()
-    } catch (err: any) {
-      toast.error("Failed to add holiday", { description: err.message })
-    }
-  }
 
-  async function handleDelete(holiday: CompanyHoliday) {
+    // Parse "YYYY-MM-DD" to get month and day as integers
+    const [, monthStr, dayStr] = newDate.split("-")
+    const month = parseInt(monthStr)
+    const day = parseInt(dayStr)
+
     try {
-      await deleteHoliday.mutateAsync(holiday.id)
-      toast.success(`"${holiday.name}" removed`)
+      await createHoliday.mutateAsync({
+        name: newName.trim(),
+        month,
+        day,
+      })
+      toast.success("Holiday added to system")
+      setIsAddOpen(false)
+      setNewName("")
+      setNewDate("")
     } catch (err: any) {
-      toast.error("Failed to delete holiday", { description: err.message })
+      toast.error(err.message || "Failed to add holiday")
     }
   }
 
   return (
-    <div className="space-y-4">
-      {/* Controls */}
-      <div className="flex items-center gap-3">
-        <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-          <SelectTrigger className="w-28">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {yearOptions.map((y) => (
-              <SelectItem key={y} value={String(y)}>
-                {y}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Button size="sm" onClick={() => setAddOpen(true)}>
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          Add Holiday
+    <div className="animate-in space-y-5 duration-500 fade-in">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between rounded-2xl border bg-muted/40 p-2">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setYear((y) => y - 1)}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <span className="px-4 text-xs font-black tracking-[0.2em] uppercase tabular-nums">
+            {year} Calendar
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => setYear((y) => y + 1)}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+        <Button
+          onClick={() => setIsAddOpen(true)}
+          size="sm"
+          className="h-9 gap-2 px-4 font-bold shadow-sm"
+        >
+          <Plus className="h-4 w-4" /> Add Date
         </Button>
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          {isLoading ? (
-            <div className="space-y-px p-4">
-              {Array(5)
-                .fill(0)
-                .map((_, i) => (
-                  <div key={i} className="flex items-center gap-4 py-2.5">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="h-4 w-16" />
-                    <Skeleton className="h-5 w-12" />
-                  </div>
-                ))}
-            </div>
-          ) : holidays.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-14 text-muted-foreground">
-              <CalendarDays className="h-8 w-8 opacity-25" />
-              <p className="text-sm">No holidays for {year}</p>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead className="text-xs font-medium">Holiday</TableHead>
-                  <TableHead className="text-xs font-medium">Date</TableHead>
-                  <TableHead className="hidden text-xs font-medium sm:table-cell">
-                    Day
-                  </TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {holidays.map((h) => {
-                  const d = new Date(year, h.month - 1, h.day)
-                  const isWeekend = d.getDay() === 0 || d.getDay() === 6
-                  return (
-                    <TableRow
-                      key={h.id}
-                      className="transition-colors hover:bg-muted/30"
-                    >
-                      <TableCell className="text-sm font-medium">
-                        {h.name}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground tabular-nums">
-                        {format(d, "MMM d")}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <Badge
-                          variant="outline"
-                          className={`text-[10px] ${isWeekend ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400" : ""}`}
-                        >
-                          {DAYS[d.getDay()]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => handleDelete(h)}
-                          disabled={deleteHoliday.isPending}
-                        >
+      {/* Main Table */}
+      <Card className="overflow-hidden border-none shadow-none ring-1 ring-border">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="pl-6 text-[10px] font-bold tracking-widest uppercase">
+                Holiday Event
+              </TableHead>
+              <TableHead className="text-[10px] font-bold tracking-widest uppercase">
+                Date
+              </TableHead>
+              <TableHead className="hidden text-[10px] font-bold tracking-widest uppercase sm:table-cell">
+                Day of Week
+              </TableHead>
+              <TableHead className="w-12 pr-6 text-right" />
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  className="h-40 animate-pulse text-center text-[10px] font-bold tracking-widest text-muted-foreground uppercase"
+                >
+                  Syncing Holiday Database...
+                </TableCell>
+              </TableRow>
+            ) : holidays.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={4}
+                  className="h-40 text-center text-sm text-muted-foreground italic"
+                >
+                  No holidays recorded for {year}.
+                </TableCell>
+              </TableRow>
+            ) : (
+              holidays.map((h: any) => {
+                const d = new Date(year, h.month - 1, h.day)
+                return (
+                  <TableRow
+                    key={h.id}
+                    className="group transition-colors hover:bg-muted/30"
+                  >
+                    <TableCell className="py-4 pl-6 text-sm font-bold text-foreground/80">
+                      {h.name}
+                    </TableCell>
+                    <TableCell className="text-sm font-bold text-muted-foreground tabular-nums">
+                      {format(d, "MMMM do")}
+                    </TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <Badge
+                        variant="outline"
+                        className="border-slate-200 bg-slate-50 text-[9px] font-black text-slate-500 uppercase"
+                      >
+                        {format(d, "EEEE")}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="pr-6 text-right">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 rounded-full text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-red-50 hover:text-red-600"
+                        onClick={() => deleteHoliday.mutate(h.id)}
+                        disabled={deleteHoliday.isPending}
+                      >
+                        {deleteHoliday.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
                           <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
+                        )}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                )
+              })
+            )}
+          </TableBody>
+        </Table>
       </Card>
 
-      {/* Add dialog */}
-      <Dialog
-        open={addOpen}
-        onOpenChange={(v) => {
-          if (!v) resetForm()
-        }}
-      >
-        <DialogContent className="sm:max-w-xs">
-          <DialogHeader>
-            <DialogTitle>Add Holiday</DialogTitle>
-            <DialogDescription>
-              This holiday will be excluded from time-off day counts.
+      {/* Add Holiday Dialog */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="flex flex-col overflow-hidden border-none p-0 shadow-2xl sm:max-w-[450px]">
+          <DialogHeader className="shrink-0 p-6 pb-2">
+            <div className="mb-2 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <DialogTitle className="text-xl font-bold tracking-tight">
+                Add System Holiday
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs">
+              This date will be excluded from automatic time-off deductions.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Name</Label>
+
+          <div className="space-y-5 px-6 py-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                Holiday Name
+              </Label>
               <Input
                 placeholder="e.g. Independence Day"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="h-10 font-medium"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>Date</Label>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                Observe Date
+              </Label>
               <Input
                 type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
+                value={newDate}
                 min={`${year}-01-01`}
                 max={`${year}-12-31`}
+                onChange={(e) => setNewDate(e.target.value)}
+                className="h-10 font-medium"
               />
+              <p className="text-[10px] font-medium text-muted-foreground italic">
+                Selected date must be within the {year} calendar year.
+              </p>
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={resetForm}>
+
+          <DialogFooter className="shrink-0 gap-2 border-t bg-muted/20 p-6">
+            <Button
+              variant="ghost"
+              onClick={() => setIsAddOpen(false)}
+              className="font-bold"
+            >
               Cancel
             </Button>
             <Button
-              size="sm"
-              onClick={handleAdd}
-              disabled={createHoliday.isPending}
+              onClick={handleCreate}
+              disabled={createHoliday.isPending || !newName.trim() || !newDate}
+              className="px-8 font-bold shadow-md"
             >
               {createHoliday.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Adding…
-                </>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                "Add Holiday"
+                <Plus className="mr-2 h-4 w-4" />
               )}
+              Register Holiday
             </Button>
           </DialogFooter>
         </DialogContent>

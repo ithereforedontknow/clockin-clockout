@@ -1,5 +1,5 @@
 import { format } from "date-fns"
-import { MoreHorizontal, Pencil, MessageSquare } from "lucide-react"
+import { MoreHorizontal, Pencil, MessageSquare, Clock } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -18,8 +18,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { formatMinutes } from "@/lib/supabase"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
-// Matching your design system colors
 const ATTENDANCE_STYLE: Record<string, string> = {
   active:
     "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400",
@@ -47,21 +52,27 @@ export function TimesheetTable({
   correctionByEntryId,
 }: Props) {
   return (
-    <Card>
+    <Card className="overflow-hidden border-none shadow-none ring-1 ring-border">
       <CardContent className="p-0">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
-              <TableHead className="text-xs font-medium">Day & Date</TableHead>
-              <TableHead className="text-xs font-medium">
+              <TableHead className="pl-6 text-[10px] font-bold tracking-[0.2em] uppercase">
+                Day & Date
+              </TableHead>
+              <TableHead className="text-[10px] font-bold tracking-[0.2em] uppercase">
                 Shift Period
               </TableHead>
-              <TableHead className="hidden text-xs font-medium sm:table-cell">
+              <TableHead className="hidden text-[10px] font-bold tracking-[0.2em] uppercase sm:table-cell">
                 Breaks
               </TableHead>
-              <TableHead className="text-xs font-medium">Total Hours</TableHead>
-              <TableHead className="text-xs font-medium">Status</TableHead>
-              <TableHead className="w-10" />
+              <TableHead className="text-[10px] font-bold tracking-[0.2em] uppercase">
+                Total Hours
+              </TableHead>
+              <TableHead className="text-[10px] font-bold tracking-[0.2em] uppercase">
+                Status
+              </TableHead>
+              <TableHead className="w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -74,7 +85,6 @@ export function TimesheetTable({
                 ? correctionByEntryId.get(entry.id)
                 : null
 
-              // Business Logic for Actions
               const hasPending = correction?.status === "pending"
               const wasApproved = correction?.status === "approved"
               const canRequestCorrection =
@@ -87,16 +97,16 @@ export function TimesheetTable({
               return (
                 <TableRow
                   key={dateStr}
-                  className={`transition-colors ${isToday ? "bg-primary/[0.03]" : "hover:bg-muted/30"}`}
+                  className={`group transition-colors ${isToday ? "bg-primary/[0.03]" : "hover:bg-muted/30"}`}
                 >
-                  <TableCell>
+                  <TableCell className="py-4 pl-6">
                     <div className="min-w-0">
                       <p
-                        className={`text-sm font-medium ${isToday ? "text-primary" : ""}`}
+                        className={`mb-1 text-sm leading-none font-bold ${isToday ? "text-primary" : ""}`}
                       >
                         {format(day, "EEEE")}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-[11px] font-medium text-muted-foreground">
                         {format(day, "MMM d, yyyy")}
                       </p>
                     </div>
@@ -104,11 +114,11 @@ export function TimesheetTable({
 
                   <TableCell>
                     {entry ? (
-                      <div className="flex items-center gap-2 text-sm tabular-nums">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground/80 tabular-nums">
                         <span>
                           {format(new Date(entry.clock_in), "h:mm a")}
                         </span>
-                        <span className="text-xs text-muted-foreground">—</span>
+                        <span className="text-muted-foreground/50">—</span>
                         <span>
                           {entry.clock_out
                             ? format(new Date(entry.clock_out), "h:mm a")
@@ -116,15 +126,16 @@ export function TimesheetTable({
                         </span>
                       </div>
                     ) : (
-                      <span className="text-xs text-muted-foreground italic">
-                        {isWeekend ? "Weekend" : "No record"}
+                      <span className="text-xs font-medium text-muted-foreground/60 italic">
+                        {isWeekend ? "Weekend" : "No entry"}
                       </span>
                     )}
                   </TableCell>
 
                   <TableCell className="hidden sm:table-cell">
                     {entry?.breaks?.length > 0 ? (
-                      <span className="text-sm text-muted-foreground tabular-nums">
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground tabular-nums">
+                        <Clock className="h-3 w-3 opacity-50" />
                         {formatMinutes(
                           entry.breaks.reduce(
                             (s: number, b: any) =>
@@ -132,31 +143,35 @@ export function TimesheetTable({
                             0
                           )
                         )}
-                      </span>
+                      </div>
                     ) : (
-                      <span className="text-xs text-muted-foreground/50">
-                        —
-                      </span>
+                      <span className="text-muted-foreground/30">—</span>
                     )}
                   </TableCell>
 
                   <TableCell>
                     {entry?.total_minutes ? (
-                      <div>
-                        <p className="text-sm font-semibold tabular-nums">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-sm font-bold text-foreground tabular-nums">
                           {formatMinutes(entry.total_minutes)}
-                        </p>
+                        </span>
                         {entry.notes && (
-                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                            <MessageSquare className="h-2.5 w-2.5" />
-                            <span className="max-w-[80px] truncate">Note</span>
-                          </div>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex cursor-help items-center gap-1 text-[10px] font-bold text-primary">
+                                  <MessageSquare className="h-2.5 w-2.5" /> Note
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <p className="text-xs">{entry.notes}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         )}
                       </div>
                     ) : (
-                      <span className="text-xs text-muted-foreground/50">
-                        —
-                      </span>
+                      <span className="text-muted-foreground/30">—</span>
                     )}
                   </TableCell>
 
@@ -164,68 +179,75 @@ export function TimesheetTable({
                     {isWeekend && !entry ? (
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${ATTENDANCE_STYLE.weekend}`}
+                        className={`text-[9px] font-bold tracking-tighter uppercase ${ATTENDANCE_STYLE.weekend}`}
                       >
                         Weekend
                       </Badge>
                     ) : entry && !entry.clock_out ? (
                       <Badge
                         variant="outline"
-                        className={`animate-pulse text-[10px] ${ATTENDANCE_STYLE.active}`}
+                        className={`animate-pulse text-[9px] font-bold uppercase ${ATTENDANCE_STYLE.active}`}
                       >
                         Active
                       </Badge>
                     ) : hasPending ? (
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${ATTENDANCE_STYLE.pending}`}
+                        className={`text-[9px] font-bold uppercase ${ATTENDANCE_STYLE.pending}`}
                       >
                         Pending Fix
                       </Badge>
                     ) : wasApproved ? (
                       <Badge
                         variant="outline"
-                        className={`text-[10px] ${ATTENDANCE_STYLE.corrected}`}
+                        className={`text-[9px] font-bold uppercase ${ATTENDANCE_STYLE.corrected}`}
                       >
                         Corrected
                       </Badge>
                     ) : entry ? (
                       <Badge
                         variant="outline"
-                        className="border-slate-200 bg-white text-[10px] text-slate-600"
+                        className="border-slate-200 bg-white text-[9px] font-bold text-slate-500 uppercase"
                       >
                         Logged
                       </Badge>
                     ) : (
                       <Badge
                         variant="outline"
-                        className="border-transparent bg-muted/50 text-[10px] text-muted-foreground"
+                        className="border-transparent bg-muted/50 text-[9px] font-bold text-muted-foreground/60 uppercase"
                       >
                         Missing
                       </Badge>
                     )}
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell className="pr-6">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 transition-opacity group-hover:opacity-100"
+                        >
                           <MoreHorizontal className="h-4 w-4" />
                           <span className="sr-only">Actions</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
                         {canRequestCorrection ? (
-                          <DropdownMenuItem onClick={() => onCorrect(entry)}>
-                            <Pencil className="mr-2 h-4 w-4" />
+                          <DropdownMenuItem
+                            onClick={() => onCorrect(entry)}
+                            className="text-xs font-semibold"
+                          >
+                            <Pencil className="mr-2 h-3.5 w-3.5" />
                             Request correction
                           </DropdownMenuItem>
                         ) : (
                           <DropdownMenuItem
                             disabled
-                            className="text-xs text-muted-foreground"
+                            className="text-[10px] font-bold text-muted-foreground/50 uppercase"
                           >
-                            No actions available
+                            Locked
                           </DropdownMenuItem>
                         )}
                       </DropdownMenuContent>

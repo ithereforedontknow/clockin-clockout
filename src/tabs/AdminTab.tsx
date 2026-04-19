@@ -1,155 +1,130 @@
+import { useState } from "react"
 import {
   Shield,
-  UserCheck,
-  UserX,
   Building2,
+  Tag,
   Calendar,
   ShieldCheck,
-  Tag,
+  Lock,
 } from "lucide-react"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAllEmployees } from "@/lib/queries"
 import { usePermissions } from "@/lib/auth/permissions"
-import { EmployeeManagement } from "@/components/admin/employees/EmployeeManagement"
-import { DepartmentsPanel } from "@/components/admin/DepartmentsPanel"
-import { HolidaysPanel } from "@/components/admin/HolidaysPanel"
-import { AuditLogPanel } from "@/components/admin/AuditLogPanel"
-import { CourseCategoriesPanel } from "@/components/admin/CourseCategoriesPanel"
+
+import {
+  AdminKpiStrip,
+  EmployeeManagement,
+  DepartmentsPanel,
+  CourseCategoriesPanel,
+  HolidaysPanel,
+  AuditLogPanel,
+} from "@/components/admin"
 
 export function AdminTab() {
-  const { data: employees = [], isLoading } = useAllEmployees("", "", "", "")
   const { isAdmin } = usePermissions()
+  const { data: employees = [], isLoading } = useAllEmployees("", "", "", "")
+  const [activeTab, setActiveTab] = useState("employees")
 
   if (!isAdmin) {
     return (
-      <div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-        Access restricted to admins only.
+      <div className="flex flex-col items-center justify-center space-y-4 p-20 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-muted/50">
+          <Lock className="h-8 w-8 text-muted-foreground/20" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs font-black tracking-[0.2em] text-muted-foreground uppercase">
+            Access Restricted
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Administrative privileges are required to view this module.
+          </p>
+        </div>
       </div>
     )
   }
 
-  const activeCount = employees.filter(
-    (e) => e.employment_status === "active"
-  ).length
-  const inactiveCount = employees.filter(
-    (e) => e.employment_status === "inactive"
-  ).length
+  const navItems = [
+    { value: "employees", label: "Employees", icon: Shield },
+    { value: "departments", label: "Departments", icon: Building2 },
+    { value: "taxonomy", label: "Taxonomy", icon: Tag },
+    { value: "holidays", label: "Holidays", icon: Calendar },
+    { value: "audit", label: "Audit Log", icon: ShieldCheck },
+  ]
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-7xl animate-in space-y-6 px-4 pb-8 duration-500 fade-in sm:px-6 md:space-y-8 md:pb-12 lg:px-8">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Admin</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage employees, departments, and system access
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">
+            System Administration
+          </h1>
+          <p className="text-sm font-medium text-muted-foreground">
+            Manage global workspace configurations, staff records, and audit
+            history.
+          </p>
+        </div>
       </div>
 
-      {/* KPI strip */}
-      <div className="grid grid-cols-3 gap-3">
-        <KpiCard
-          label="Total Employees"
-          value={employees.length}
-          icon={Shield}
-          isLoading={isLoading}
-        />
-        <KpiCard
-          label="Active"
-          value={activeCount}
-          icon={UserCheck}
-          isLoading={isLoading}
-          highlight="green"
-        />
-        <KpiCard
-          label="Inactive"
-          value={inactiveCount}
-          icon={UserX}
-          isLoading={isLoading}
-          highlight={inactiveCount > 0 ? "red" : undefined}
-        />
-      </div>
+      {/* KPI Stats Strip */}
+      <AdminKpiStrip employees={employees} isLoading={isLoading} />
 
-      {/* Tabs */}
-      <Tabs defaultValue="employees" className="space-y-5">
-        <TabsList className="h-10 rounded-lg bg-muted/60 p-1">
-          {[
-            { value: "employees", label: "Employees", icon: Shield },
-            { value: "departments", label: "Departments", icon: Building2 },
-            {
-              value: "course-categories",
-              label: "Categories & Tags",
-              icon: Tag,
-            },
-            { value: "holidays", label: "Holidays", icon: Calendar },
-            { value: "audit", label: "Audit Log", icon: ShieldCheck },
-          ].map(({ value, label, icon: Icon }) => (
+      {/* Tabs Layout matching TrainingTab */}
+      <Tabs
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="space-y-6"
+      >
+        <TabsList className="h-10 w-full justify-start rounded-lg bg-muted/60 p-1 sm:w-auto">
+          {navItems.map((item) => (
             <TabsTrigger
-              key={value}
-              value={value}
-              className="flex items-center gap-2 rounded-md px-3 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+              key={item.value}
+              value={item.value}
+              className="flex items-center gap-2 rounded-md px-4 text-sm font-bold transition-all data-[state=active]:bg-background data-[state=active]:shadow-sm"
             >
-              <Icon className="h-3.5 w-3.5" />
-              {label}
+              <item.icon className="h-3.5 w-3.5" />
+              {item.label}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        <TabsContent value="employees">
-          <EmployeeManagement />
-        </TabsContent>
-        <TabsContent value="departments" className="mt-5">
-          <DepartmentsPanel />
-        </TabsContent>
-        <TabsContent value="course-categories" className="mt-5">
-          <CourseCategoriesPanel />
-        </TabsContent>
-        <TabsContent value="holidays" className="mt-5">
-          <HolidaysPanel />
-        </TabsContent>
-        <TabsContent value="audit" className="mt-5">
-          <AuditLogPanel />
-        </TabsContent>
-      </Tabs>
-    </div>
-  )
-}
+        <div className="mt-0">
+          <TabsContent
+            value="employees"
+            className="mt-0 animate-in duration-300 fade-in slide-in-from-bottom-2 focus-visible:outline-none"
+          >
+            <EmployeeManagement />
+          </TabsContent>
 
-function KpiCard({
-  label,
-  value,
-  icon: Icon,
-  isLoading,
-  highlight,
-}: {
-  label: string
-  value: number
-  icon: typeof Shield
-  isLoading: boolean
-  highlight?: "green" | "red"
-}) {
-  const valueColor =
-    highlight === "green"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : highlight === "red" && value > 0
-        ? "text-red-600 dark:text-red-400"
-        : "text-foreground"
+          <TabsContent
+            value="departments"
+            className="mt-0 animate-in duration-300 fade-in slide-in-from-bottom-2 focus-visible:outline-none"
+          >
+            <DepartmentsPanel />
+          </TabsContent>
 
-  return (
-    <div className="rounded-xl border bg-card px-4 py-4">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-muted-foreground">{label}</p>
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-          <Icon className="h-3.5 w-3.5 text-primary" />
+          <TabsContent
+            value="taxonomy"
+            className="mt-0 animate-in duration-300 fade-in slide-in-from-bottom-2 focus-visible:outline-none"
+          >
+            <CourseCategoriesPanel />
+          </TabsContent>
+
+          <TabsContent
+            value="holidays"
+            className="mt-0 animate-in duration-300 fade-in slide-in-from-bottom-2 focus-visible:outline-none"
+          >
+            <HolidaysPanel />
+          </TabsContent>
+
+          <TabsContent
+            value="audit"
+            className="mt-0 animate-in duration-300 fade-in slide-in-from-bottom-2 focus-visible:outline-none"
+          >
+            <AuditLogPanel />
+          </TabsContent>
         </div>
-      </div>
-      {isLoading ? (
-        <Skeleton className="mt-2 h-8 w-12" />
-      ) : (
-        <p className={`mt-1 text-3xl font-semibold tabular-nums ${valueColor}`}>
-          {value}
-        </p>
-      )}
+      </Tabs>
     </div>
   )
 }

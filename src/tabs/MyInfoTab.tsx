@@ -1,168 +1,73 @@
-import { useState } from "react"
-import { Upload, Pencil, X, Save } from "lucide-react"
+import { useState, useMemo } from "react"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { useQueryClient } from "@tanstack/react-query"
 import { Separator } from "@/components/ui/separator"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Card, CardContent } from "@/components/ui/card"
 
 import {
   useCurrentEmployee,
   useUpdateMyPersonalInfo,
   useRequestInfoChange,
-} from "../lib/queries"
+  usePendingInfoChanges,
+  useDepartments,
+} from "@/lib/queries"
 
-function EditableField({
-  label,
-  value,
-  onSave,
-  type = "text",
-  required = false,
-}: {
-  label: string
-  value: string
-  onSave: (v: string) => Promise<void>
-  type?: string
-  required?: boolean
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
-  const [saving, setSaving] = useState(false)
+import {
+  EditableField,
+  EditableSelectField,
+  IdentityCard,
+  ProfileSkeleton,
+} from "@/components/profile"
 
-  async function handleSave() {
-    if (draft === value) {
-      setEditing(false)
-      return
-    }
-    setSaving(true)
-    try {
-      await onSave(draft)
-      toast.success(`${label} updated`)
-      setEditing(false)
-    } catch {
-      toast.error(`Failed to update ${label}`)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="space-y-1">
-      <Label className="text-xs text-muted-foreground">
-        {label}
-        {required && <span className="ml-1 text-destructive">*</span>}
-      </Label>
-      {editing ? (
-        <div className="flex items-center gap-2">
-          <Input
-            type={type}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            className="h-8 text-sm"
-            autoFocus
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSave()
-              if (e.key === "Escape") setEditing(false)
-            }}
-          />
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            <Save className="h-4 w-4 text-green-600" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-8 w-8"
-            onClick={() => {
-              setDraft(value)
-              setEditing(false)
-            }}
-          >
-            <X className="h-4 w-4 text-destructive" />
-          </Button>
-        </div>
-      ) : (
-        <div className="group flex items-center justify-between">
-          <span className="text-sm">
-            {value || (
-              <span className="text-muted-foreground italic">Not set</span>
-            )}
-          </span>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7 opacity-0 group-hover:opacity-100"
-            onClick={() => {
-              setDraft(value)
-              setEditing(true)
-            }}
-          >
-            <Pencil className="h-3 w-3" />
-          </Button>
-        </div>
-      )}
-    </div>
-  )
-}
+const EMERGENCY_RELATIONS = [
+  { label: "Spouse", value: "Spouse" },
+  { label: "Partner", value: "Partner" },
+  { label: "Parent", value: "Parent" },
+  { label: "Sibling", value: "Sibling" },
+  { label: "Child", value: "Child" },
+  { label: "Friend", value: "Friend" },
+  { label: "Other", value: "Other" },
+]
 
 export function MyInfoTab() {
+  const queryClient = useQueryClient()
   const { data: user, isLoading } = useCurrentEmployee()
+
+  // Get all pending changes to check which fields are currently "locked" for this specific user
+  const { data: allPending = [] } = usePendingInfoChanges()
+
+  const { data: depts = [] } = useDepartments()
+
   const updatePersonal = useUpdateMyPersonalInfo()
   const requestChange = useRequestInfoChange()
-
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
 
-  // Early return - after this, me is guaranteed to be defined
-  if (isLoading || !user) {
-    return (
-      <div className="p-6 text-sm text-muted-foreground">
-        Loading profile...
-      </div>
+  // Memoize the pending status for performance
+  const pendingFields = useMemo(() => {
+    if (!user) return new Set<string>()
+    return new Set(
+      allPending
+        .filter((p) => p.employee_id === user.id && p.status === "pending")
+        .map((p) => p.field_name)
     )
-  }
+  }, [allPending, user])
 
-  // Capture the non-null employee for use in callbacks
-  const employee = user
+  if (isLoading || !user) return <ProfileSkeleton />
 
-  // Avatar Upload Handler
-  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  const departmentOptions = depts.map((d) => ({ label: d.name, value: d.name }))
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file (JPG, PNG, GIF)")
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Image must be smaller than 5MB")
-      return
-    }
+    if (file.size > 5 * 1024 * 1024)
+      return toast.error("File too large (Max 5MB)")
 
     setUploadingAvatar(true)
-
     try {
-      const fileExt = file.name.split(".").pop() || "jpg"
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (!user) throw new Error("Not authenticated")
-      const fileName = `${user.id}/${employee.id}.${fileExt}`
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`
 
       const { error: uploadError } = await supabase.storage
         .from("avatars")
@@ -175,253 +80,226 @@ export function MyInfoTab() {
         .getPublicUrl(fileName)
 
       await updatePersonal.mutateAsync({
-        id: employee.id,
+        id: user.id,
         field: "avatar_url",
         value: urlData.publicUrl,
       })
 
-      toast.success("Profile picture updated successfully")
+      toast.success("Avatar updated")
+      queryClient.invalidateQueries({ queryKey: ["current-employee"] })
     } catch (err: any) {
-      toast.error("Failed to upload avatar", { description: err.message })
+      toast.error("Upload failed", { description: err.message })
     } finally {
       setUploadingAvatar(false)
     }
   }
 
-  async function savePersonal(field: string, value: string) {
-    await updatePersonal.mutateAsync({ id: employee.id, field, value })
+  const savePersonal = async (field: string, value: string) => {
+    await updatePersonal.mutateAsync({ id: user.id, field, value })
+    toast.success("Profile updated")
   }
 
-  async function requestWork(field: string, value: string) {
+  const requestWork = async (field: string, value: string) => {
     await requestChange.mutateAsync({
-      employeeId: employee.id,
+      employeeId: user.id,
       field,
       newValue: value,
     })
-    toast.info(`${field} change submitted for approval`)
+    toast.info("Change request submitted")
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">My Information</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Personal info saves immediately. Work info requires approval.
+    <div className="mx-auto max-w-6xl animate-in space-y-8 pb-20 duration-500 fade-in">
+      <header className="space-y-1">
+        <h1 className="text-3xl font-bold tracking-tight">My Information</h1>
+        <p className="text-sm font-medium text-muted-foreground">
+          Personal data is updated immediately. Professional changes require
+          manager approval.
         </p>
+      </header>
+
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
+        {/* Profile Identity Sidebar */}
+        <aside className="space-y-6 lg:sticky lg:top-24 lg:col-span-4">
+          <IdentityCard user={user} uploading={uploadingAvatar} />
+
+          <Card className="border-none shadow-none ring-1 ring-border">
+            <CardContent className="space-y-4 p-5">
+              <h4 className="text-[10px] font-black tracking-[0.2em] text-muted-foreground/60 uppercase">
+                Employment Status
+              </h4>
+              <div className="space-y-3">
+                <StaticRow
+                  label="Access Level"
+                  value={<span className="capitalize">{user.role}</span>}
+                />
+                <StaticRow label="Joined Date" value={user.hire_date || "—"} />
+                <StaticRow
+                  label="Work Schedule"
+                  value={`${user.standard_hours_per_day}h / day`}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+
+        {/* Detailed Information Forms */}
+        <main className="space-y-10 lg:col-span-8">
+          <Section title="Personal Record" badge="Instant Save">
+            <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
+              <EditableField
+                label="First Name"
+                value={user.first_name}
+                onSave={(v) => savePersonal("first_name", v)}
+                required
+              />
+              <EditableField
+                label="Last Name"
+                value={user.last_name}
+                onSave={(v) => savePersonal("last_name", v)}
+                required
+              />
+              <EditableField
+                label="Preferred Name"
+                value={user.preferred_name || ""}
+                onSave={(v) => savePersonal("preferred_name", v)}
+              />
+              <EditableField
+                label="Birth Date"
+                value={user.birthday || ""}
+                type="date"
+                onSave={(v) => savePersonal("birthday", v)}
+              />
+            </div>
+
+            <Separator className="my-2" />
+
+            <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
+              <EditableField
+                label="Mobile Phone"
+                value={user.phone || ""}
+                type="tel"
+                onSave={(v) => savePersonal("phone", v)}
+              />
+              <EditableField
+                label="Home City"
+                value={user.city || ""}
+                onSave={(v) => savePersonal("city", v)}
+              />
+              <div className="md:col-span-2">
+                <EditableField
+                  label="Primary Address"
+                  value={user.address_line1 || ""}
+                  onSave={(v) => savePersonal("address_line1", v)}
+                />
+              </div>
+            </div>
+          </Section>
+
+          <Section
+            title="Professional Details"
+            badge="Requires Approval"
+            badgeVariant="amber"
+          >
+            <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
+              <EditableField
+                label="Job Title"
+                value={user.job_title || ""}
+                isPending={pendingFields.has("job_title")}
+                onSave={(v) => requestWork("job_title", v)}
+              />
+              <EditableSelectField
+                label="Department"
+                value={user.department || ""}
+                options={departmentOptions}
+                isPending={pendingFields.has("department")}
+                onSave={(v) => requestWork("department", v)}
+              />
+
+              <EditableField
+                label="Primary Location"
+                value={user.location || ""}
+                isPending={pendingFields.has("location")}
+                onSave={(v) => requestWork("location", v)}
+              />
+            </div>
+          </Section>
+
+          <Section title="Emergency Contact">
+            <div className="grid grid-cols-1 gap-x-12 gap-y-6 md:grid-cols-2">
+              <EditableField
+                label="Full Name"
+                value={user.emergency_name || ""}
+                onSave={(v) => savePersonal("emergency_name", v)}
+              />
+              <EditableSelectField
+                label="Relationship"
+                value={user.emergency_relation || ""}
+                options={EMERGENCY_RELATIONS}
+                onSave={(v) => savePersonal("emergency_relation", v)}
+              />
+              <div className="md:col-span-2">
+                <EditableField
+                  label="Emergency Phone"
+                  value={user.emergency_phone || ""}
+                  type="tel"
+                  onSave={(v) => savePersonal("emergency_phone", v)}
+                />
+              </div>
+            </div>
+          </Section>
+        </main>
       </div>
 
-      {/* Avatar Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Profile Picture</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col items-center gap-6 sm:flex-row">
-          <Avatar className="h-28 w-28 ring-2 ring-background ring-offset-4">
-            <AvatarImage src={user.avatar_url ?? undefined} />
-            <AvatarFallback className="bg-primary/10 text-4xl font-semibold text-primary">
-              {user.first_name?.[0]}
-              {user.last_name?.[0]}
-            </AvatarFallback>
-          </Avatar>
+      <input
+        id="avatar-upload"
+        type="file"
+        className="hidden"
+        accept="image/*"
+        onChange={handleAvatarUpload}
+      />
+    </div>
+  )
+}
 
-          <div className="space-y-3">
-            <Label htmlFor="avatar-upload" className="cursor-pointer">
-              <div className="inline-flex items-center gap-2 rounded-md border px-4 py-2 transition-colors hover:bg-accent">
-                <Upload className="h-4 w-4" />
-                {uploadingAvatar ? "Uploading..." : "Change profile picture"}
-              </div>
-            </Label>
-            <input
-              id="avatar-upload"
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleAvatarUpload}
-              disabled={uploadingAvatar}
-            />
-            <p className="text-xs text-muted-foreground">
-              JPG, PNG or GIF • Max 5MB • Square recommended
-            </p>
-          </div>
-        </CardContent>
+// Utility Components
+function Section({ title, badge, badgeVariant = "blue", children }: any) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between px-1">
+        <h3 className="text-[11px] font-black tracking-[0.25em] text-muted-foreground/60 uppercase">
+          {title}
+        </h3>
+        {badge && (
+          <span
+            className={`rounded border px-2 py-0.5 text-[9px] font-black tracking-tighter uppercase shadow-sm ${
+              badgeVariant === "amber"
+                ? "border-amber-100 bg-amber-50 text-amber-600"
+                : "border-blue-100 bg-blue-50 text-blue-600"
+            }`}
+          >
+            {badge}
+          </span>
+        )}
+      </div>
+      <Card className="border-none bg-card shadow-none ring-1 ring-border">
+        <CardContent className="space-y-8 p-8">{children}</CardContent>
       </Card>
+    </div>
+  )
+}
 
-      {/* Personal Information */}
-      {/* Personal Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Personal Information</CardTitle>
-          <CardDescription>Changes save immediately</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Name */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <EditableField
-              label="First Name"
-              value={user.first_name ?? ""}
-              onSave={(v) => savePersonal("first_name", v)}
-              required
-            />
-            <EditableField
-              label="Last Name"
-              value={user.last_name ?? ""}
-              onSave={(v) => savePersonal("last_name", v)}
-              required
-            />
-          </div>
-
-          <EditableField
-            label="Preferred Name"
-            value={user.preferred_name || ""}
-            onSave={(v) => savePersonal("preferred_name", v)}
-          />
-
-          {/* Contact */}
-          <Separator />
-          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Contact
-          </p>
-
-          <EditableField
-            label="Phone"
-            value={user.phone ?? ""}
-            onSave={(v) => savePersonal("phone", v)}
-            type="tel"
-          />
-
-          <EditableField
-            label="Birthday"
-            value={
-              user.birthday
-                ? new Date(user.birthday).toISOString().split("T")[0]
-                : ""
-            }
-            onSave={(v) => savePersonal("birthday", v)}
-            type="date"
-          />
-
-          {/* Address */}
-          <Separator />
-          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Address
-          </p>
-
-          <EditableField
-            label="Address Line 1"
-            value={user.address_line1 || ""}
-            onSave={(v) => savePersonal("address_line1", v)}
-          />
-          <EditableField
-            label="Address Line 2"
-            value={user.address_line2 || ""}
-            onSave={(v) => savePersonal("address_line2", v)}
-          />
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <EditableField
-              label="City"
-              value={user.city || ""}
-              onSave={(v) => savePersonal("city", v)}
-            />
-            <EditableField
-              label="Country"
-              value={user.country || "Philippines"}
-              onSave={(v) => savePersonal("country", v)}
-            />
-          </div>
-
-          {/* Emergency Contact */}
-          <Separator />
-          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Emergency Contact
-          </p>
-
-          <EditableField
-            label="Name"
-            value={user.emergency_name || ""}
-            onSave={(v) => savePersonal("emergency_name", v)}
-          />
-          <EditableField
-            label="Phone"
-            value={user.emergency_phone || ""}
-            onSave={(v) => savePersonal("emergency_phone", v)}
-            type="tel"
-          />
-          <EditableField
-            label="Relationship"
-            value={user.emergency_relation || ""}
-            onSave={(v) => savePersonal("emergency_relation", v)}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Work Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Work Information</CardTitle>
-          <CardDescription>Requires manager approval</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="flex justify-between py-1 text-sm">
-            <span className="text-muted-foreground">Email</span>
-            <span>{user.email}</span>
-          </div>
-          <Separator />
-
-          <EditableField
-            label="Job Title"
-            value={user.job_title ?? ""}
-            onSave={(v) => requestWork("job_title", v)}
-          />
-          <EditableField
-            label="Department"
-            value={user.department ?? ""}
-            onSave={(v) => requestWork("department", v)}
-          />
-          <EditableField
-            label="Location"
-            value={user.location ?? ""}
-            onSave={(v) => requestWork("location", v)}
-          />
-        </CardContent>
-      </Card>
-
-      {/* Employment Details */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Employment Details</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {[
-            [
-              "Role",
-              <Badge variant="secondary" className="capitalize">
-                {user.role}
-              </Badge>,
-            ],
-            [
-              "Status",
-              <Badge
-                variant={
-                  user.employment_status === "active"
-                    ? "default"
-                    : "destructive"
-                }
-                className="capitalize"
-              >
-                {user.employment_status}
-              </Badge>,
-            ],
-            ["Hire Date", user.hire_date ?? "—"],
-            ["Standard Hours / Day", `${user.standard_hours_per_day}h`],
-            ["Standard Hours / Week", `${user.standard_hours_per_week}h`],
-          ].map(([label, val]) => (
-            <div key={String(label)} className="flex justify-between">
-              <span className="text-muted-foreground">{label}</span>
-              <span>{val}</span>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+function StaticRow({
+  label,
+  value,
+}: {
+  label: string
+  value: string | React.ReactNode
+}) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="font-medium text-muted-foreground">{label}</span>
+      <span className="font-bold text-foreground/80 tabular-nums">{value}</span>
     </div>
   )
 }

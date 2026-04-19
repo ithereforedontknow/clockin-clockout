@@ -1,5 +1,11 @@
 import { useState } from "react"
-import { Check, ChevronsUpDown, Trash2 } from "lucide-react"
+import {
+  Trash2,
+  AlertTriangle,
+  Loader2,
+  Building2,
+  Briefcase,
+} from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -8,9 +14,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
 import {
   Select,
   SelectContent,
@@ -18,190 +24,183 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { useEmployees, useAllCurriculums, useBulkUnassign } from "@/lib/queries"
+import { Label } from "@/components/ui/label"
+import { useAllCurriculums, useBulkUnassign, useEmployees } from "@/lib/queries"
 
-export function BulkUnassignDialog() {
+export function BulkUnassignDialog({
+  selectedIds = [],
+  onSuccess,
+}: {
+  selectedIds?: string[]
+  onSuccess?: () => void
+}) {
   const [open, setOpen] = useState(false)
-  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([])
   const [curriculumId, setCurriculumId] = useState<string>("all")
-  const [isUnassigning, setIsUnassigning] = useState(false)
+  const [filters, setFilters] = useState({ dept: "all", role: "all" })
 
-  const { data: employees = [] } = useEmployees()
   const { data: courses = [] } = useAllCurriculums()
+  const { data: employees = [] } = useEmployees()
   const bulkUnassign = useBulkUnassign()
 
-  const handleUnassign = async () => {
-    if (selectedEmployeeIds.length === 0) {
-      toast.error("Select at least one employee")
-      return
-    }
+  const isDirectSelection = selectedIds.length > 0
+  const departments = Array.from(
+    new Set(employees.map((e: any) => e.department).filter(Boolean))
+  ) as string[]
 
-    setIsUnassigning(true)
+  const targetEmployees = isDirectSelection
+    ? employees.filter((e: any) => selectedIds.includes(e.id))
+    : employees.filter((e: any) => {
+        const deptMatch =
+          filters.dept === "all" || e.department === filters.dept
+        const roleMatch = filters.role === "all" || e.role === filters.role
+        return deptMatch && roleMatch
+      })
+
+  const handleUnassign = async () => {
+    if (targetEmployees.length === 0)
+      return toast.error("No employees selected")
+
     try {
       await bulkUnassign.mutateAsync({
-        employeeIds: selectedEmployeeIds,
+        employeeIds: targetEmployees.map((e: any) => e.id),
         curriculumId: curriculumId === "all" ? undefined : curriculumId,
       })
-      toast.success(
-        `Unassigned from ${selectedEmployeeIds.length} employee${selectedEmployeeIds.length > 1 ? "s" : ""}`
-      )
+      toast.success(`Removed courses from ${targetEmployees.length} employees`)
       setOpen(false)
-      setSelectedEmployeeIds([])
       setCurriculumId("all")
+      onSuccess?.()
     } catch (error: any) {
       toast.error(error.message)
-    } finally {
-      setIsUnassigning(false)
     }
   }
 
-  const selectedEmployees = employees.filter((e) =>
-    selectedEmployeeIds.includes(e.id)
-  )
-  const isRemovingAll = curriculumId === "all"
+  const isWipeSlate = curriculumId === "all"
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2 text-muted-foreground">
-          <Trash2 className="h-4 w-4" />
-          Bulk Unassign
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 gap-2 border-red-200 text-xs font-bold text-red-600 transition-colors hover:bg-red-50 hover:text-red-700"
+        >
+          <Trash2 className="h-3.5 w-3.5" />{" "}
+          {isDirectSelection ? "Remove Selected" : "Bulk Remove"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="border-red-100 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Bulk Unassign</DialogTitle>
+          <DialogTitle className="flex items-center gap-2 text-xl font-bold tracking-tight text-red-600">
+            <AlertTriangle className="h-5 w-5" /> Bulk Unassign
+          </DialogTitle>
           <DialogDescription>
-            Remove course assignments from multiple employees at once.
+            You are about to remove required coursework from{" "}
+            <strong className="text-foreground">
+              {targetEmployees.length} employees.
+            </strong>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-5 pt-2">
-          {/* Employee picker */}
-          <div className="space-y-2">
-            <Label>Employees</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  className="w-full justify-between font-normal"
+        <div className="space-y-6 py-2">
+          {!isDirectSelection && (
+            <div className="grid grid-cols-2 gap-4 rounded-xl border bg-muted/30 p-4">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                  <Building2 className="h-3 w-3" /> Department
+                </Label>
+                <Select
+                  value={filters.dept}
+                  onValueChange={(v) => setFilters((f) => ({ ...f, dept: v }))}
                 >
-                  {selectedEmployeeIds.length === 0
-                    ? "Select employees…"
-                    : `${selectedEmployeeIds.length} employee${selectedEmployeeIds.length > 1 ? "s" : ""} selected`}
-                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[380px] p-0">
-                <Command>
-                  <CommandInput placeholder="Search employees…" />
-                  <CommandList>
-                    <CommandEmpty>No employees found.</CommandEmpty>
-                    <CommandGroup>
-                      <ScrollArea className="h-64">
-                        {employees.map((emp) => (
-                          <CommandItem
-                            key={emp.id}
-                            onSelect={() =>
-                              setSelectedEmployeeIds((prev) =>
-                                prev.includes(emp.id)
-                                  ? prev.filter((id) => id !== emp.id)
-                                  : [...prev, emp.id]
-                              )
-                            }
-                          >
-                            <Check
-                              className={`mr-2 h-4 w-4 transition-opacity ${
-                                selectedEmployeeIds.includes(emp.id)
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              }`}
-                            />
-                            {emp.first_name} {emp.last_name}
-                          </CommandItem>
-                        ))}
-                      </ScrollArea>
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
-
-            {selectedEmployees.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {selectedEmployees.slice(0, 5).map((emp) => (
-                  <Badge key={emp.id} variant="secondary" className="text-xs">
-                    {emp.first_name} {emp.last_name}
-                  </Badge>
-                ))}
-                {selectedEmployees.length > 5 && (
-                  <Badge variant="secondary" className="text-xs">
-                    +{selectedEmployees.length - 5} more
-                  </Badge>
-                )}
+                  <SelectTrigger className="h-9 bg-background text-xs font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Every Department</SelectItem>
+                    {departments.map((d) => (
+                      <SelectItem key={d} value={d}>
+                        {d}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-          </div>
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                  <Briefcase className="h-3 w-3" /> System Role
+                </Label>
+                <Select
+                  value={filters.role}
+                  onValueChange={(v) => setFilters((f) => ({ ...f, role: v }))}
+                >
+                  <SelectTrigger className="h-9 bg-background text-xs font-medium">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    <SelectItem value="employee">Staff</SelectItem>
+                    <SelectItem value="employer">Managers</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
-          {/* Course filter */}
           <div className="space-y-2">
-            <Label>
-              Course{" "}
-              <span className="font-normal text-muted-foreground">
-                (optional)
-              </span>
+            <Label className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+              Select Course to Remove
             </Label>
             <Select value={curriculumId} onValueChange={setCurriculumId}>
-              <SelectTrigger>
+              <SelectTrigger className="h-10 font-bold">
                 <SelectValue placeholder="All assigned courses" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All assigned courses</SelectItem>
-                {courses.map((course) => (
-                  <SelectItem key={course.id} value={course.id}>
-                    {course.title}
+                <SelectItem value="all" className="font-bold text-red-600">
+                  ⚠️ All Courses (Wipe Slate)
+                </SelectItem>
+                {courses.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.title}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              {isRemovingAll
-                ? "All course assignments will be removed."
-                : "Only the selected course will be unassigned."}
-            </p>
+          </div>
+
+          <div
+            className={`rounded-xl border p-4 text-sm font-medium ${isWipeSlate ? "border-red-200 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}
+          >
+            <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold tracking-widest uppercase">
+              <AlertTriangle className="h-3.5 w-3.5" /> Data Loss Warning
+            </h4>
+            {isWipeSlate
+              ? "You are choosing to unassign EVERY course from these employees. All active progress will be permanently deleted."
+              : "Removing this course will permanently delete the selected employees' active progress for this specific curriculum."}
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setOpen(false)}
+            disabled={bulkUnassign.isPending}
+          >
             Cancel
           </Button>
           <Button
             variant="destructive"
             onClick={handleUnassign}
-            disabled={isUnassigning || selectedEmployeeIds.length === 0}
+            disabled={bulkUnassign.isPending || targetEmployees.length === 0}
+            className="font-bold"
           >
-            {isUnassigning
-              ? "Unassigning…"
-              : `Unassign ${selectedEmployeeIds.length > 0 ? selectedEmployeeIds.length : ""}${selectedEmployeeIds.length > 0 ? ` employee${selectedEmployeeIds.length > 1 ? "s" : ""}` : ""}`}
+            {bulkUnassign.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
+            Confirm Removal ({targetEmployees.length})
           </Button>
-        </div>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )

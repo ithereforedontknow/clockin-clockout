@@ -7,11 +7,10 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 export function PtoApprovalsCard({ pendingTimeOff }: any) {
   return (
     <Card>
-      <CardHeader className="border-b">
-        <CardTitle className="flex items-center justify-between text-sm font-semibold">
+      <CardHeader className="border-b pb-3">
+        <CardTitle className="flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
           <div className="flex items-center gap-2">
-            <Clock className="h-3.5 w-3.5 text-primary" />
-            Pending Approvals
+            <Clock className="h-3.5 w-3.5 text-primary" /> Pending Approvals
           </div>
           <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
             {pendingTimeOff.length}

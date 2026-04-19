@@ -70,6 +70,7 @@ export function HomeTab({ onNavigate }: Props) {
 
   const clockIn = useClockIn()
   const clockOut = useClockOut()
+
   const startBreak = useStartBreak()
   const endBreak = useEndBreak()
 
@@ -79,6 +80,8 @@ export function HomeTab({ onNavigate }: Props) {
   }, [])
 
   const isClockedIn = !!entry && !entry.clock_out
+  const isClockedOut = !!entry && !!entry.clock_out // Entry exists and has a clock_out time
+
   const openBreak = entry?.breaks?.find((b: any) => !b.break_end) ?? null
   const isOnBreak = !!openBreak
 
@@ -143,6 +146,7 @@ export function HomeTab({ onNavigate }: Props) {
             workedMins={workedMins}
             isOnBreak={isOnBreak}
             isClockedIn={isClockedIn}
+            isClockedOut={isClockedOut}
             liveBreakMins={liveBreakMins}
             clockLoading={clockLoading}
             isMutating={
@@ -180,10 +184,10 @@ export function HomeTab({ onNavigate }: Props) {
 
         <main className="lg:col-span-8">
           <Tabs defaultValue="overview" className="space-y-6">
-            <TabsList className="h-10 rounded-lg bg-muted/60 p-1">
+            <TabsList className="h-10 w-full justify-start rounded-lg bg-muted/60 p-1 sm:w-auto">
               <TabsTrigger
                 value="overview"
-                className="flex items-center gap-2 rounded-md px-4 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                className="flex items-center gap-2 rounded-md px-4 text-sm font-bold data-[state=active]:bg-background data-[state=active]:shadow-sm"
               >
                 <LayoutDashboard className="h-3.5 w-3.5" />
                 Overview
@@ -191,7 +195,7 @@ export function HomeTab({ onNavigate }: Props) {
 
               <TabsTrigger
                 value="team"
-                className="flex items-center gap-2 rounded-md px-4 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                className="flex items-center gap-2 rounded-md px-4 text-sm font-bold data-[state=active]:bg-background data-[state=active]:shadow-sm"
               >
                 <Users className="h-3.5 w-3.5" />
                 Team
@@ -199,7 +203,7 @@ export function HomeTab({ onNavigate }: Props) {
 
               <TabsTrigger
                 value="timeoff"
-                className="flex items-center gap-2 rounded-md px-4 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                className="flex items-center gap-2 rounded-md px-4 text-sm font-bold data-[state=active]:bg-background data-[state=active]:shadow-sm"
               >
                 <CalendarClock className="h-3.5 w-3.5" />
                 Time Off
@@ -207,46 +211,48 @@ export function HomeTab({ onNavigate }: Props) {
 
               <TabsTrigger
                 value="training"
-                className="flex items-center gap-2 rounded-md px-4 text-sm data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                className="flex items-center gap-2 rounded-md px-4 text-sm font-bold data-[state=active]:bg-background data-[state=active]:shadow-sm"
               >
                 <GraduationCap className="h-3.5 w-3.5" />
                 Training
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="overview">
-              {employee && <AnnouncementsCard currentEmployee={employee} />}
-            </TabsContent>
+            <div className="mt-6">
+              <TabsContent value="overview" className="mt-0">
+                {employee && <AnnouncementsCard currentEmployee={employee} />}
+              </TabsContent>
 
-            <TabsContent value="team">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <LiveClockedInCard liveEntries={liveEntries} />
-                <WhosOutCard whosOut={whosOut} />
-              </div>
-            </TabsContent>
+              <TabsContent value="team" className="mt-0">
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                  <LiveClockedInCard liveEntries={liveEntries} />
+                  <WhosOutCard whosOut={whosOut} />
+                </div>
+              </TabsContent>
 
-            <TabsContent value="timeoff">
-              <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
-                <LeaveBalancesCard
-                  balances={balances}
-                  isLoading={balancesLoading}
-                />
-                {canViewApprovals && (
-                  <PtoApprovalsCard
-                    pendingTimeOff={pendingTimeOff}
-                    employeeId={employeeId}
-                    onNavigate={onNavigate}
+              <TabsContent value="timeoff" className="mt-0">
+                <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-2">
+                  <LeaveBalancesCard
+                    balances={balances}
+                    isLoading={balancesLoading}
                   />
-                )}
-              </div>
-            </TabsContent>
+                  {canViewApprovals && (
+                    <PtoApprovalsCard
+                      pendingTimeOff={pendingTimeOff}
+                      employeeId={employeeId}
+                      onNavigate={onNavigate}
+                    />
+                  )}
+                </div>
+              </TabsContent>
 
-            <TabsContent value="training">
-              <MyCoursesCard
-                trainingRecords={trainingRecords}
-                onNavigate={onNavigate}
-              />
-            </TabsContent>
+              <TabsContent value="training" className="mt-0">
+                <MyCoursesCard
+                  trainingRecords={trainingRecords}
+                  onNavigate={onNavigate}
+                />
+              </TabsContent>
+            </div>
           </Tabs>
         </main>
       </div>

@@ -20,11 +20,10 @@ export function WhosOutCard({ whosOut }: { whosOut: any[] }) {
 
   return (
     <Card className="flex h-[400px] flex-col">
-      <CardHeader className="border-b">
-        <CardTitle className="flex items-center justify-between text-sm font-semibold">
+      <CardHeader className="border-b pb-3">
+        <CardTitle className="flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
           <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-primary" />
-            Away This Week
+            <Users className="h-3.5 w-3.5 text-primary" /> Away This Week
           </div>
           <div className="flex -space-x-2">
             {whosOut.slice(0, 3).map((req, i) => (

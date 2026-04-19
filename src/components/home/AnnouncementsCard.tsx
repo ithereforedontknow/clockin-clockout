@@ -83,22 +83,23 @@ export function AnnouncementsCard({ currentEmployee }: Props) {
   return (
     <>
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-3">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
-            <Megaphone className="h-4 w-4 text-primary" />
-            Announcements
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center justify-between text-[11px] font-bold tracking-widest text-muted-foreground uppercase">
+            <div className="flex items-center gap-2">
+              <Megaphone className="h-3.5 w-3.5 text-primary" /> Announcements
+            </div>
+            {canPost && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 gap-1.5 text-xs"
+                onClick={() => setPostOpen(true)}
+              >
+                <Plus className="h-3 w-3" />
+                Post
+              </Button>
+            )}
           </CardTitle>
-          {canPost && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7 gap-1.5 text-xs"
-              onClick={() => setPostOpen(true)}
-            >
-              <Plus className="h-3 w-3" />
-              Post
-            </Button>
-          )}
         </CardHeader>
         <CardContent className="p-0">
           <div className="border-t">

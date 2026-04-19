@@ -1,6 +1,6 @@
 import { useState, useEffect, type FormEvent } from "react"
 import { useNavigate } from "react-router-dom"
-import { Loader2, Eye, EyeOff, ShieldCheck } from "lucide-react"
+import { Loader2, Eye, EyeOff, ShieldCheck, AlarmClock } from "lucide-react"
 import { toast } from "sonner"
 import { supabase } from "@/lib/supabase"
 import { Button } from "@/components/ui/button"
@@ -13,102 +13,107 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useCompanySettings } from "@/lib/queries"
 
 export function ResetPasswordPage() {
   const navigate = useNavigate()
+  const { data: settings } = useCompanySettings()
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [showPass, setShowPass] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [isReady, setIsReady] = useState(false) // true once Supabase exchanges the code
+  const [isReady, setIsReady] = useState(false)
+
+  const companyName = settings?.company_name ?? "Stafffolio"
+  const logoUrl = settings?.logo_url
 
   useEffect(() => {
-    // Supabase fires PASSWORD_RECOVERY after it exchanges the URL code
-    // for a session. We wait for that before showing the form.
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setIsReady(true)
-      }
+      if (event === "PASSWORD_RECOVERY") setIsReady(true)
     })
     return () => subscription.unsubscribe()
   }, [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-
-    if (password.length < 8) {
-      toast.error("Password must be at least 8 characters")
-      return
-    }
-    if (password !== confirm) {
-      toast.error("Passwords do not match")
-      return
-    }
+    if (password.length < 8) return toast.error("Minimum 8 characters required")
+    if (password !== confirm) return toast.error("Passwords do not match")
 
     setIsLoading(true)
-
     const { error } = await supabase.auth.updateUser({ password })
-
     setIsLoading(false)
 
     if (error) {
-      toast.error("Failed to reset password", { description: error.message })
+      toast.error("Update failed", { description: error.message })
       return
     }
 
-    toast.success("Password updated! Signing you in…")
+    toast.success("Password updated")
     navigate("/", { replace: true })
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="flex flex-col items-center gap-2 text-center">
-          <div className="rounded-xl bg-primary/10 p-3">
-            <ShieldCheck className="h-8 w-8 text-primary" />
+    <div className="flex min-h-screen animate-in items-center justify-center bg-muted/30 p-6 duration-500 fade-in">
+      <div className="w-full max-w-[400px] space-y-6">
+        {/* Consistent Branding Header */}
+        <div className="mb-4 flex flex-col items-center gap-3 text-center">
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt={companyName}
+              className="h-10 w-auto max-w-[180px] object-contain"
+            />
+          ) : (
+            <div className="rounded-2xl bg-primary/10 p-3">
+              <AlarmClock className="h-7 w-7 text-primary" />
+            </div>
+          )}
+          <div className="space-y-1">
+            <h1 className="text-xl font-bold tracking-tight">{companyName}</h1>
+            <p className="text-[10px] font-bold tracking-[0.2em] text-muted-foreground uppercase">
+              Security Update
+            </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">New password</h1>
-          <p className="text-sm text-muted-foreground">
-            Choose a strong password for your account
-          </p>
         </div>
 
-        <Card>
+        <Card className="border-none bg-card shadow-xl ring-1 shadow-slate-200/50 ring-border">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base">Set a new password</CardTitle>
-            <CardDescription>Must be at least 8 characters.</CardDescription>
+            <CardTitle className="text-base font-bold">New Password</CardTitle>
+            <CardDescription className="text-xs">
+              Set a strong password to secure your account.
+            </CardDescription>
           </CardHeader>
 
           <CardContent>
             {!isReady ? (
-              // Waiting for Supabase to exchange the recovery code
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <div className="flex flex-col items-center justify-center space-y-4 py-10">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="animate-pulse text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                  Verifying Security Token...
+                </p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="password">New password</Label>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black tracking-widest text-muted-foreground/70 uppercase">
+                    New Password
+                  </Label>
                   <div className="relative">
                     <Input
-                      id="password"
                       type={showPass ? "text" : "password"}
                       placeholder="••••••••"
-                      autoComplete="new-password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      disabled={isLoading}
+                      className="h-10 pr-10 font-bold tracking-widest"
                       required
-                      className="pr-10"
+                      disabled={isLoading}
                     />
                     <button
                       type="button"
-                      className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
-                      onClick={() => setShowPass((v) => !v)}
-                      tabIndex={-1}
-                      aria-label={showPass ? "Hide password" : "Show password"}
+                      className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={() => setShowPass(!showPass)}
                     >
                       {showPass ? (
                         <EyeOff className="h-4 w-4" />
@@ -119,39 +124,34 @@ export function ResetPasswordPage() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label htmlFor="confirm">Confirm password</Label>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black tracking-widest text-muted-foreground/70 uppercase">
+                    Confirm Password
+                  </Label>
                   <Input
-                    id="confirm"
                     type={showPass ? "text" : "password"}
                     placeholder="••••••••"
-                    autoComplete="new-password"
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
-                    disabled={isLoading}
+                    className="h-10 font-bold tracking-widest"
                     required
+                    disabled={isLoading}
                   />
-                  {confirm && password !== confirm && (
-                    <p className="text-xs text-destructive">
-                      Passwords do not match
-                    </p>
-                  )}
                 </div>
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="h-11 w-full font-bold shadow-lg"
                   disabled={
                     isLoading || password !== confirm || password.length < 8
                   }
                 >
                   {isLoading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving…
-                    </>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
-                    "Reset password"
+                    <ShieldCheck className="mr-2 h-4 w-4" />
                   )}
+                  Update Password
                 </Button>
               </form>
             )}
