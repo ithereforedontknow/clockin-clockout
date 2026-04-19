@@ -88,7 +88,7 @@ export function MyTrainingPanel() {
               placeholder="Find a course..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="border-none bg-muted/30 pl-10 shadow-none"
+              className="pl-10 shadow-none"
             />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>

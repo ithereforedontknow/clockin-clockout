@@ -3,8 +3,8 @@ import { AppShell } from "@/components/AppShell"
 import { ProtectedRoute } from "@/components/ProtectedRoute"
 import { LoginPage } from "@/pages/LoginPage"
 import { CourseEditor } from "@/components/training/CourseEditor"
-import { CourseDetailPage } from "@/pages/CourseDetailPage"
-import { EmployeeTrainingPage } from "@/pages/EmployeeTrainingPage"
+import { CourseDetailPage } from "@/tabs/CourseDetailPage" // Moved to tabs for consistency
+import { EmployeeTrainingPage } from "@/tabs/EmployeeTrainingPage"
 import { InstructorRoute } from "@/components/InstructorRoute"
 import { ForgotPasswordPage } from "@/pages/ForgotPasswordPage"
 import { ResetPasswordPage } from "@/pages/ResetPasswordPage"
@@ -15,16 +15,20 @@ export const router = createBrowserRouter([
   { path: "/forgot-password", element: <ForgotPasswordPage /> },
   { path: "/reset-password", element: <ResetPasswordPage /> },
 
-  // Protected routes - with optional tab parameter
+  // Protected routes
   {
     element: <ProtectedRoute />,
     children: [
-      // Root routes with optional tab
-      { path: "/", element: <AppShell /> },
+      // Redirect root to dashboard
+      { path: "/", element: <Navigate to="/home" replace /> },
+
+      // The Shell handles all primary tabs via :tab
       { path: "/:tab", element: <AppShell /> },
 
-      // Training routes
+      // Training Deep Links
       { path: "/training/courses/:courseId", element: <CourseDetailPage /> },
+
+      // Admin Deep Links
       {
         path: "/admin/courses/:courseId/edit",
         element: (
@@ -40,6 +44,6 @@ export const router = createBrowserRouter([
     ],
   },
 
-  // Fallback
-  { path: "*", element: <Navigate to="/" replace /> },
+  // Global Fallback
+  { path: "*", element: <Navigate to="/home" replace /> },
 ])

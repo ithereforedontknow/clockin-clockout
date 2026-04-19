@@ -45,7 +45,7 @@ export function WhosOutCard({ whosOut }: { whosOut: any[] }) {
           <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Search away staff..."
-            className="h-8 border-none bg-muted/30 pl-8 text-xs"
+            className="h-8 pl-8 text-xs"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />

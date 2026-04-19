@@ -26,7 +26,7 @@ export function LiveClockedInCard({ liveEntries }: { liveEntries: any[] }) {
           <Search className="absolute top-2.5 left-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
             placeholder="Search team..."
-            className="h-8 border-none bg-muted/30 pl-8 text-xs"
+            className="h-8 pl-8 text-xs"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />

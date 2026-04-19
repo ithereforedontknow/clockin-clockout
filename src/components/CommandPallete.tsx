@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useMemo } from "react"
 import type { TabId } from "@/components/AppShell"
 import {
   Home,
@@ -14,8 +14,8 @@ import {
   Settings,
   Calendar,
   Search,
-  ArrowRight,
-  AlarmClock,
+  Activity,
+  GraduationCap,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -28,6 +28,8 @@ import {
 import { formatMinutes, liveMinutes } from "@/lib/supabase"
 import type { UserRole, BreakEntry } from "@/lib/supabase"
 import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface Props {
   open: boolean
@@ -45,6 +47,7 @@ type CommandItem = {
   group: string
   action: () => void
   keywords?: string[]
+  badge?: string
 }
 
 export function CommandPalette({
@@ -75,202 +78,188 @@ export function CommandPalette({
       )
     : (clockEntry?.total_minutes ?? 0)
 
-  function go(tab: TabId) {
+  const go = (tab: TabId) => {
     onNavigate(tab)
     onClose()
   }
 
-  const navItems: CommandItem[] = [
-    {
-      id: "nav-home",
-      label: "Home",
-      icon: Home,
-      group: "Navigate",
-      action: () => go("home"),
-      keywords: ["dashboard"],
-    },
-    {
-      id: "nav-timesheet",
-      label: "Timesheet",
-      icon: Timer,
-      group: "Navigate",
-      action: () => go("timesheet"),
-      keywords: ["clock", "hours"],
-    },
-    {
-      id: "nav-timeoff",
-      label: "Time Off",
-      icon: Clock,
-      group: "Navigate",
-      action: () => go("timeoff"),
-      keywords: ["leave", "vacation"],
-    },
-    {
-      id: "nav-people",
-      label: "People",
-      icon: Users,
-      group: "Navigate",
-      action: () => go("people"),
-      keywords: ["directory", "team"],
-    },
-    {
-      id: "nav-myinfo",
-      label: "My Info",
+  // 1. Generate Command Items
+  const allItems = useMemo(() => {
+    const nav: CommandItem[] = [
+      {
+        id: "nav-home",
+        label: "Dashboard",
+        icon: Home,
+        group: "Navigation",
+        action: () => go("home"),
+      },
+      {
+        id: "nav-timesheet",
+        label: "Timesheet",
+        icon: Timer,
+        group: "Navigation",
+        action: () => go("timesheet"),
+      },
+      {
+        id: "nav-timeoff",
+        label: "Time Off",
+        icon: Clock,
+        group: "Navigation",
+        action: () => go("timeoff"),
+      },
+      {
+        id: "nav-training",
+        label: "Learning Hub",
+        icon: GraduationCap,
+        group: "Navigation",
+        action: () => go("training"),
+      },
+      ...(role === "employer" || role === "admin"
+        ? [
+            {
+              id: "nav-people",
+              label: "Team Directory",
+              icon: Users,
+              group: "Navigation",
+              action: () => go("people"),
+            },
+            {
+              id: "nav-approvals",
+              label: "Approvals",
+              icon: ClipboardCheck,
+              group: "Navigation",
+              action: () => go("approvals"),
+            },
+            {
+              id: "nav-reports",
+              label: "Analytics",
+              icon: BarChart3,
+              group: "Navigation",
+              action: () => go("reports"),
+            },
+          ]
+        : []),
+      ...(role === "admin"
+        ? [
+            {
+              id: "nav-admin",
+              label: "Admin Hub",
+              icon: Shield,
+              group: "Navigation",
+              action: () => go("admin"),
+            },
+          ]
+        : []),
+    ]
+
+    const clock: CommandItem[] = !!clockEntry?.clock_out
+      ? []
+      : !isClockedIn
+        ? [
+            {
+              id: "clock-in",
+              label: "Clock In",
+              sublabel: "Start today's session",
+              icon: Play,
+              group: "Time Clock",
+              action: async () => {
+                if (!employee) return
+                await clockIn.mutateAsync(employee.id)
+                toast.success("Shift started")
+                onClose()
+              },
+            },
+          ]
+        : [
+            {
+              id: "clock-out",
+              label: "Clock Out",
+              sublabel: `Active for ${formatMinutes(workedMins)}`,
+              icon: Square,
+              group: "Time Clock",
+              action: async () => {
+                if (!employee || !clockEntry) return
+                await clockOut.mutateAsync({
+                  entryId: clockEntry.id,
+                  employeeId: employee.id,
+                  totalMinutes: workedMins,
+                })
+                toast.success("Shift completed")
+                onClose()
+              },
+            },
+          ]
+
+    const people: CommandItem[] = employees.slice(0, 10).map((emp) => ({
+      id: `emp-${emp.id}`,
+      label: `${emp.first_name} ${emp.last_name}`,
+      sublabel: emp.job_title || "Team Member",
+      badge: emp.department,
       icon: User,
-      group: "Navigate",
-      action: () => go("myinfo"),
-      keywords: ["profile", "account"],
-    },
-    ...(role === "employer" || role === "admin"
-      ? [
-          {
-            id: "nav-approvals",
-            label: "Approvals",
-            icon: ClipboardCheck,
-            group: "Navigate",
-            action: () => go("approvals"),
-            keywords: [],
-          },
-          {
-            id: "nav-reports",
-            label: "Reports",
-            icon: BarChart3,
-            group: "Navigate",
-            action: () => go("reports"),
-            keywords: [],
-          },
-        ]
-      : []),
-    ...(role === "admin"
-      ? [
-          {
-            id: "nav-admin",
-            label: "Admin",
-            icon: Shield,
-            group: "Navigate",
-            action: () => go("admin"),
-            keywords: [],
-          },
-        ]
-      : []),
-  ]
-
-  const isClockDone = !!clockEntry?.clock_out
-  const clockItems: CommandItem[] = isClockDone
-    ? []
-    : !isClockedIn
-      ? [
-          {
-            id: "clock-in",
-            label: "Clock In",
-            sublabel: "Start your shift",
-            icon: Play,
-            group: "Clock",
-            keywords: ["start", "begin"],
-            action: async () => {
-              if (!employee) return
-              await clockIn.mutateAsync(employee.id)
-              toast.success("Clocked in!")
-              onClose()
-            },
-          },
-        ]
-      : [
-          {
-            id: "clock-out",
-            label: "Clock Out",
-            sublabel: `${formatMinutes(workedMins)} worked today`,
-            icon: Square,
-            group: "Clock",
-            keywords: ["stop", "end"],
-            action: async () => {
-              if (!employee || !clockEntry) return
-              await clockOut.mutateAsync({
-                entryId: clockEntry.id,
-                employeeId: employee.id,
-                totalMinutes: workedMins,
-              })
-              toast.success("Clocked out!")
-              onClose()
-            },
-          },
-        ]
-
-  const actionItems: CommandItem[] = [
-    {
-      id: "action-settings",
-      label: "Settings",
-      icon: Settings,
-      group: "Actions",
-      keywords: ["preferences"],
+      group: "Staff Directory",
       action: () => {
-        onOpenSettings()
+        go("people")
         onClose()
       },
-    },
-    {
-      id: "action-timeoff",
-      label: "Request Time Off",
-      icon: Calendar,
-      group: "Actions",
-      keywords: ["leave", "vacation"],
-      action: () => go("timeoff"),
-    },
-  ]
+    }))
 
-  const employeeItems: CommandItem[] = employees.map((emp) => ({
-    id: `emp-${emp.id}`,
-    label: `${emp.first_name} ${emp.last_name}`,
-    sublabel: [emp.job_title, emp.department].filter(Boolean).join(" · "),
-    icon: User,
-    group: "People",
-    keywords: [emp.email, emp.department, emp.job_title],
-    action: () => {
-      go("people")
-      onClose()
-    },
-  }))
+    const actions: CommandItem[] = [
+      {
+        id: "act-settings",
+        label: "System Settings",
+        icon: Settings,
+        group: "Global",
+        action: () => {
+          onOpenSettings()
+          onClose()
+        },
+      },
+      {
+        id: "act-pto",
+        label: "Request Leave",
+        icon: Calendar,
+        group: "Global",
+        action: () => go("timeoff"),
+      },
+    ]
 
-  const allItems = [
-    ...navItems,
-    ...clockItems,
-    ...actionItems,
-    ...employeeItems,
-  ]
-  const filtered =
-    query.trim() === ""
-      ? [...clockItems, ...navItems, ...actionItems]
-      : allItems.filter((item) => {
-          const q = query.toLowerCase()
-          return (
-            item.label.toLowerCase().includes(q) ||
-            item.sublabel?.toLowerCase().includes(q) ||
-            item.keywords?.some((k) => k?.toLowerCase().includes(q))
-          )
-        })
+    return [...clock, ...nav, ...people, ...actions]
+  }, [role, employee, clockEntry, isClockedIn, workedMins, employees])
 
-  const grouped = filtered.reduce<Record<string, CommandItem[]>>(
-    (acc, item) => {
+  // 2. Filter & Group Results
+  const filteredGroups = useMemo(() => {
+    const q = query.toLowerCase().trim()
+    const filtered = allItems.filter(
+      (i) =>
+        i.label.toLowerCase().includes(q) ||
+        i.group.toLowerCase().includes(q) ||
+        i.sublabel?.toLowerCase().includes(q)
+    )
+
+    return filtered.reduce<Record<string, CommandItem[]>>((acc, item) => {
       if (!acc[item.group]) acc[item.group] = []
       acc[item.group].push(item)
       return acc
-    },
-    {}
+    }, {})
+  }, [query, allItems])
+
+  const flatFiltered = useMemo(
+    () => Object.values(filteredGroups).flat(),
+    [filteredGroups]
   )
 
-  const flatFiltered = Object.values(grouped).flat()
-
+  // 3. Keyboard & Focus Management
   useEffect(() => {
     if (open) {
       setQuery("")
       setSelected(0)
-      setTimeout(() => inputRef.current?.focus(), 50)
+      setTimeout(() => inputRef.current?.focus(), 10)
     }
   }, [open])
 
   useEffect(() => {
     if (!open) return
-    function onKey(e: KeyboardEvent) {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === "ArrowDown") {
         e.preventDefault()
         setSelected((s) => Math.min(s + 1, flatFiltered.length - 1))
@@ -286,10 +275,6 @@ export function CommandPalette({
     return () => window.removeEventListener("keydown", onKey)
   }, [open, flatFiltered, selected, onClose])
 
-  useEffect(() => {
-    setSelected(0)
-  }, [query])
-
   if (!open) return null
 
   let itemIndex = 0
@@ -297,110 +282,143 @@ export function CommandPalette({
   return (
     <>
       <div
-        className="fixed inset-0 z-50 animate-in bg-black/20 backdrop-blur-sm fade-in-0"
+        className="fixed inset-0 z-[100] animate-in bg-background/40 backdrop-blur-sm duration-300 fade-in"
         onClick={onClose}
       />
 
-      <div className="fixed top-[18vh] left-1/2 z-50 w-full max-w-[480px] -translate-x-1/2 px-4">
-        <div className="overflow-hidden rounded-xl border border-border bg-background shadow-2xl ring-1 ring-black/5">
-          {/* Search */}
-          <div className="flex items-center gap-3 border-b px-4 py-3">
-            <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
+      <div className="fixed top-[15vh] left-1/2 z-[101] w-full max-w-[550px] -translate-x-1/2 px-4">
+        <div className="animate-in overflow-hidden rounded-2xl border bg-card shadow-2xl ring-1 ring-border duration-200 zoom-in-95">
+          {/* Search Input */}
+          <div className="flex items-center gap-3 border-b bg-muted/20 px-5 py-4">
+            <Search className="h-4 w-4 text-muted-foreground/60" />
             <input
               ref={inputRef}
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search tabs, actions, employees…"
-              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setSelected(0)
+              }}
+              placeholder="Search actions, teammates, and apps..."
+              className="flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-muted-foreground/50"
             />
-            {query && (
-              <button
-                onClick={() => setQuery("")}
-                className="text-xs text-muted-foreground hover:text-foreground"
+            <div className="flex items-center gap-1.5">
+              <Badge
+                variant="outline"
+                className="text-[10px] font-bold uppercase opacity-50"
               >
-                Clear
-              </button>
-            )}
+                ESC
+              </Badge>
+            </div>
           </div>
 
-          {/* Results */}
-          <div className="max-h-72 overflow-y-auto py-1.5">
-            {flatFiltered.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground">
-                <AlarmClock className="h-7 w-7 opacity-25" />
-                <p className="text-sm">No results for "{query}"</p>
-              </div>
-            ) : (
-              Object.entries(grouped).map(([group, items]) => (
-                <div key={group}>
-                  <p className="px-4 pt-2 pb-1 text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
-                    {group}
+          {/* Result List */}
+          <ScrollArea className="h-[380px]">
+            <div className="p-2">
+              {flatFiltered.length === 0 ? (
+                <div className="flex animate-in flex-col items-center justify-center py-20 text-muted-foreground fade-in">
+                  <Activity className="mb-2 h-8 w-8 opacity-10" />
+                  <p className="text-xs font-medium italic">
+                    No matches found for "{query}"
                   </p>
-                  {items.map((item) => {
-                    const idx = itemIndex++
-                    const isSelected = idx === selected
-                    return (
-                      <button
-                        key={item.id}
-                        className={cn(
-                          "flex w-full items-center gap-3 px-4 py-2 text-left transition-colors",
-                          isSelected
-                            ? "bg-accent text-accent-foreground"
-                            : "hover:bg-accent/50"
-                        )}
-                        onMouseEnter={() => setSelected(idx)}
-                        onClick={item.action}
-                      >
-                        <div
-                          className={cn(
-                            "shrink-0 rounded-md p-1.5",
-                            isSelected ? "bg-primary/10" : "bg-muted"
-                          )}
-                        >
-                          <item.icon
-                            className={cn(
-                              "h-3.5 w-3.5",
-                              isSelected
-                                ? "text-primary"
-                                : "text-muted-foreground"
-                            )}
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">
-                            {item.label}
-                          </p>
-                          {item.sublabel && (
-                            <p className="truncate text-xs text-muted-foreground">
-                              {item.sublabel}
-                            </p>
-                          )}
-                        </div>
-                        {isSelected && (
-                          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                        )}
-                      </button>
-                    )
-                  })}
                 </div>
-              ))
-            )}
-          </div>
+              ) : (
+                Object.entries(filteredGroups).map(([group, items]) => (
+                  <div key={group} className="space-y-1">
+                    <p className="px-4 pt-4 pb-2 text-[9px] font-black tracking-[0.25em] text-muted-foreground/60 uppercase">
+                      {group}
+                    </p>
+                    {items.map((item) => {
+                      const idx = itemIndex++
+                      const isSelected = idx === selected
+                      return (
+                        <button
+                          key={item.id}
+                          className={cn(
+                            "group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition-all",
+                            isSelected
+                              ? "scale-[1.01] bg-primary text-primary-foreground shadow-lg shadow-primary/20"
+                              : "hover:bg-muted"
+                          )}
+                          onMouseEnter={() => setSelected(idx)}
+                          onClick={item.action}
+                        >
+                          <div
+                            className={cn(
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                              isSelected
+                                ? "bg-white/20"
+                                : "border bg-muted shadow-sm group-hover:bg-background"
+                            )}
+                          >
+                            <item.icon
+                              className={cn(
+                                "h-4 w-4",
+                                isSelected
+                                  ? "text-white"
+                                  : "text-muted-foreground"
+                              )}
+                            />
+                          </div>
 
-          {/* Footer */}
-          <div className="flex items-center gap-4 border-t px-4 py-2 text-[10px] text-muted-foreground">
-            {[
-              ["↑↓", "navigate"],
-              ["↵", "select"],
-              ["ESC", "close"],
-            ].map(([key, label]) => (
-              <span key={label} className="flex items-center gap-1">
-                <kbd className="rounded border border-border bg-muted px-1 py-0.5 font-mono">
-                  {key}
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-bold tracking-tight">
+                              {item.label}
+                            </p>
+                            {item.sublabel && (
+                              <p
+                                className={cn(
+                                  "mt-0.5 truncate text-[11px] font-medium",
+                                  isSelected
+                                    ? "text-primary-foreground/70"
+                                    : "text-muted-foreground"
+                                )}
+                              >
+                                {item.sublabel}
+                              </p>
+                            )}
+                          </div>
+
+                          {item.badge && (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "shrink-0 text-[9px] font-bold tracking-tighter uppercase",
+                                isSelected
+                                  ? "border-white/40 text-white"
+                                  : "border-slate-200 text-slate-500"
+                              )}
+                            >
+                              {item.badge}
+                            </Badge>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+
+          {/* SaaS Shortcut Footer */}
+          <div className="flex items-center justify-between border-t bg-muted/30 px-5 py-3">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-tight text-muted-foreground uppercase">
+                <kbd className="rounded border bg-background px-1.5 py-0.5 font-mono text-[9px]">
+                  ↑↓
                 </kbd>
-                {label}
-              </span>
-            ))}
+                <span>Navigate</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[10px] font-bold tracking-tight text-muted-foreground uppercase">
+                <kbd className="rounded border bg-background px-1.5 py-0.5 font-mono text-[9px]">
+                  ↵
+                </kbd>
+                <span>Execute</span>
+              </div>
+            </div>
+            <p className="text-[9px] font-black tracking-widest text-muted-foreground/40 uppercase">
+              Staffolio v1.2
+            </p>
           </div>
         </div>
       </div>

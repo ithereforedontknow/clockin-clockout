@@ -52,7 +52,7 @@ export function AdminTab() {
   ]
 
   return (
-    <div className="mx-auto max-w-7xl animate-in space-y-6 px-4 pb-8 duration-500 fade-in sm:px-6 md:space-y-8 md:pb-12 lg:px-8">
+    <div className="mx-auto max-w-7xl animate-in space-y-8 pb-12 duration-500 fade-in">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-1">
