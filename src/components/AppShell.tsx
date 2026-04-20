@@ -118,7 +118,8 @@ export function AppShell() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <AppHeader
           tab={tab as TabId}
-          onOpenPalette={() => setPaletteOpen(true)}
+          employeeId={employee.id}
+          onNavigate={handleNavigate}
           onOpenSettings={() => setSettingsOpen(true)}
         />
 

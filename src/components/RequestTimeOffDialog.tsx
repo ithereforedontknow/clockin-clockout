@@ -95,122 +95,127 @@ export function RequestTimeOffDialog({ open, onOpenChange }: Props) {
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(v) => {
-        if (!v) reset()
-        onOpenChange(v)
-      }}
-    >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10">
-              <CalendarDays className="h-4 w-4 text-primary" />
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="overflow-hidden border-none p-0 shadow-2xl sm:max-w-[480px]">
+        <DialogHeader className="shrink-0 border-b bg-muted/20 p-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg">
+              <CalendarDays className="h-5 w-5" />
             </div>
-            Request Time Off
-          </DialogTitle>
-          <DialogDescription>
-            Weekends are excluded from the day count automatically.
-          </DialogDescription>
+            <div>
+              <DialogTitle className="text-lg font-bold">
+                Request Time Off
+              </DialogTitle>
+              <DialogDescription className="text-[10px] font-black tracking-widest uppercase opacity-60">
+                New Absence Entitlement
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <div className="space-y-4 pt-1">
-          {/* Type */}
-          <div className="space-y-1.5">
-            <Label>
-              Type <span className="text-destructive">*</span>
+        <div className="space-y-6 p-6">
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+              Absence Category
             </Label>
             <Select value={categoryId} onValueChange={setCategoryId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select leave type…" />
+              <SelectTrigger className="h-11 font-bold">
+                <SelectValue placeholder="Choose leave type..." />
               </SelectTrigger>
               <SelectContent>
                 {balances.map((b) => (
                   <SelectItem key={b.category_id} value={b.category_id}>
-                    <span>{b.category?.name}</span>
-                    <span className="ml-2 text-xs text-muted-foreground">
-                      ({(b.balance - b.scheduled).toFixed(1)} {b.category?.unit}{" "}
-                      left)
-                    </span>
+                    <div className="flex w-64 items-center justify-between">
+                      <span className="font-bold">{b.category?.name}</span>
+                      <span className="text-[10px] uppercase opacity-50">
+                        {(b.balance - b.scheduled).toFixed(1)}{" "}
+                        {b.category?.unit} available
+                      </span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          {/* Date range */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>
-                Start <span className="text-destructive">*</span>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                Start Date
               </Label>
               <Input
                 type="date"
                 value={startDate}
                 min={today}
-                onChange={(e) => {
-                  setStartDate(e.target.value)
-                  if (e.target.value > endDate) setEndDate(e.target.value)
-                }}
+                className="h-10 font-medium"
+                onChange={(e) => setStartDate(e.target.value)}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label>
-                End <span className="text-destructive">*</span>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+                End Date
               </Label>
               <Input
                 type="date"
                 value={endDate}
                 min={startDate}
+                className="h-10 font-medium"
                 onChange={(e) => setEndDate(e.target.value)}
               />
             </div>
           </div>
 
-          {/* Summary */}
-          {categoryId && startDate && endDate && (
-            <div className="flex items-center justify-between rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-              <span className="text-sm text-muted-foreground">
-                Weekdays requested
+          <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <div className="space-y-0.5">
+              <p className="text-[10px] font-black tracking-widest text-primary/60 uppercase">
+                Total Calculation
+              </p>
+              <p className="text-xs font-bold text-primary">
+                Excludes weekends and holidays
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="text-2xl font-black text-primary tabular-nums">
+                {weekdayCount}
               </span>
-              <span
-                className={`text-sm font-semibold tabular-nums ${weekdayCount === 0 ? "text-destructive" : "text-primary"}`}
-              >
-                {weekdayCount} {unit}
-                {weekdayCount === 0 && (
-                  <span className="ml-1 text-xs font-normal">(none)</span>
-                )}
+              <span className="ml-1 text-[10px] font-black text-primary/60 uppercase">
+                {unit}
               </span>
             </div>
-          )}
+          </div>
 
-          {/* Note */}
-          <div className="space-y-1.5">
-            <Label>Note (optional)</Label>
+          <div className="space-y-2">
+            <Label className="text-[10px] font-black tracking-widest text-muted-foreground uppercase">
+              Optional Narrative
+            </Label>
             <Textarea
-              placeholder="Reason for time off…"
+              placeholder="Explain the reason for this request..."
+              className="h-20 resize-none text-sm"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              className="h-20 resize-none"
             />
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
+        <DialogFooter className="shrink-0 gap-2 border-t bg-muted/30 p-6">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="font-bold"
+          >
+            Discard
           </Button>
           <Button
+            className="px-8 font-bold shadow-lg"
             disabled={
-              requestTimeOff.isPending || !categoryId || weekdayCount === 0
+              !categoryId || weekdayCount === 0 || requestTimeOff.isPending
             }
             onClick={handleSubmit}
           >
             {requestTimeOff.isPending && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             )}
-            Send Request
+            Submit Request
           </Button>
         </DialogFooter>
       </DialogContent>

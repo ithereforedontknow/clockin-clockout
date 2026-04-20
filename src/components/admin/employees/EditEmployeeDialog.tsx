@@ -62,6 +62,7 @@ export function EditEmployeeDialog({
   const employers = allEmps.filter(
     (e) => e.role === "employer" && e.id !== emp.id
   )
+  const showManagerField = form.role === "employee"
 
   // Deduplicate leave categories
   const uniqueBalances = useMemo(() => {
@@ -158,9 +159,15 @@ export function EditEmployeeDialog({
                   <Label className="text-xs">Role</Label>
                   <Select
                     value={form.role}
-                    onValueChange={(v) =>
-                      setForm({ ...form, role: v as UserRole })
-                    }
+                    onValueChange={(v) => {
+                      const newRole = v as UserRole
+                      setForm({
+                        ...form,
+                        role: newRole,
+                        manager_id:
+                          newRole !== "employee" ? "" : form.manager_id,
+                      })
+                    }}
                   >
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue />
@@ -179,9 +186,14 @@ export function EditEmployeeDialog({
                     onValueChange={(v) =>
                       setForm({ ...form, manager_id: v === "none" ? "" : v })
                     }
+                    disabled={!showManagerField} // Add disabled prop
                   >
                     <SelectTrigger className="h-9 text-xs">
-                      <SelectValue />
+                      <SelectValue
+                        placeholder={
+                          showManagerField ? "Select Manager" : "Not Required"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No Manager</SelectItem>

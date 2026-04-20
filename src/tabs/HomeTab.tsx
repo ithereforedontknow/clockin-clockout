@@ -193,13 +193,15 @@ export function HomeTab({ onNavigate }: Props) {
                 Overview
               </TabsTrigger>
 
-              <TabsTrigger
-                value="team"
-                className="flex items-center gap-2 rounded-md px-4 text-sm font-bold data-[state=active]:bg-background data-[state=active]:shadow-sm"
-              >
-                <Users className="h-3.5 w-3.5" />
-                Team
-              </TabsTrigger>
+              {hasPermission("view_all_employees") && (
+                <TabsTrigger
+                  value="team"
+                  className="flex items-center gap-2 rounded-md px-4 text-sm font-bold data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  Team
+                </TabsTrigger>
+              )}
 
               <TabsTrigger
                 value="timeoff"

@@ -70,6 +70,7 @@ export function InviteEmployeeDialog({
       toast.error(err.message)
     }
   }
+  const showManagerField = form.role === "employee"
 
   return (
     <Dialog
@@ -162,9 +163,14 @@ export function InviteEmployeeDialog({
                     onValueChange={(v) =>
                       setForm({ ...form, manager_id: v === "none" ? "" : v })
                     }
+                    disabled={!showManagerField} // Add disabled prop
                   >
                     <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="No Manager" />
+                      <SelectValue
+                        placeholder={
+                          showManagerField ? "Select Manager" : "Not Required"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">No Manager Assigned</SelectItem>
@@ -175,18 +181,27 @@ export function InviteEmployeeDialog({
                       ))}
                     </SelectContent>
                   </Select>
+                  {!showManagerField && (
+                    <p className="mt-1 text-[10px] text-muted-foreground">
+                      Managers not required for Admin/Employer roles
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <Label className="text-xs">Department</Label>
                   <Select
-                    onValueChange={(v) => setForm({ ...form, department: v })}
+                    value={form.department || "none"}
+                    onValueChange={(v) =>
+                      setForm({ ...form, department: v === "none" ? "" : v })
+                    }
                   >
                     <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Select..." />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="none">No Department</SelectItem>
                       {depts.map((d) => (
                         <SelectItem key={d.id} value={d.name}>
                           {d.name}

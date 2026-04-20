@@ -28,27 +28,38 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.error) {
       return (
-        <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-            <AlertTriangle className="h-6 w-6 text-destructive" />
+        <div className="flex min-h-[400px] animate-in flex-col items-center justify-center p-20 duration-700 fade-in">
+          <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-3xl border border-red-100 bg-red-50 shadow-inner">
+            <AlertTriangle className="h-8 w-8 text-red-500" />
           </div>
-          <div className="space-y-1">
-            <h2 className="text-base font-semibold">
+          <div className="mb-8 space-y-2 text-center">
+            <p className="text-[10px] font-black tracking-[0.3em] text-red-600/60 uppercase">
+              Module Fault Detected
+            </p>
+            <h2 className="text-2xl font-black tracking-tight text-slate-900">
               {this.props.label
-                ? `${this.props.label} failed to load`
-                : "Something went wrong"}
+                ? `${this.props.label} encountered an error`
+                : "Application Error"}
             </h2>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {this.state.error.message}
+            <p className="max-w-md text-sm leading-relaxed font-medium text-slate-500 italic">
+              "{this.state.error.message}"
             </p>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => this.setState({ error: null })}
-          >
-            Try again
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              className="font-bold shadow-sm"
+              onClick={() => window.location.reload()}
+            >
+              Hard Reload
+            </Button>
+            <Button
+              className="font-bold shadow-md"
+              onClick={() => this.setState({ error: null })}
+            >
+              Attempt Recovery
+            </Button>
+          </div>
         </div>
       )
     }
