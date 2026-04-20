@@ -74,11 +74,6 @@ export function HomeTab({ onNavigate }: Props) {
   const startBreak = useStartBreak()
   const endBreak = useEndBreak()
 
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1000)
-    return () => clearInterval(id)
-  }, [])
-
   const isClockedIn = !!entry && !entry.clock_out
   const isClockedOut = !!entry && !!entry.clock_out // Entry exists and has a clock_out time
 
@@ -128,6 +123,39 @@ export function HomeTab({ onNavigate }: Props) {
       toast.info("Break started")
     }
   }
+
+  async function handleAutoClockOut() {
+    if (!entry || !employeeId || clockOut.isPending) return
+
+    try {
+      await clockOut.mutateAsync({
+        entryId: entry.id,
+        employeeId,
+        totalMinutes: workedMins, // Clock them out at exactly the 12h mark (or current)
+      })
+
+      toast.error("System Auto Clock-Out", {
+        description:
+          "Shift reached 12-hour limit and was automatically closed.",
+        duration: 10000, // Keep it visible longer so they see it when they return
+      })
+    } catch (error) {
+      console.error("Auto clock-out failed", error)
+    }
+  }
+  useEffect(() => {
+    const id = setInterval(() => {
+      setTick((t) => t + 1)
+
+      // --- AUTOMATIC CLOCK-OUT TRIGGER ---
+      // If they hit 12 hours (720 mins) while the tab is open
+      if (isClockedIn && workedMins >= 720) {
+        handleAutoClockOut()
+      }
+    }, 1000)
+
+    return () => clearInterval(id)
+  }, [isClockedIn, workedMins, entry]) // Add workedMins to dependencies
 
   return (
     <div className="mx-auto max-w-7xl animate-in space-y-8 pb-12 duration-500 fade-in">

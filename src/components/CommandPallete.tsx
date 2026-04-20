@@ -37,7 +37,6 @@ interface Props {
   open: boolean
   onClose: () => void
   onNavigate: (tab: TabId) => void
-  onOpenSettings: () => void
   role: UserRole
 }
 
@@ -52,13 +51,7 @@ type CommandItem = {
   badge?: string
 }
 
-export function CommandPalette({
-  open,
-  onClose,
-  onNavigate,
-  onOpenSettings,
-  role,
-}: Props) {
+export function CommandPalette({ open, onClose, onNavigate, role }: Props) {
   const [query, setQuery] = useState("")
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -212,7 +205,6 @@ export function CommandPalette({
         icon: Settings,
         group: "Global",
         action: () => {
-          onOpenSettings()
           onClose()
         },
       },

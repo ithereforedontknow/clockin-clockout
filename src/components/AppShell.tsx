@@ -2,7 +2,6 @@ import { useState, Suspense, lazy } from "react"
 import { useParams, useNavigate, Navigate } from "react-router-dom"
 import { AppSidebar } from "@/components/AppSidebar"
 import { AppHeader } from "@/components/AppHeader"
-import { SettingsModal } from "@/components/SettingsModal"
 import { WelcomeTutorialDialog } from "@/components/WelcomeTutorialDialog"
 import { HelpCenterDialog } from "@/components/HelpCenterDialog"
 import { CommandPalette } from "@/components/CommandPallete"
@@ -40,6 +39,9 @@ const AdminTab = lazy(() =>
 const ReportsTab = lazy(() =>
   import("@/tabs/ReportsTab").then((m) => ({ default: m.ReportsTab }))
 )
+const SettingsTab = lazy(() =>
+  import("@/tabs/SettingsTab").then((m) => ({ default: m.SettingsTab }))
+)
 
 export type TabId =
   | "home"
@@ -51,6 +53,7 @@ export type TabId =
   | "approvals"
   | "admin"
   | "training"
+  | "settings"
 
 export function AppShell() {
   const queryClient = useQueryClient()
@@ -59,7 +62,6 @@ export function AppShell() {
   const { data: employee, isLoading, error } = useCurrentEmployee()
 
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
 
   // Real-time engine
@@ -102,6 +104,8 @@ export function AppShell() {
         return TabWrapper(<AdminTab />)
       case "reports":
         return TabWrapper(<ReportsTab />)
+      case "settings":
+        return TabWrapper(<SettingsTab />)
       default:
         return <Navigate to="/home" replace />
     }
@@ -120,7 +124,6 @@ export function AppShell() {
           tab={tab as TabId}
           employeeId={employee.id}
           onNavigate={handleNavigate}
-          onOpenSettings={() => setSettingsOpen(true)}
         />
 
         <main className="flex-1 overflow-y-auto bg-muted/5 p-6 sm:p-8">
@@ -132,12 +135,7 @@ export function AppShell() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         onNavigate={handleNavigate}
-        onOpenSettings={() => setSettingsOpen(true)} // FIX: Added missing required prop
         role={employee.role}
-      />
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
       />
       <HelpCenterDialog
         open={helpOpen}

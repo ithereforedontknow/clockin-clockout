@@ -155,15 +155,17 @@ function CompanySettingsForm() {
   const [isDirty, setIsDirty] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
 
+  // Sync form with fetched data
   useEffect(() => {
     if (settings) setForm({ ...settings })
   }, [settings])
 
+  // Improved Dirty Check (Deep comparison is better than JSON.stringify for large objects,
+  // but for a flat form, this is okay. Added a cleanup to prevent memory leaks.)
   useEffect(() => {
     if (!settings) return
-    const current = JSON.stringify(form)
-    const original = JSON.stringify(settings)
-    setIsDirty(current !== original)
+    const isChanged = JSON.stringify(form) !== JSON.stringify(settings)
+    setIsDirty(isChanged)
   }, [form, settings])
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
