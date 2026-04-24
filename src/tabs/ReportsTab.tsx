@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react"
 import { usePermissions } from "@/lib/auth/permissions"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Clock, DollarSign, BarChart3, GraduationCap } from "lucide-react"
+import { Clock, DollarSign, BarChart3, GraduationCap, Lock } from "lucide-react"
 
 import {
   TimesheetReportTable,
@@ -15,6 +15,7 @@ import { useTimesheetData } from "@/components/reports/hooks/useTimesheetData"
 
 export function ReportsTab() {
   const { hasPermission } = usePermissions()
+  const isAdmin = hasPermission("view_reports")
 
   // Shared Filter State (Lifted)
   const [weekOffset, setWeekOffset] = useState(0)
@@ -50,10 +51,20 @@ export function ReportsTab() {
     })
   }, [summaries])
 
-  if (!hasPermission("view_reports")) {
+  if (!isAdmin) {
     return (
-      <div className="p-20 text-center text-xs font-bold tracking-widest text-muted-foreground uppercase">
-        Access Restricted
+      <div className="flex flex-col items-center justify-center space-y-4 p-20 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-muted/50">
+          <Lock className="h-8 w-8 text-muted-foreground/20" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs font-black tracking-[0.2em] text-muted-foreground uppercase">
+            Access Restricted
+          </p>
+          <p className="text-sm text-muted-foreground">
+            Administrative privileges are required to view this module.
+          </p>
+        </div>
       </div>
     )
   }

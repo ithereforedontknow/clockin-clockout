@@ -1,5 +1,12 @@
 import { useState, useMemo } from "react"
-import { Search, Filter, ChevronLeft, ChevronRight, Users } from "lucide-react"
+import {
+  Search,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  Users,
+  Lock,
+} from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -20,7 +27,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-
+import { usePermissions } from "@/lib/auth/permissions"
 import { useEmployees } from "@/lib/queries"
 import { EmployeeProfileSheet } from "@/components/EmployeeProfileSheet"
 import type { Employee } from "@/lib/supabase"
@@ -33,7 +40,7 @@ const ROLE_STYLE: Record<string, string> = {
 
 export function PeopleTab() {
   const { data: employees = [], isLoading } = useEmployees()
-
+  const { hasPermission } = usePermissions()
   const [search, setSearch] = useState("")
   const [selectedEmp, setSelectedEmp] = useState<Employee | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
@@ -56,6 +63,23 @@ export function PeopleTab() {
   )
   const totalPages = Math.ceil(filtered.length / pageSize)
 
+  if (!hasPermission("view_staff_directory")) {
+    return (
+      <div className="flex flex-col items-center justify-center space-y-4 p-20 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-muted/50">
+          <Lock className="h-8 w-8 text-muted-foreground/20" />
+        </div>
+        <div className="space-y-1">
+          <p className="text-xs font-black tracking-[0.2em] text-muted-foreground uppercase">
+            Access Restricted
+          </p>
+          <p className="text-sm text-muted-foreground">
+            You do not have permission to view the staff directory.
+          </p>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="mx-auto max-w-7xl animate-in space-y-8 pb-12 duration-500 fade-in">
       {/* Header */}

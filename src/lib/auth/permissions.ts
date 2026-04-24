@@ -1,4 +1,4 @@
-import { useCurrentEmployee } from "@/lib/queries";
+import { useCurrentEmployee } from "@/lib/queries"
 
 export type Permission =
   | "view_all_employees"
@@ -8,11 +8,12 @@ export type Permission =
   | "approve_corrections"
   | "view_reports"
   | "manage_training"
-  | "admin_full_access";
+  | "admin_full_access"
+  | "view_staff_directory"
 
 export function usePermissions() {
-  const { data: employee } = useCurrentEmployee();
-  const role = employee?.role ?? "employee";
+  const { data: employee } = useCurrentEmployee()
+  const role = employee?.role ?? "employee"
 
   const hasPermission = (permission: Permission): boolean => {
     switch (permission) {
@@ -23,15 +24,18 @@ export function usePermissions() {
       case "approve_corrections":
       case "view_reports":
       case "manage_training":
-        return role === "employer" || role === "admin";
+        return role === "employer" || role === "admin"
 
       case "admin_full_access":
-        return role === "admin";
+        return role === "admin"
+
+      case "view_staff_directory":
+        return role === "employer" || role === "admin"
 
       default:
-        return false;
+        return false
     }
-  };
+  }
 
   return {
     hasPermission,
@@ -39,6 +43,6 @@ export function usePermissions() {
     employee,
     isAdmin: role === "admin",
     isEmployer: role === "employer",
-    isEmployee: role === "employee"
-  };
+    isEmployee: role === "employee",
+  }
 }
